@@ -1,0 +1,181 @@
+name: Release Platforms
+
+# 为已发布版本补齐非 Windows / Android 平台包（Linux tar.gz / macOS .app zip）。
+#
+# 为什么放 CI：本机是 Windows，`flutter build linux` 必须有 Linux 宿主、
+# `flutter build macos` 必须有 macOS 宿主，本地编不出来（docs/QA.md 记的
+# 「macOS / Linux / Web 平台目录已生成，构建链路未验证」就是这一块）。
+#
+# 用法：
+#   gh workflow run release-platforms.yml --ref main -f tag=v0.1.74 -f dry_run=true
+#   ① dry_run=true 只构建 + 传 artifact（不动 Release），用于校验包内容；
+#   ② 确认后 dry_run=false 再把资产直挂目标 Release（--clobber 幂等可重跑）。
+#
+# 构建源码取的是**目标 tag**，保证产物与已发布版本同码。
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '目标 Release tag（源码取该 tag，资产挂到它）'
+        required: true
+        default: 'v0.1.74'
+      dry_run:
+        description: 'true = 只构建并上传 artifact，不挂 Release'
+        required: true
+        default: 'true'
+
+concurrency:
+  group: release-platforms-${{ inputs.tag }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_VERSION: '3.47.0'
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04 # 22.04 而非 24.04：glibc 2.35，能多覆盖一批发行版
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 1
+
+      # 原生依赖按 linux/flutter/generated_plugin_registrant.cc 的插件清单来：
+      # libsecret-1（flutter_secure_storage_linux）/ libjsoncpp（同上）/
+      # libayatana-appindicator3（tray_manager）/ libkeybinder-3.0（hotkey_manager_linux）
+      - name: Install Linux build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev \
+            libstdc++-12-dev libsecret-1-dev libjsoncpp-dev \
+            libkeybinder-3.0-dev libayatana-appindicator3-dev \
+            xvfb libgl1-mesa-dri libglu1-mesa mesa-utils
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Build linux release
+        run: |
+          flutter --version
+          flutter pub get
+          flutter build linux --release
+
+      # 软判据：CI 无显示服务器，只能靠 Xvfb + 软件 GL 起一次。
+      # EXIT=124（被 timeout 收走）＝ 存活满 25s ＝ PASS；非 0/非 124 要人工看日志。
+      - name: Smoke run under Xvfb (best effort, non-blocking)
+        continue-on-error: true
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          set +e
+          xvfb-run -a -s "-screen 0 1280x720x24" \
+            timeout -s TERM 25 build/linux/x64/release/bundle/hermes_ui \
+            > /tmp/linux-smoke.log 2>&1
+          code=$?
+          echo "EXIT=$code  (124 = 存活满 25s 后被我方 timeout 收走 = PASS)"
+          echo "--- smoke log ---"
+          cat /tmp/linux-smoke.log
+
+      - name: Package tar.gz
+        run: |
+          VER="${{ inputs.tag }}"; VER="${VER#v}"
+          OUT="HermesUI-${VER}-linux-x64.tar.gz"
+          tar -czf "$OUT" -C build/linux/x64/release/bundle .
+          sha256sum "$OUT" > "$OUT.sha256"
+          echo "--- bundle 内容（前 30 行）---"
+          tar -tzf "$OUT" | head -30
+          ls -l "$OUT" "$OUT.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-pkg
+          path: |
+            HermesUI-*-linux-x64.tar.gz
+            HermesUI-*-linux-x64.tar.gz.sha256
+          if-no-files-found: error
+
+  macos:
+    runs-on: macos-latest # Apple Silicon（arm64）；未签名，用户侧需 xattr -cr
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 1
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Build macos release
+        run: |
+          flutter --version
+          flutter pub get
+          flutter build macos --release
+
+      # 软判据：runner 上没有真实窗口会话时这条可能失败，不代表包坏（只看日志定性）。
+      - name: Smoke run (best effort, non-blocking)
+        continue-on-error: true
+        run: |
+          BIN=build/macos/Build/Products/Release/hermes_ui.app/Contents/MacOS/hermes_ui
+          "$BIN" > /tmp/macos-smoke.log 2>&1 &
+          PID=$!
+          sleep 20
+          if kill -0 "$PID" 2>/dev/null; then
+            echo "ALIVE after 20s = PASS"; kill "$PID" || true
+          else
+            wait "$PID"; echo "EXITED early, code=$?"
+          fi
+          echo "--- smoke log ---"
+          cat /tmp/macos-smoke.log
+
+      - name: Package zip
+        run: |
+          VER="${{ inputs.tag }}"; VER="${VER#v}"
+          OUT="HermesUI-${VER}-macos-arm64.zip"
+          ditto -c -k --sequesterRsrc --keepParent \
+            build/macos/Build/Products/Release/hermes_ui.app "$OUT"
+          shasum -a 256 "$OUT" > "$OUT.sha256"
+          ls -l "$OUT" "$OUT.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-pkg
+          path: |
+            HermesUI-*-macos-arm64.zip
+            HermesUI-*-macos-arm64.zip.sha256
+          if-no-files-found: error
+
+  publish:
+    needs: [linux, macos]
+    if: ${{ inputs.dry_run != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Upload assets to Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ls -l dist
+          gh release upload "${{ inputs.tag }}" dist/* --clobber
+
+      - name: Read back assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release view "${{ inputs.tag }}" --json assets \
+            -q '.assets[]|"\(.name)  \(.size) B  \(.state)"'
