@@ -19,33 +19,29 @@
 
 ## 截图
 
-暗色与浅色主题并排呈现；中英文各出一整套（英文版见 [README.md](README.md)），同一工装按语言分别生成（`README_SHOTS=1`、`README_DARK=1`、`README_LANG=en`）。
+**Windows 桌面** —— 左边是会话，右边是对话：流式 Markdown 回答、思考与工具卡片、回合中途 steer。
+
+<img src="docs/screenshots/wide-chat-dark.png" width="100%" alt="Hermes UI Windows 桌面：左会话列表 + 右流式回答（Markdown、表格、代码块与后续提问）"/>
 
 <div align="center">
 
-### Windows 桌面 —— 流式聊天（暗色）
-
-<img src="docs/screenshots/wide-chat-dark.png" width="86%" alt="Hermes UI Windows 桌面暗色：左会话列表 + 右流式聊天双栏"/>
-
 | 会话列表 | 看板 | 用量统计 |
 |---|---|---|
-| <img src="docs/screenshots/wide-sessions-dark.png" width="280" alt="暗色会话列表"/> | <img src="docs/screenshots/wide-kanban-dark.png" width="280" alt="暗色看板"/> | <img src="docs/screenshots/wide-insights-dark.png" width="280" alt="暗色用量统计"/> |
+| <img src="docs/screenshots/wide-sessions-dark.png" width="280" alt="会话列表：置顶 / 按日期分区与未分组，顶部搜索框"/> | <img src="docs/screenshots/wide-kanban-dark.png" width="280" alt="看板：待办 / 就绪 / 完成三列"/> | <img src="docs/screenshots/wide-insights-dark.png" width="280" alt="用量统计：会话、消息、令牌与费用指标，含令牌图表与模型拆分"/> |
 
-### 浅色主题
+**Android 手机** —— 同一个聊天界面、同一套会话，装进口袋。
+
+| 聊天 | 会话列表 | 用量统计 |
+|---|---|---|
+| <img src="docs/screenshots/phone-chat-dark.png" width="180" alt="安卓端流式聊天"/> | <img src="docs/screenshots/phone-sessions-dark.png" width="180" alt="安卓端会话列表"/> | <img src="docs/screenshots/phone-insights-dark.png" width="180" alt="安卓端用量统计"/> |
+
+**浅色 / 深色** —— 每个页面都有两套，默认跟随系统。
 
 | 聊天 | 会话列表 | 看板 |
 |---|---|---|
 | <img src="docs/screenshots/wide-chat.png" width="280" alt="浅色聊天页"/> | <img src="docs/screenshots/wide-sessions.png" width="280" alt="浅色会话列表"/> | <img src="docs/screenshots/wide-kanban.png" width="280" alt="浅色看板"/> |
 
-### Android 手机（暗色）
-
-| 聊天 | 会话列表 | 用量统计 |
-|---|---|---|
-| <img src="docs/screenshots/phone-chat-dark.png" width="180" alt="安卓聊天页"/> | <img src="docs/screenshots/phone-sessions-dark.png" width="180" alt="安卓会话列表"/> | <img src="docs/screenshots/phone-insights-dark.png" width="180" alt="安卓用量统计"/> |
-
 </div>
-
-> 全部截图由 App 自身的截图工装生成（`test/screenshots/readme_shots_test.dart`，演示数据），渲染的是真实 App 外壳而非效果图；中英两套出自同一工装，按语言各跑一次（界面语言与演示数据同语言）。
 
 ## 为什么选它
 
@@ -55,20 +51,20 @@
 
 ## 功能亮点
 
-- **内置 WebUI Sidecar（Windows）** —— 安装包自带完整 WebUI 后端与嵌入式 Python 3.11 运行时：无需预装 Python、Git 或任何编译环境，一键启动并连接（Clash Verge 式体验）。
-- **智能解释器复用** —— 启动时自动检测本机已有的 Hermes Agent 安装，优先借用其虚拟环境（自带全套 Agent 依赖，开箱即可聊天）；未检测到时回退到内置嵌入式 Python，仍可浏览只读会话历史。
+- **内置 WebUI Sidecar（Windows）** —— 安装包自带完整 WebUI 后端与嵌入式 Python 3.11 运行时：无需预装 Python、Git 或编译环境，一键启动并连接（Clash Verge 式体验）。
+- **复用你已有的 Hermes** —— 启动时自动检测本机已有的 Hermes Agent 并借用其虚拟环境，开箱即可聊天；未检测到时回退到内置运行时，仍可浏览只读会话历史。
 - **流式聊天** —— SSE 流式渲染、Markdown + 代码块、思考与工具调用卡片、回合中途 steer / 停止、模型选择器、会话级草稿。
-- **附件** —— 多图消息按「单行等高」宫格排布（行内等高、不裁切、不留白）；其余文件按整行文件条展示；图片加载可改为「点击后才加载」（**设置 → 自动加载图片**）。
-- **下载** —— 下载队列：实时进度（同步到常驻通知）、断点续传、取消。
-- **会话管理** —— 防抖搜索、置顶 / 归档 / 分支 / 删除、分区列表（置顶 / 今天 / 更早）、离线缓存；宽屏侧栏直接高亮「当前正在看的会话」。
+- **附件** —— 多图消息按「单行等高」宫格排布（不裁切、不留白）；其余文件按整行文件条展示；图片加载可改为「点击后才加载」（**设置 → 自动加载图片**）。
+- **下载** —— 下载队列：实时进度、断点续传、取消。
+- **会话管理** —— 搜索、置顶 / 归档 / 分支 / 删除、分区列表（置顶 / 今天 / 更早）、离线缓存；宽屏侧栏高亮「当前正在看的会话」。
 - **任务（Cron）** —— 创建 / 编辑 / 启停 / 手动触发 / 查看输出，运行状态徽标。
-- **技能与记忆** —— 技能浏览与筛选；记忆面板支持编辑与写回。
+- **技能与记忆** —— 技能浏览与筛选；记忆可读可改。
 - **工作区与 Git** —— 工作区文件浏览 / 上传 / 下载；分支切换、status、diff、提交、fetch / pull / push。
-- **看板（Kanban）** —— 看板与卡片跨列长按拖拽。
-- **统计（Insights）** —— 今天 / 近 7 天 / 近 30 天 / 全部四档周期；会话、消息、令牌与费用指标，含模型拆分与令牌图表。
-- **通知** —— Android 后台回合完成通知，点击直达对应会话。
-- **宽屏布局** —— 桌面端多页双栏（技能 / 任务 / 工作区 / Git / 诊断 / 下载 / 设置），不再是一根拉长的单列。
-- **桌面体验** —— 托盘图标、全局快捷键、窗口状态记忆、开机自启，以及 HiDPI 界面缩放 100–200%（Windows）。
+- **看板（Kanban）** —— 看板与卡片跨列拖拽。
+- **统计（Insights）** —— 今天 / 近 7 天 / 近 30 天 / 全部四档；会话、消息、令牌与费用指标，含模型拆分与令牌图表。
+- **通知（Android）** —— 后台回合完成通知，点击直达对应会话。
+- **为宽屏而做** —— 桌面端多页双栏（技能 / 任务 / 工作区 / Git / 诊断 / 下载 / 设置），不再是一根拉长的单列。
+- **桌面增强** —— 托盘图标、全局快捷键、窗口状态记忆、开机自启，以及 HiDPI 界面缩放 100–200%。
 - **外观** —— 浅色 / 深色 / 跟随系统；页面底色可调（六档预设或自定义色相与明度）。
 - **多语言** —— English / 简体中文 / 跟随系统。
 
@@ -132,7 +128,7 @@ API 契约对齐 **[nesquena/hermes-webui](https://github.com/nesquena/hermes-we
 
 ## 项目状态
 
-活跃开发中：5,600+ 自动化测试全绿、`flutter analyze` 零告警。发布产物为 CI 构建的 Windows 安装包（内置 WebUI sidecar）与 Android arm64 APK。变更详情见 [更新日志](CHANGELOG.md)。
+活跃开发中。每个版本产出 CI 构建的 Windows 安装包（内置 WebUI sidecar）与 Android arm64 APK，背后是 5,600+ 自动化测试与零告警的 `flutter analyze`。变更详情见 [更新日志](CHANGELOG.md)。
 
 ## 开源协议
 

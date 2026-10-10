@@ -19,33 +19,29 @@ A Flutter + Cupertino client for [Hermes Agent](https://hermes-agent.nousresearc
 
 ## Screenshots
 
-Dark and light themes ship side by side, and each language gets its own set so the English README shows an English UI (`README_SHOTS=1`, `README_DARK=1`, `README_LANG=en`).
+**Windows desktop** — your sessions on the left, the conversation on the right: streamed Markdown answers, reasoning and tool cards, steer mid-turn.
+
+<img src="docs/screenshots/en/wide-chat-dark.png" width="100%" alt="Hermes UI on Windows: session sidebar beside a streaming answer with Markdown text, a table, a code block and a follow-up prompt"/>
 
 <div align="center">
 
-### Windows desktop — streaming chat (dark)
-
-<img src="docs/screenshots/en/wide-chat-dark.png" width="86%" alt="Hermes UI on Windows, dark theme: two-pane layout with session sidebar and streaming chat"/>
-
 | Sessions | Kanban | Insights |
 |---|---|---|
-| <img src="docs/screenshots/en/wide-sessions-dark.png" width="280" alt="Session list, dark"/> | <img src="docs/screenshots/en/wide-kanban-dark.png" width="280" alt="Kanban board, dark"/> | <img src="docs/screenshots/en/wide-insights-dark.png" width="280" alt="Usage insights, dark"/> |
+| <img src="docs/screenshots/en/wide-sessions-dark.png" width="280" alt="Session list grouped into pinned, dated and ungrouped sections, with a search field"/> | <img src="docs/screenshots/en/wide-kanban-dark.png" width="280" alt="Kanban board with To Do, Ready and Done columns"/> | <img src="docs/screenshots/en/wide-insights-dark.png" width="280" alt="Usage insights: session, message, token and cost metrics with a token chart and per-model breakdown"/> |
 
-### Light theme
-
-| Chat | Sessions | Kanban |
-|---|---|---|
-| <img src="docs/screenshots/en/wide-chat.png" width="280" alt="Chat, light"/> | <img src="docs/screenshots/en/wide-sessions.png" width="280" alt="Session list, light"/> | <img src="docs/screenshots/en/wide-kanban.png" width="280" alt="Kanban board, light"/> |
-
-### Android phone (dark)
+**Android phone** — the same chat, the same sessions, in your pocket.
 
 | Chat | Sessions | Insights |
 |---|---|---|
-| <img src="docs/screenshots/en/phone-chat-dark.png" width="180" alt="Chat on Android"/> | <img src="docs/screenshots/en/phone-sessions-dark.png" width="180" alt="Session list on Android"/> | <img src="docs/screenshots/en/phone-insights-dark.png" width="180" alt="Insights on Android"/> |
+| <img src="docs/screenshots/en/phone-chat-dark.png" width="180" alt="Streaming chat on Android"/> | <img src="docs/screenshots/en/phone-sessions-dark.png" width="180" alt="Session list on Android"/> | <img src="docs/screenshots/en/phone-insights-dark.png" width="180" alt="Usage insights on Android"/> |
+
+**Light or dark** — every screen ships in both, and the theme follows the system by default.
+
+| Chat | Sessions | Kanban |
+|---|---|---|
+| <img src="docs/screenshots/en/wide-chat.png" width="280" alt="Chat in the light theme"/> | <img src="docs/screenshots/en/wide-sessions.png" width="280" alt="Session list in the light theme"/> | <img src="docs/screenshots/en/wide-kanban.png" width="280" alt="Kanban board in the light theme"/> |
 
 </div>
-
-> All screenshots come from the app's own screenshot harness with demo data (`test/screenshots/readme_shots_test.dart`), rendered inside the real app shell — not mockups. The English and [简体中文](README.zh-CN.md) sets are produced by the same harness, one run per language.
 
 ## Why this one
 
@@ -58,20 +54,20 @@ behaves the same everywhere it runs.
 
 ## Highlights
 
-- **Bundled WebUI Sidecar (Windows)** — the installer ships a self-contained WebUI backend with an embedded Python 3.11 runtime: no pre-installed Python, Git, or compilers required. One click to start & connect, Clash-Verge style.
-- **Smart interpreter reuse** — on startup the app detects an existing Hermes Agent installation and reuses its virtualenv (full agent dependencies, chat works out of the box). Without one, the bundled embedded Python still serves read-only session history.
+- **Bundled WebUI sidecar (Windows)** — the installer ships a self-contained WebUI backend with an embedded Python 3.11 runtime: no pre-installed Python, Git, or compilers required. Start it and connect in one click, Clash-Verge style.
+- **Reuses your Hermes install** — startup looks for an existing Hermes Agent and reuses its virtualenv, so chat works out of the box. With none installed, the bundled runtime still serves your session history read-only.
 - **Streaming chat** — SSE streaming with Markdown + code blocks, reasoning and tool-call cards, steer and stop mid-turn, model picker, per-session drafts.
-- **Attachments** — multi-image messages lay out as one justified row each (equal height, no cropping, no gaps); other files render as compact file rows; image loading can be gated to a tap via **Settings → Auto-load Images**.
-- **Downloads** — a download queue with live progress (mirrored to a notification), resume from a partial file, and cancel.
-- **Sessions** — debounced search, pin / archive / branch / delete, sectioned list (pinned / today / earlier), offline cache, and the session you are reading highlighted in the sidebar.
-- **Tasks (cron)** — create, edit, enable/disable, trigger manually, inspect output, run-status badges.
-- **Skills & Memory** — browse and filter skills; memory panel with editing and write-back.
-- **Workspace & Git** — browse/upload/download workspace files; branch switching, status, diffs, commit, fetch / pull / push.
-- **Kanban** — boards and cards with cross-column drag & drop.
-- **Insights** — today / 7 days / 30 days / all-time selector; session, message, token and cost metrics with a per-model breakdown and token chart.
-- **Notifications** — Android background turn-completion notifications with deep-link back to the conversation.
-- **Wide screens** — two-pane layouts on desktop (skills, tasks, workspace, Git, diagnostics, downloads, settings) instead of one stretched column.
-- **Desktop polish** — tray icon, global hotkeys, window-state memory, launch-on-login, and 100–200% UI scaling for HiDPI displays (Windows).
+- **Attachments** — multi-image messages lay out as one tidy justified row each (equal height, no cropping, no gaps); other files render as compact rows; image loading can be gated to a tap via **Settings → Auto-load Images**.
+- **Downloads** — a queue with live progress, resume from a partial file, and cancel.
+- **Sessions** — search, pin / archive / branch / delete, a sectioned list (pinned / today / earlier), offline cache, and the session you are reading highlighted in the sidebar.
+- **Tasks (cron)** — create, edit, enable/disable, run on demand, read the output, watch run-status badges.
+- **Skills & memory** — browse and filter skills; read and edit memory.
+- **Workspace & Git** — browse, upload and download workspace files; branch switching, status, diffs, commit, fetch / pull / push.
+- **Kanban** — boards and cards with drag & drop across columns.
+- **Insights** — today / 7 days / 30 days / all-time; session, message, token and cost metrics with a per-model breakdown and token chart.
+- **Notifications (Android)** — background turn-completion notifications that deep-link back to the conversation.
+- **Made for wide screens** — desktop pages open as two panes (skills, tasks, workspace, Git, diagnostics, downloads, settings) instead of one stretched column.
+- **Desktop extras** — tray icon, global hotkeys, window-state memory, launch-on-login, and 100–200% UI scaling for HiDPI displays.
 - **Appearance** — light / dark / follow system, plus an adjustable page background (six presets or your own hue and lightness).
 - **Bilingual UI** — English / 简体中文 / follow system.
 
@@ -135,7 +131,7 @@ The API contract is aligned with **[nesquena/hermes-webui](https://github.com/ne
 
 ## Project status
 
-Actively developed; 5,600+ automated tests green, `flutter analyze` clean. Releases ship a signed Windows installer (CI-built, bundling the WebUI sidecar) and an Android arm64 APK. See the [changelog](CHANGELOG.md) for details.
+Actively developed. Every release ships a signed Windows installer (WebUI sidecar bundled) and an Android arm64 APK, both built by CI, with 5,600+ automated tests and a clean `flutter analyze` behind them. See the [changelog](CHANGELOG.md) for details.
 
 ## License
 

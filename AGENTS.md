@@ -257,6 +257,7 @@ python tools/fake_gateway/smoke_test.py
 - 规格与协议：`docs/specs/` + `docs/PROTOCOL_NOTES.md`
 - 目录明细（自动生成，勿手改）：`docs/REPO_MAP.md`（`python tools/gen_repo_map.py`）
 - 对外发布口径：`README.md` / `README.zh-CN.md` / `CHANGELOG.md` / `THIRD-PARTY-NOTICES.md`
+- README 展示图（目录命名 / 生成命令 / 红线）：`docs/SCREENSHOTS.md`
 - 流水线：`.github/workflows/ci.yml`（四 job）
 
 ## 13. 本地闸门（推前必须绿）
