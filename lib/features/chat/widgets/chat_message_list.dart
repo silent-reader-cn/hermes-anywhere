@@ -14,8 +14,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:markdown/markdown.dart' as md;
 
-import '../../../app/theme/layout_tokens.dart';
 import '../../../app/theme/light_surfaces.dart';
+import '../../../app/theme/layout_tokens.dart';
 import '../../../app/theme/status_colors.dart';
 import '../../../core/api/sse_client.dart';
 import '../../../core/connections/connection_providers.dart';
@@ -3421,28 +3421,34 @@ class _OpenMessageMenuIntent extends Intent {
 ///
 /// - **右键**：由内层既有 `Listener`（`onPointerDown` + `kSecondaryMouseButton`）承担，
 ///   本组件不改它 —— #134 的结论是必须用 `Listener`（正文里 `SelectableText` 的选字
-///   手势会在竞技场里抢赢 `GestureDetector`，快速右键外层收不到回调）；
-/// - **键盘**：焦点落在整行时 `Shift+F10` / `Menu` 键打开同一菜单，并画
-///   [kFocusRingWidth]（2px）蓝焦点环；环只认**键盘导航**高亮
-///   （[FocusableActionDetector.onShowFocusHighlight] 只在 traditional 模式回调，
-///   鼠标点击不出环，符合 §G3「仅键盘导航触发，鼠标点击不显示」）；
-/// - **焦点环不挤压布局**：环画在 [Positioned.fill] + [IgnorePointer] 里，[Stack]
-///   只按非定位子（行内容）定尺 ⇒ 行高、文字位置逐像素不变。
+///   手势会在竞技场里抢赢 `GestureDetector`，快速右键时外层根本收不到回调）；
+/// - **键盘**：焦点落在整行时 `Shift+F10` / `Menu` 键打开同一菜单 —— **只保留功能，
+///   不画任何视觉环**（见下）。
 ///
-/// 原「悬停行尾浮出 ⋯」这一入口已**按产品指令移除**（它浮在行尾会遮挡正文；
-/// 产品原话：「让用户右键点击就行了」）。故本组件不再自挂 [MouseRegion]、
-/// 不再画悬停按钮、不留悬停专用 key；右键与键盘两条入口逐字未动。
+/// ⚠️ **焦点环已按产品指令全应用移除（2026-10-10）**。原实现 = 行级
+/// [FocusableActionDetector.onShowFocusHighlight] → 2px [statusBlueText] 圆角环
+/// （`kFocusRingWidth` 令牌，已随本次一并删除），当时的依据是「该回调只在 `FocusHighlightMode.traditional`
+/// 下触发 ⇒ 只认键盘导航」。**这条依据在桌面端不成立**，两个原因叠加：
+/// ① `FocusManager.handlePointerEvent` 只对触摸/触控笔事件把 highlightMode 切回 `touch`
+///    （鼠标/触控板/unknown 是空分支），而任何键盘输入都把它置成 `traditional`
+///    ⇒ 桌面端恒为 traditional，鼠标点击/移动永远不会关掉它；
+/// ② 驱环的 `Focus.onFocusChange` 回调给的是 [FocusNode.hasFocus]（**含后代入焦**），
+///    而点击正文会让行内 `SelectableText` 的 `EditableText` 拿走焦点
+///    ⇒ 行节点「有后代入焦」→ 整行亮蓝环，观感出戏。
+/// 实测（windows 平台用例）：点击正文后焦点环数 = 1，行节点
+/// `hasFocus=true / hasPrimaryFocus=false`。
+/// 键盘入口与视觉无关 ⇒ `Shift+F10` / `Menu` / Tab 可达性逐字未动。
 ///
 /// 窄屏（[enabled] 为假 —— 调用方传 `isWideLayout(context)`）**原样透传** [child]：
 /// 不挂 Focus、无焦点环；手机端仍只有长按，逐像素不变。
-class _MessageRowDesktopEntry extends StatefulWidget {
+class _MessageRowDesktopEntry extends StatelessWidget {
   const _MessageRowDesktopEntry({
     required this.enabled,
     required this.onOpenMenu,
     required this.child,
   });
 
-  /// 是否启用鼠标端三入口（宽屏为真；窄屏原样透传）。
+  /// 是否启用鼠标端入口（宽屏为真；窄屏原样透传）。
   final bool enabled;
 
   /// 打开菜单（参数为菜单锚点的全局坐标）。
@@ -3451,64 +3457,32 @@ class _MessageRowDesktopEntry extends StatefulWidget {
   /// 行内容（含 #134 的右键 [Listener]）。
   final Widget child;
 
-  @override
-  State<_MessageRowDesktopEntry> createState() =>
-      _MessageRowDesktopEntryState();
-}
-
-class _MessageRowDesktopEntryState extends State<_MessageRowDesktopEntry> {
   /// 菜单意图单例：`Shift+F10` 与 `Menu` 键都映射到它（同一套动作）。
-  static const _OpenMessageMenuIntent _openMenuIntent =
+  static const _OpenMessageMenuIntent _openMessageMenuIntent =
       _OpenMessageMenuIntent();
-
-  bool _focusHighlighted = false;
 
   @override
   Widget build(BuildContext context) {
-    if (!widget.enabled) return widget.child;
+    if (!enabled) return child;
     return FocusableActionDetector(
       shortcuts: const <ShortcutActivator, Intent>{
-        SingleActivator(LogicalKeyboardKey.f10, shift: true): _openMenuIntent,
-        SingleActivator(LogicalKeyboardKey.contextMenu): _openMenuIntent,
+        SingleActivator(LogicalKeyboardKey.f10, shift: true): _openMessageMenuIntent,
+        SingleActivator(LogicalKeyboardKey.contextMenu): _openMessageMenuIntent,
       },
       actions: <Type, Action<Intent>>{
         _OpenMessageMenuIntent: CallbackAction<_OpenMessageMenuIntent>(
           onInvoke: (_) {
-            widget.onOpenMenu(_rowBottomRight());
+            onOpenMenu(_rowBottomRight(context));
             return null;
           },
         ),
       },
-      onShowFocusHighlight: _setFocusHighlighted,
-      child: Stack(
-        children: [
-          widget.child,
-          if (_focusHighlighted)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: statusBlueText.resolveFrom(context),
-                      width: kFocusRingWidth,
-                    ),
-                    borderRadius: BorderRadius.circular(kRadiusInline),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
+      child: child,
     );
   }
 
-  void _setFocusHighlighted(bool value) {
-    if (value == _focusHighlighted) return;
-    setState(() => _focusHighlighted = value);
-  }
-
   /// 键盘入口的锚点：行右下角（键盘没有指针位置，取行的尾端最贴近用户在看的那行）。
-  Offset _rowBottomRight() {
+  Offset _rowBottomRight(BuildContext context) {
     final box = context.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize || !box.attached) return Offset.zero;
     return box.localToGlobal(Offset(box.size.width, box.size.height));

@@ -30,12 +30,13 @@ import '../../helpers/in_memory_secure_storage.dart';
 ///   ⇒ 本文件用真实按键（Ctrl+C / Ctrl+Shift+C / Ctrl+Alt+C / Enter）验证
 ///   剪贴板与编辑回填，杜绝「只显示不触发」的伪造功能；
 /// - **§D4 双入口一致**：右键 / 键盘（Shift+F10 或 Menu 键）打开的是**同一个菜单**
-///   （按键集合逐个相同），键盘入口的焦点行带 2px 蓝焦点环；
+///   （按键集合逐个相同），键盘入口**只保留功能、不画任何焦点环**
+///   （产品指令 2026-10-10：全应用移除蓝色焦点环，见 chat_message_list 注释）；
 /// - **§D4 悬停入口已按产品指令删除**：鼠标悬停整行**不得**浮出任何「⋯」按钮
 ///   （会遮挡正文；原 `msg-row-hover-actions` 稳定 key 随入口一并删除）。右键仍由
 ///   #134 的 `Listener` 承担，不得回退成 `GestureDetector`。
 /// - **窄屏不变**：仍走长按 → `CupertinoActionSheet`（44 行），无密排行、无分组线、
-///   无快捷键列、无悬停「⋯」、无焦点环。
+///   无快捷键列、无悬停「⋯」、无焦点环（全端均无环）。
 ///
 /// 报错口径：断言文案里写「实测 vs 期望」，RED 时能一眼看出坏在哪条规格。
 void main() {
@@ -200,7 +201,8 @@ void main() {
     };
   }
 
-  /// 消息行（user 角色）的 2px 焦点环 —— §D4/G3：仅键盘导航时出现。
+  /// 焦点环探测器（原 §D4/G3 的 2px 蓝环）—— **产品指令 2026-10-10：全应用移除**，
+  /// 本文件一律断言 `findsNothing`（键盘导航、鼠标点击都不许出现）。
   final Finder focusRing = find.byWidgetPredicate((w) {
     if (w is! DecoratedBox) return false;
     final decoration = w.decoration;
@@ -556,7 +558,7 @@ void main() {
       await gesture.removePointer();
     });
 
-    testWidgets('入口③键盘 Shift+F10 → 焦点行打开同一套菜单 + 2px 蓝焦点环', (tester) async {
+    testWidgets('入口③键盘 Shift+F10 → 焦点行打开同一套菜单（无焦点环）', (tester) async {
       await boot(
         tester,
         messages: [
@@ -564,7 +566,8 @@ void main() {
         ],
       );
 
-      // 先发一次按键把 highlightMode 打到 traditional（G3：鼠标点击不出环）。
+      // 先发一次按键把 highlightMode 打到 traditional —— 原 bug 的前提档位
+      // （桌面端恒为该档；环已全应用移除，这里只是保持与真机一致的上下文）。
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await tester.pump();
 
@@ -572,7 +575,12 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 
-      expect(focusRing, findsOneWidget, reason: '§D4 键盘导航时焦点行必须显示 2px 焦点环');
+      // 产品指令 2026-10-10：焦点环全应用移除 —— 键盘导航也不画环（功能照旧）。
+      expect(
+        focusRing,
+        findsNothing,
+        reason: '焦点环已全应用移除：键盘入口只保留功能，不得再画视觉环',
+      );
 
       await pressKey(tester, LogicalKeyboardKey.f10, shift: true);
       expect(
@@ -662,27 +670,23 @@ void main() {
         ],
       );
 
+      // 判据不能再用焦点环（环已全应用移除）⇒ 直接看行级 FocusNode 是否拿到焦点。
       var reached = false;
       for (var i = 0; i < 60 && !reached; i++) {
         await tester.sendKeyEvent(LogicalKeyboardKey.tab);
         await tester.pump();
-        reached = focusRing.evaluate().isNotEmpty;
+        reached = messageRowFocusNode(tester).hasFocus;
       }
       expect(reached, isTrue, reason: '§D4 消息行必须能被 Tab 遍历到（否则「键盘入口」只是理论可达）');
+      expect(focusRing, findsNothing, reason: '键盘导航也不得出焦点环（产品指令：全应用移除）');
     });
 
-    testWidgets('鼠标点击不出焦点环（G3：环只认键盘导航）', (tester) async {
-      await boot(
-        tester,
-        messages: [
-          {'role': 'user', 'content': userText, 'message_id': 'm1'},
-        ],
-      );
-      // 真实鼠标点击（触摸指针会把 highlightMode 打到 touch，鼠标更贴场景）。
+    /// 真实鼠标点击正文（指针 moved→down→up；结束态已 pump 稳）。
+    Future<void> clickBodyText(WidgetTester tester, String text) async {
+      final center = tester.getCenter(find.text(text));
       final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await gesture.addPointer(location: Offset.zero);
       addTearDown(gesture.removePointer);
-      final center = tester.getCenter(find.text(userText));
       await gesture.moveTo(center);
       await tester.pump();
       await gesture.down(center);
@@ -690,9 +694,61 @@ void main() {
       await gesture.up();
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
+    }
 
-      expect(focusRing, findsNothing, reason: '§G3 焦点环仅键盘导航触发；鼠标点击不得出环');
+    testWidgets('点击助手正文不出焦点环（windows 档 —— 原 bug 的复现口径）', (tester) async {
+      // 原 bug（2026-10-10 主人实测）：桌面端 highlightMode 恒 `traditional`
+      // —— `FocusManager.handlePointerEvent` 只对触摸/触控笔事件切回 touch
+      // （鼠标/触控板是空分支），而任何键盘输入都置 traditional；再叠加驱环回调给的是
+      // `FocusNode.hasFocus`（**含后代入焦**）⇒ 点击正文时行内 `SelectableText` 拿走焦点、
+      // 行节点「有后代入焦」⇒ 整行点亮 2px 蓝环（主人截图即此形态）。
+      // ⚠️ 必须固定 windows 档：测试默认 android 且初始为 touch，会掩盖该 bug（假绿）。
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      try {
+        await boot(
+          tester,
+          messages: [
+            {'role': 'assistant', 'content': assistantText, 'message_id': 'm1'},
+          ],
+        );
+        expect(
+          FocusManager.instance.highlightMode,
+          FocusHighlightMode.traditional,
+          reason: 'windows 档初始即 traditional（原 bug 的前提档位）',
+        );
+
+        await clickBodyText(tester, assistantText);
+
+        expect(
+          focusRing,
+          findsNothing,
+          reason: '点击助手正文不得出焦点环（产品指令 2026-10-10：全应用移除）',
+        );
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
     });
+
+    testWidgets('点击用户气泡正文不出焦点环（windows 档）', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      try {
+        await boot(
+          tester,
+          messages: [
+            {'role': 'user', 'content': userText, 'message_id': 'm1'},
+          ],
+        );
+        await clickBodyText(tester, userText);
+        expect(
+          focusRing,
+          findsNothing,
+          reason: '点击用户气泡正文不得出焦点环（产品指令 2026-10-10：全应用移除）',
+        );
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
   });
 
   group('窄屏逐像素不变（长按 + ActionSheet 44 档）', () {

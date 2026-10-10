@@ -23,9 +23,7 @@ void main() {
       expect(kRadiusInline, 7.0);
     });
 
-    test('G3 焦点环与图标钮尺寸', () {
-      expect(kFocusRingWidth, 2.0);
-      expect(kFocusRingOffset, 2.0);
+    test('G3 图标钮尺寸（焦点环令牌已全应用移除，见 chat_message_list 注释）', () {
       expect(kIconButtonHoverSize, 28.0);
     });
 

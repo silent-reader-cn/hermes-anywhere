@@ -68,17 +68,6 @@ const double kRadiusCard = 12.0;
 /// 比卡片收一档，避免「小元素配大圆角」的笨重感。
 const double kRadiusInline = 7.0;
 
-/// 键盘焦点环线宽（2）。
-///
-/// 批 1 **只交付常量**：焦点环的实际接入放后续批次（决策稿明确「仅键盘导航触发，
-/// 鼠标点击不显示」，接线需要各页补 FocusableActionDetector，不属于横切件）。
-const double kFocusRingWidth = 2.0;
-
-/// 键盘焦点环外扩距离（2，即环与元素边界之间的间隙）。
-///
-/// 与 [kFocusRingWidth] 同批交付、同批接入。
-const double kFocusRingOffset = 2.0;
-
 /// 图标钮鼠标悬停圆底直径（28）。
 ///
 /// 为什么是圆的：与 iOS 工具条语言一致（设计稿 §G3 明确「不是方形」）；28 是
