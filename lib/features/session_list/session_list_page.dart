@@ -910,6 +910,31 @@ class _SessionListPageState extends ConsumerState<SessionListPage> {
               sliver: isCompactSidebar
                   ? SliverList.builder(
                       itemCount: section.sessions.length,
+                      // 行有稳定 key（`session-row-<id>`），但 sliver 只有在拿到
+                      // 「key → 新下标」反查时才能**移动**已有元素；缺此回调时组内
+                      // 插入/重排会让每个下标上的 key 变化，框架只能逐个销毁重建
+                      // （探针实测：新会话插到组内最前 → 3/3 行的 State 被重建，
+                      // 当帧 RenderSliverList 只剩个位数子节点、maxScrollExtent
+                      // 归零 ⇒ 宽屏侧栏表现为「刷新闪一下 / 像整表删了重加」）。
+                      // 窄屏 separated 分支早有 findItemIndexCallback（同场景实测
+                      // 0/3 重建），此处补齐。
+                      // 注意：SliverList.builder 的索引**不含分隔符**，直接返回 item
+                      // 下标即可（不要像 separated 那样 ×2）。
+                      findChildIndexCallback: (Key key) {
+                        if (key is ValueKey<String>) {
+                          final value = key.value;
+                          if (value.startsWith(_sessionRowKeyPrefix)) {
+                            final id = value.substring(
+                              _sessionRowKeyPrefix.length,
+                            );
+                            final index = section.sessions.indexWhere(
+                              (s) => (s.sessionId ?? s.id) == id,
+                            );
+                            return index >= 0 ? index : null;
+                          }
+                        }
+                        return null;
+                      },
                       itemBuilder: (context, index) {
                         final session = section.sessions[index];
                         return _SessionRow(
