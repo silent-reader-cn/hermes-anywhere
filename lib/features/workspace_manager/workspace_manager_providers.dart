@@ -4,6 +4,7 @@ import '../../core/api/api_client.dart';
 import '../../core/api/api_exception.dart';
 import '../../core/connections/connection_providers.dart';
 import '../../core/models/workspace.dart';
+import '../../core/providers/catalog_providers.dart';
 import 'workspace_manager_api.dart';
 
 /// 构建 [WorkspaceManagerApi] 的工厂（测试可 override 注入 fake）。
@@ -164,6 +165,11 @@ class WorkspaceManagerController extends AsyncNotifier<WorkspaceManagerState> {
           ),
         );
       }
+      // 注册表变更后必须让 `workspaceRootsProvider` 失效：它是**缓存型**
+      // FutureProvider（`GET /api/workspaces`，无 autoDispose），聊天输入栏的
+      // 工作区选择器（composer_meta_chips）与侧栏 FAB 的放射菜单都读它。
+      // 不失效就会出现「新建的工作区在聊天里选不到，得重启 App 才见」。
+      ref.invalidate(workspaceRootsProvider);
       return null;
     } on Exception catch (error) {
       final after = state.valueOrNull;
@@ -248,6 +254,8 @@ class WorkspaceManagerController extends AsyncNotifier<WorkspaceManagerState> {
           ),
         );
       }
+      // 重命名/移除同样要失效缓存的工作区根列表（否则选择器里仍是旧名单）。
+      ref.invalidate(workspaceRootsProvider);
       return true;
     } on Exception catch (error) {
       final after = state.valueOrNull;
