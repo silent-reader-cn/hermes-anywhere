@@ -10,6 +10,30 @@ import '../../l10n/app_localizations.dart';
 import '../settings/settings_surfaces.dart';
 import 'workspace_manager_providers.dart';
 
+/// 路径补全建议行 key 前缀：`workspace-add-suggestion-<建议文本>`。
+///
+/// 为什么用**建议文本**而不是下标：建议来自 `/api/workspaces/suggest?prefix=`，
+/// 前缀越具体命中集合越小 —— **幸存项会换下标**（如 `/home/user` 命中
+/// [other, proj]、收窄到 `/home/user/p` 只剩 [proj]，proj 从下标 1 升到 0）。
+/// 下标型 key 会跟着换，而 `SliverMultiBoxAdaptorElement.performRebuild` 只比
+/// **直接子节点**的 `widget.key` ⇒ 那条建议被销毁重建（按压/命中态丢失）。
+///
+/// 唯一性前提：同一前缀下服务端返回的是互不相同的目录路径（同一列表内文本
+/// 唯一），故文本可作身份。若将来出现重复项，应先按文本去重再入列表，否则同批
+/// 渲染里会出现重复 key，反查只能命中第一条。
+const String _kSuggestionKeyPrefix = 'workspace-add-suggestion-';
+
+/// 反查：建议行 key → 条目下标（`ListView.separated` 内部自己 ×2 换算子下标）。
+int? _suggestionIndexByKey(Key key, List<String> suggestions) {
+  if (key is! ValueKey<String>) return null;
+  final value = key.value;
+  if (!value.startsWith(_kSuggestionKeyPrefix)) return null;
+  final text = value.substring(_kSuggestionKeyPrefix.length);
+  if (text.isEmpty) return null;
+  final index = suggestions.indexOf(text);
+  return index < 0 ? null : index;
+}
+
 /// 新建工作区表单（iOS form sheet 风格，键盘可避让）。
 ///
 /// 视觉规范对齐 Apple HIG presentation 模式：
@@ -413,6 +437,8 @@ class _SuggestionList extends StatelessWidget {
         shrinkWrap: true,
         padding: EdgeInsets.zero,
         itemCount: suggestions.length,
+        // 文本身份 key + 反查条目下标：前缀收窄导致的幸存项下标平移才不会重建。
+        findItemIndexCallback: (key) => _suggestionIndexByKey(key, suggestions),
         separatorBuilder: (context, index) => Container(
           height: 0.5,
           margin: const EdgeInsets.only(left: 16),
@@ -425,7 +451,8 @@ class _SuggestionList extends StatelessWidget {
         itemBuilder: (context, index) {
           final suggestion = suggestions[index];
           return CupertinoButton(
-            key: ValueKey('workspace-add-suggestion-$index'),
+            // 建议文本即身份（不再带下标）。
+            key: ValueKey('$_kSuggestionKeyPrefix$suggestion'),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             borderRadius: BorderRadius.circular(0),
             onPressed: () => onPick(suggestion),

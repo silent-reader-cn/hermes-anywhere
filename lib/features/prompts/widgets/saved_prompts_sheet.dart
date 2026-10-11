@@ -10,6 +10,45 @@ import '../../../core/models/saved_prompt.dart';
 import '../../../l10n/app_localizations.dart';
 import '../prompts_providers.dart';
 
+/// 收藏提示词行 key 前缀（`saved-prompt-<id>`）。
+const String _kSavedPromptRowKeyPrefix = 'saved-prompt-';
+
+/// 行 key：**身份优先**，不再是「身份 + 下标」。
+///
+/// 旧形态 `ValueKey('saved-prompt-$id-$index')` 把下标写进了 key —— 增删一条就
+/// 换 key（同一条提示词换了下标 = 换了身份），而
+/// `SliverMultiBoxAdaptorElement.performRebuild` 只比**直接子节点**的
+/// `widget.key` ⇒ 身份永远匹配不上，整段行销毁重建。改成身份型 key 后，缺的
+/// 只是「key → 条目下标」反查（见 [_savedPromptIndexByKey]）。
+///
+/// id 为空时的兜底口径：`SavedPrompt.id` 是 `String?`，来源是
+/// `SavedPrompt.fromJson` 的 `optString`（服务端不回 `id` 即解析为 null；本地
+/// 缓存 `saved_prompts_cache_v1` 走同一个解析器），本页对这类行的删除按钮本就
+/// 禁用（`onPressed` 的 `id == null || id.isEmpty`）。没有 id 就没有稳定身份，
+/// 只能退回「文本 + 下标」（只保证同批渲染内唯一）；这类行换下标仍会重建 ——
+/// 无法做得更好，在此显式承认。服务端正常路径（`/api/prompts` 带 id）不受影响。
+String _savedPromptRowKey(SavedPrompt prompt, int index) {
+  final id = prompt.id;
+  if (id != null && id.isNotEmpty) return '$_kSavedPromptRowKeyPrefix$id';
+  return '${_kSavedPromptRowKeyPrefix}text-${prompt.text ?? ''}#$index';
+}
+
+/// 反查：行 key → 条目下标。
+///
+/// 兜底形态（`saved-prompt-text-<文本>#<下标>`）天然匹配不到任何 `prompt.id`，
+/// 因此自动落到 null（不搬家、按旧逻辑重建）；身份型 key 则命中 id。
+/// 行内删除按钮的 `saved-prompt-delete-<id>` 不在直接子节点上、也不会被本函数
+/// 命中（`delete-<id>` 不等于任何 `prompt.id`）。
+int? _savedPromptIndexByKey(Key key, List<SavedPrompt> prompts) {
+  if (key is! ValueKey<String>) return null;
+  final value = key.value;
+  if (!value.startsWith(_kSavedPromptRowKeyPrefix)) return null;
+  final identity = value.substring(_kSavedPromptRowKeyPrefix.length);
+  if (identity.isEmpty) return null;
+  final index = prompts.indexWhere((prompt) => prompt.id == identity);
+  return index < 0 ? null : index;
+}
+
 /// 收藏提示词列表面板（内容层，供底部 Sheet 与桌面 Popover 两种容器复用）。
 ///
 /// - 列表由 [savedPromptsControllerProvider] 驱动；
@@ -211,6 +250,9 @@ class _SavedPromptsPanelState extends ConsumerState<SavedPromptsPanel> {
           shrinkWrap: true,
           padding: EdgeInsets.zero,
           itemCount: prompts.length,
+          // 身份型 key + 反查条目下标（separated 内部自己 ×2 换算成子下标）：
+          // 删除/新增导致的下标平移才不会把整段行销毁重建。
+          findItemIndexCallback: (key) => _savedPromptIndexByKey(key, prompts),
           separatorBuilder: (_, _) => Container(
             height: 0.5,
             color: LightSurfaces.resolve(
@@ -233,7 +275,9 @@ class _SavedPromptsPanelState extends ConsumerState<SavedPromptsPanel> {
             final isLight =
                 CupertinoTheme.brightnessOf(context) == Brightness.light;
             return CupertinoListTile(
-              key: ValueKey('saved-prompt-$id-$index'),
+              // 身份型 key（id 非空时就是 id）；含下标的旧形态已废弃，见
+              // _savedPromptRowKey 的注释。
+              key: ValueKey(_savedPromptRowKey(prompt, index)),
               backgroundColor: isLight ? LightSurfaces.card : null,
               backgroundColorActivated: isLight ? LightSurfaces.pressed : null,
               title: Text(

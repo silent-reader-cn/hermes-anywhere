@@ -153,13 +153,13 @@ void main() {
       await tester.pumpAndSettle();
       expect(api.suggestionCalls, ['/home/user']);
       expect(
-        find.byKey(const ValueKey('workspace-add-suggestion-0')),
+        find.byKey(const ValueKey('workspace-add-suggestion-/home/user/proj')),
         findsOneWidget,
       );
 
       // 点击建议填入路径
       await tester.tap(
-        find.byKey(const ValueKey('workspace-add-suggestion-0')),
+        find.byKey(const ValueKey('workspace-add-suggestion-/home/user/proj')),
       );
       await tester.pump();
       final pathField = tester.widget<CupertinoTextField>(

@@ -186,12 +186,12 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       // Tile visible in popup
-      expect(find.byKey(const ValueKey('saved-prompt-a1-0')), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('saved-prompt-a1-0')));
+      expect(find.byKey(const ValueKey('saved-prompt-a1')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('saved-prompt-a1')));
       await tester.pumpAndSettle();
       expect(inserts, ['insert me']);
       // Sheet closed: popup dismissed (tile offstage)
-      expect(find.byKey(const ValueKey('saved-prompt-a1-0')), findsNothing);
+      expect(find.byKey(const ValueKey('saved-prompt-a1')), findsNothing);
     });
 
     testWidgets('点击删除 -> 调用 remove + 列表刷新', (tester) async {
@@ -201,17 +201,17 @@ void main() {
       await tester.pumpWidget(sheetFor(api: api));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
-      expect(find.byKey(const ValueKey('saved-prompt-a1-0')), findsOneWidget);
-      expect(find.byKey(const ValueKey('saved-prompt-a1-0')), findsOneWidget);
-      expect(find.byKey(const ValueKey('saved-prompt-a2-1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('saved-prompt-a1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('saved-prompt-a1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('saved-prompt-a2')), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('saved-prompt-delete-a1')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       expect(api.deleteCount, 1);
       expect(api.lastDeleteId, 'a1');
-      expect(find.byKey(const ValueKey('saved-prompt-a1-0')), findsNothing);
+      expect(find.byKey(const ValueKey('saved-prompt-a1')), findsNothing);
       // a2 now at index 0 after re-render (single item)
-      expect(find.byKey(const ValueKey('saved-prompt-a2-0')), findsOneWidget);
+      expect(find.byKey(const ValueKey('saved-prompt-a2')), findsOneWidget);
     });
 
     testWidgets('saveCurrentInput 空 -> 弹 savedPromptsEmptyInput 提示', (
@@ -253,7 +253,7 @@ void main() {
       await tester.tap(find.text('好'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
-      expect(find.byKey(const ValueKey('saved-prompt-id_1-0')), findsOneWidget);
+      expect(find.byKey(const ValueKey('saved-prompt-id_1')), findsOneWidget);
     });
 
     testWidgets('top inset 不应推开第一项', (tester) async {
@@ -278,7 +278,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       final sheet = tester.getRect(find.byType(SavedPromptsSheet));
       final tile = tester.getRect(
-        find.byKey(const ValueKey('saved-prompt-inset-0')),
+        find.byKey(const ValueKey('saved-prompt-inset')),
       );
       // The ListView must not inherit the Android status-bar inset.
       // With the inset bug this gap is about 100 logical px; the fixed list
@@ -359,7 +359,7 @@ void main() {
 
       // 2. CupertinoListTile 白卡底色与 pressed 激活色
       final tile = tester.widget<CupertinoListTile>(
-        find.byKey(const ValueKey('saved-prompt-p1-0')),
+        find.byKey(const ValueKey('saved-prompt-p1')),
       );
       expect(tile.backgroundColor, LightSurfaces.card);
       expect(tile.backgroundColorActivated, LightSurfaces.pressed);
@@ -424,7 +424,7 @@ void main() {
 
       // 2. CupertinoListTile 背景色与激活色保持 null
       final tile = tester.widget<CupertinoListTile>(
-        find.byKey(const ValueKey('saved-prompt-p1-0')),
+        find.byKey(const ValueKey('saved-prompt-p1')),
       );
       expect(tile.backgroundColor, isNull);
       expect(tile.backgroundColorActivated, isNull);

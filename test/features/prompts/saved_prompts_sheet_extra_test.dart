@@ -179,7 +179,7 @@ void main() {
       await tester.pumpWidget(sheetFor(api));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
-      expect(find.byKey(const ValueKey('saved-prompt-a1-0')), findsOneWidget);
+      expect(find.byKey(const ValueKey('saved-prompt-a1')), findsOneWidget);
 
       await tester.tap(find.byKey(const ValueKey('saved-prompt-delete-a1')));
       await tester.pump();
@@ -204,8 +204,8 @@ void main() {
       await tester.tap(find.text('好'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
-      expect(find.byKey(const ValueKey('saved-prompt-a1-0')), findsOneWidget);
-      expect(find.byKey(const ValueKey('saved-prompt-a2-1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('saved-prompt-a1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('saved-prompt-a2')), findsOneWidget);
       expect(find.byIcon(CupertinoIcons.delete), findsNWidgets(2));
     });
   });
@@ -216,7 +216,7 @@ void main() {
       await tester.pumpWidget(sheetFor(api));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
-      expect(find.byKey(const ValueKey('saved-prompt-a1-0')), findsOneWidget);
+      expect(find.byKey(const ValueKey('saved-prompt-a1')), findsOneWidget);
 
       final container = ProviderScope.containerOf(
         tester.element(find.byType(SavedPromptsSheet)),
@@ -264,7 +264,7 @@ void main() {
       expect(value, isNotNull);
       expect(value!.single.id, 'a1');
       expect(find.byKey(const ValueKey('saved-prompts-retry')), findsNothing);
-      expect(find.byKey(const ValueKey('saved-prompt-a1-0')), findsOneWidget);
+      expect(find.byKey(const ValueKey('saved-prompt-a1')), findsOneWidget);
     });
   });
 }
