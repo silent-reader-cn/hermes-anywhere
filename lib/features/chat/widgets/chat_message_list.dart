@@ -2487,6 +2487,52 @@ class ChatMessageListState extends ConsumerState<ChatMessageList> {
     if (showQueuedBanner) itemCount++;
     if (needFallback) itemCount++;
 
+    // ── key → rawIndex 反查（喂给 ListView.builder 的 findChildIndexCallback）──
+    // 列表是 `reverse: true`：物理 rawIndex 与逻辑下标互为镜像
+    // （`rawIndex = itemCount - 1 - 逻辑下标`，见 itemBuilder 首行）。
+    // 不传 findChildIndexCallback 时 `SliverChildBuilderDelegate.findIndexByKey`
+    // 恒返回 null ⇒ SDK 的 `SliverMultiBoxAdaptorElement.performRebuild`
+    // （sliver.dart 的 `newIndex != null && newIndex != index` 分支）只会按
+    // **位置** updateChild：位置上的 key 变了 ⇒ 旧元素被销毁、新元素被 inflate。
+    // 于是「末尾追加一条消息」（每个 rawIndex 对应的逻辑条目整体错位）会**整屏
+    // 重建**，元素级状态（滚动锚点 / 动画 / 选区）随之丢失。补上本表后 SDK 走
+    // 「元素搬家」分支，按 key 复用已有元素。
+    //
+    // ⚠️ 必须与 itemBuilder **逐字对齐**：同一份 displayItems（含 _loadingOlder
+    // 插入后的形态）、同一个 itemCount、同一次 build 的局部量。任何错位都会把
+    // 元素搬到错下标（表现为整屏 churn / 重复 key 断言），而不是「少重建几条」。
+    // 无 key 或解析不到的条目（胶囊 / older-loading / 尾部 QueuedBanner /
+    // statusLine / fallback / legacy 流式气泡）不入表 ⇒ 回调返回 null ⇒ 保持既有
+    // 的「按位置对齐」语义，绝不报错。
+    final Map<Key, int> indexByItemKey = <Key, int>{};
+    for (var i = 0; i < displayItems.length; i++) {
+      final item = displayItems[i];
+      if (item is! _MessageListItem) continue; // 胶囊 / older-loading：无 key
+      final renderId = item.entry.renderId;
+      final rawIndex = itemCount - 1 - i;
+      if (item.isHidden) {
+        // 与 itemBuilder 的 isHidden 分支同源：收起态仍挂普通键（SizedBox.shrink）。
+        indexByItemKey[_itemKeyOf(renderId)] = rawIndex;
+      } else if (_highlightTargetRenderId != null &&
+          renderId == _highlightTargetRenderId) {
+        // 高亮目标挂独立前缀的键（旧语义保留，见 _highlightKeyPrefix）。
+        indexByItemKey[_highlightItemKeyOf(renderId)] = rawIndex;
+      } else {
+        indexByItemKey[_itemKeyOf(renderId)] = rawIndex;
+      }
+    }
+    if (streaming != null && timelineActive) {
+      final liveEntries = renderLiveTimeline ?? const <LiveTimelineEntry>[];
+      // 与 itemBuilder 的 tail 记账逐字对齐：live 段起始逻辑下标 =
+      // displayItems.length + (showQueuedBanner ? 1 : 0)（legacy 流式气泡在
+      // timelineActive 为假时才占位，此处不适用）。
+      final liveBaseIndex = displayItems.length + (showQueuedBanner ? 1 : 0);
+      for (var j = 0; j < liveEntries.length; j++) {
+        indexByItemKey[_itemKeyOf(liveEntries[j].renderKey)] =
+            itemCount - 1 - (liveBaseIndex + j);
+      }
+    }
+
     final isEnglish = AppLocalizations.of(context).isEnglish;
     final unreadCount =
         (_pinnedTranscriptCount > 0 &&
@@ -2630,6 +2676,9 @@ class ChatMessageListState extends ConsumerState<ChatMessageList> {
                   addRepaintBoundaries: true,
                   addAutomaticKeepAlives: false,
                   itemCount: itemCount,
+                  // key → rawIndex 反查：让 SDK 在条目整体错位时**搬家**已有元素，
+                  // 而不是按位置销毁重建（见本方法内 indexByItemKey 的推导注释）。
+                  findChildIndexCallback: (key) => indexByItemKey[key],
                   itemBuilder: (context, rawIndex) {
                     // reverse 映射：视觉底部 = 逻辑末尾，物理 index 需反转回逻辑 index。
                     // 原「尾部顺序」逻辑因此可原样保留。
