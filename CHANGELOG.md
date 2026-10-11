@@ -15,6 +15,7 @@
 - README：测试规模口径更新为实测值（原写 2,400+，现 4,800+）
 - `pubspec.yaml`：补齐 `description`（原为 Flutter 模板默认值 `A new Flutter project.`）
 - `.gitignore`：忽略 `key.properties`，避免签名口令误入公开仓库
+- 新增 `.github/workflows/release-platforms.yml`：为已发布版本补 **Linux x64**（tar.gz，自带 mpv/ffmpeg 运行库）与 **macOS arm64**（zip，未签名）包；CI 内做启动存活冒烟 + Linux 自足性取证。v0.1.74 已按此挂上两个平台资产
 
 ## [0.1.0] - 2026-08-17
 

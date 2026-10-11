@@ -9,7 +9,7 @@ A Flutter + Cupertino client for [Hermes Agent](https://hermes-agent.nousresearc
 [![CI](https://github.com/silent-reader-cn/hermes-keep/actions/workflows/ci.yml/badge.svg)](https://github.com/silent-reader-cn/hermes-keep/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/silent-reader-cn/hermes-keep)](https://github.com/silent-reader-cn/hermes-keep/releases)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Android-lightgrey)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-lightgrey)
 
 **English** | [简体中文](README.zh-CN.md)
 
@@ -84,6 +84,30 @@ Chat requires a [Hermes Agent](https://hermes-agent.nousresearch.com/docs) insta
 
 Download `app-release.apk` from the [Releases](https://github.com/silent-reader-cn/hermes-keep/releases) page (Android 7.0+, arm64) and connect it to your Hermes server on the network.
 
+### macOS
+
+Download `HermesUI-<version>-macos-arm64.zip` from the [Releases](https://github.com/silent-reader-cn/hermes-keep/releases) page. The app is not signed or notarized yet, so clear the quarantine flag before opening it:
+
+```bash
+xattr -cr hermes_ui.app
+open hermes_ui.app
+```
+
+Apple Silicon only, for now.
+
+### Linux
+
+Download `HermesUI-<version>-linux-x64.tar.gz`, unpack it and run — the bundle ships its own mpv/ffmpeg runtime, so a standard desktop needs nothing extra:
+
+```bash
+tar -xzf HermesUI-<version>-linux-x64.tar.gz
+./hermes_ui
+```
+
+Built on Ubuntu 22.04 (glibc 2.35+) to cover both 22.04 and 24.04.
+
+> The macOS and Linux packages are **experimental**: CI builds them and smoke-starts each one (see [`.github/workflows/release-platforms.yml`](.github/workflows/release-platforms.yml)), but they have not had a full hand-test on real hardware yet. Reports welcome via issues.
+
 ### Build from source
 
 ```bash
@@ -131,7 +155,7 @@ The API contract is aligned with **[nesquena/hermes-webui](https://github.com/ne
 
 ## Project status
 
-Actively developed. Every release ships a signed Windows installer (WebUI sidecar bundled) and an Android arm64 APK, both built by CI, with 5,600+ automated tests and a clean `flutter analyze` behind them. See the [changelog](CHANGELOG.md) for details.
+Actively developed. Every release ships a signed Windows installer (WebUI sidecar bundled) and an Android arm64 APK; the current release also carries CI-built macOS (Apple Silicon) and Linux x64 packages — experimental, in that they are built and smoke-started by CI but not yet fully hand-tested. Behind all of it: 5,600+ automated tests and a clean `flutter analyze`. See the [changelog](CHANGELOG.md) for details.
 
 ## License
 

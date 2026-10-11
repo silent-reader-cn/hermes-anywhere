@@ -9,7 +9,7 @@
 [![CI](https://github.com/silent-reader-cn/hermes-keep/actions/workflows/ci.yml/badge.svg)](https://github.com/silent-reader-cn/hermes-keep/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/silent-reader-cn/hermes-keep)](https://github.com/silent-reader-cn/hermes-keep/releases)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Android-lightgrey)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-lightgrey)
 
 [English](README.md) | **简体中文**
 
@@ -81,6 +81,30 @@
 
 从 [Releases](https://github.com/silent-reader-cn/hermes-keep/releases) 页面下载 `app-release.apk`（Android 7.0+，arm64），连接局域网内或经隧道暴露的 Hermes 服务器即可。
 
+### macOS
+
+从 [Releases](https://github.com/silent-reader-cn/hermes-keep/releases) 页面下载 `HermesUI-<版本号>-macos-arm64.zip`。当前包未签名、未公证，打开前先清隔离标记：
+
+```bash
+xattr -cr hermes_ui.app
+open hermes_ui.app
+```
+
+暂只支持 Apple Silicon（M 系列）。
+
+### Linux
+
+下载 `HermesUI-<版本号>-linux-x64.tar.gz`，解包即用 —— 包内自带 mpv / ffmpeg 运行库，标准桌面无需额外安装：
+
+```bash
+tar -xzf HermesUI-<版本号>-linux-x64.tar.gz
+./hermes_ui
+```
+
+构建于 Ubuntu 22.04（glibc 2.35+），同时覆盖 22.04 与 24.04。
+
+> macOS 与 Linux 包属**尝鲜**：CI 会构建并做启动冒烟（见 [`.github/workflows/release-platforms.yml`](.github/workflows/release-platforms.yml)），但尚未在真实硬件上完整手测。有问题欢迎开 issue。
+
 ### 从源码构建
 
 ```bash
@@ -128,7 +152,7 @@ API 契约对齐 **[nesquena/hermes-webui](https://github.com/nesquena/hermes-we
 
 ## 项目状态
 
-活跃开发中。每个版本产出 CI 构建的 Windows 安装包（内置 WebUI sidecar）与 Android arm64 APK，背后是 5,600+ 自动化测试与零告警的 `flutter analyze`。变更详情见 [更新日志](CHANGELOG.md)。
+活跃开发中。每个版本产出 CI 构建的 Windows 安装包（内置 WebUI sidecar）与 Android arm64 APK；当前版本另附 CI 构建的 macOS（Apple Silicon）与 Linux x64 包 —— 属**尝鲜**：CI 构建并做启动冒烟，尚未在真实硬件上完整手测。背后是 5,600+ 自动化测试与零告警的 `flutter analyze`。变更详情见 [更新日志](CHANGELOG.md)。
 
 ## 开源协议
 

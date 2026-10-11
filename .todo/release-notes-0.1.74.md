@@ -54,3 +54,18 @@ Overlay）放进**右侧详情栏**——比视口窄一条侧栏（实机 341.9
 ### 说明
 
 - 本版**未做**本机（桌面安装版）升级 —— 桌面端仍是你当前安装的那一版；需要升级说一声。
+
+---
+
+### 本版补充的平台包（Linux / macOS）
+
+除 Windows 安装包与 Android APK 外，本 Release 另附两个平台的包 —— 源码取自本 tag（`v0.1.74`），由 CI 在对应宿主上构建：
+
+| 资产 | 平台 | 用法 / 说明 |
+|---|---|---|
+| `HermesUI-0.1.74-linux-x64.tar.gz` | Linux x64 | 解包即用：`tar -xzf … && ./hermes_ui`。构建于 Ubuntu 22.04（glibc 2.35+，覆盖 Ubuntu 22.04 / 24.04、Debian 12 及更新发行版）。**已自带 mpv 运行库**——包体 115 MB 就是因为内附 libmpv + ffmpeg 媒体栈（发行版只提供 `libmpv.so.2`，不带就是"下载了打不开"），无需另装 mpv。 |
+| `HermesUI-0.1.74-macos-arm64.zip` | macOS（Apple Silicon） | 解压后先 `xattr -cr hermes_ui.app`（未签名、未公证，Gatekeeper 会拦），再打开。Intel Mac 暂不支持。 |
+
+**取证（两者都真跑过，不是"编过就算"）**：CI 里 Linux 在 Xvfb 下启动后存活满 25s（Impeller OpenGL 正常、无崩溃）；**并且把系统里 53 个媒体库（libmpv / libav* / libass / libplacebo …）全部藏起来再跑一次，依旧存活满 25s** —— 证明确实自带运行库、换机器不会因缺 mpv 起不来。macOS 启动后存活满 20s（Impeller Metal 正常）。
+
+两者均未在真人桌面 / Mac 上做完整功能验证，属**尝鲜包**；遇到问题请开 issue。

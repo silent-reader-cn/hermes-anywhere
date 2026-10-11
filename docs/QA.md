@@ -50,7 +50,10 @@
 
 - Android release 签名仍用 debug keystore（`android/app/build.gradle.kts:37` TODO）
 - 仓库缺 LICENSE 文件；README 截图待补；pubspec 版本 `1.0.0+1` 与 CHANGELOG v0.1.0 未对齐
-- macOS / Linux / Web 平台目录已生成，构建链路未验证；CI 已落地（.github/workflows/ci.yml：analyze + test / android debug / fake_gateway smoke）
+- macOS / Linux 构建链路**已打通**（2026-10-11，`.github/workflows/release-platforms.yml`）：`workflow_dispatch`（`tag` / `only` / `dry_run`）在 macos-latest 与 ubuntu-22.04 上分别产出 `HermesUI-<ver>-macos-arm64.zip` 与 `-linux-x64.tar.gz`，各自做「启动后存活」冒烟；Linux 另做**自足性取证**（藏起系统里 53 个媒体库——libmpv / libav* / libass / libplacebo … 后仍能启动）⇒ 包自带 libmpv + ffmpeg 栈，不依赖发行版的 mpv 版本（代价：包体 115 MB）。
+  - Linux 侧构建硬依赖（缺一即失败）：`libmpv-dev` + `libepoxy-dev`（`media_kit_video/linux/CMakeLists.txt` 直接 `pkg_check_modules(mpv|epoxy)`）、`patchelf`（包内媒体库必须 `--force-rpath` 改成可传递的 DT_RPATH，否则 libmpv 找不到同目录的 libavcodec）。
+  - **Web 仍未打通**：`lib/main.dart` 无条件 `import 'dart:io'`，且依赖 media_kit(FFI) / window_manager ⇒ 需先做条件导入 + 桩件重构，属独立议题。
+  - CI 已落地（.github/workflows/ci.yml：analyze + test / android debug / fake_gateway smoke）
 - `tools/fake_gateway` 已创建（08-19：smoke_test + 契约测试 + CI job 落地），待补：完整 150 端点形状覆盖
 
 ## 4. 迭代建议（按优先级）
