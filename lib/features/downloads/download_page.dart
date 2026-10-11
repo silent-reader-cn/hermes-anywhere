@@ -36,6 +36,48 @@ const MethodChannel _fileShareChannel = MethodChannel(
 const EdgeInsets _kWideGridPadding = EdgeInsets.fromLTRB(10, 2, 10, 10);
 const EdgeInsets _kWideCardMargin = EdgeInsets.all(6);
 
+/// 下载卡片 key 前缀（`download-task-<id>`）：窄屏列表与宽屏网格共用。
+const String _kDownloadCardKeyPrefix = 'download-task-';
+
+/// 宽屏网格「两卡一行」的行 key 前缀（`downloads-row-<左卡 id>`）。
+const String _kDownloadRowKeyPrefix = 'downloads-row-';
+
+/// 反查：行 key → 该行在列表里的**子下标**（ID → 下标）。
+///
+/// 依据 `SliverMultiBoxAdaptorElement.performRebuild`：它只拿「直接子节点
+/// element 的 `widget.key`」去 `delegate.findIndexByKey(key)`，返回 null 就按
+/// 旧下标 `updateChild(旧 element, _build(旧下标))` 更新 —— key 与旧下标上的新
+/// widget 不一致 ⇒ 旧 element 停用、整段行销毁重建。所以稳定 key 必须挂在
+/// **直接子节点**上，并且要能反查到新下标。
+int? _downloadCardIndexByKey(Key key, List<DownloadTask> tasks) {
+  final id = _downloadIdFromKey(key, _kDownloadCardKeyPrefix);
+  if (id == null) return null;
+  final index = tasks.indexWhere((task) => task.id == id);
+  return index < 0 ? null : index;
+}
+
+/// 宽屏网格反查：只有「左卡 id」等于 key 里 id 的那一行才算命中。
+///
+/// 若该任务因奇偶位翻转跑到某行右半（行的内容整体变了），返回 null —— 那行
+/// 本来就该重建（key 不匹配，框架自己会处理）。
+int? _downloadRowIndexByKey(Key key, List<DownloadTask> tasks) {
+  final id = _downloadIdFromKey(key, _kDownloadRowKeyPrefix);
+  if (id == null) return null;
+  final rowCount = (tasks.length + 1) ~/ 2;
+  for (var row = 0; row < rowCount; row++) {
+    if (tasks[row * 2].id == id) return row;
+  }
+  return null;
+}
+
+/// 从 `<prefix><id>` 形态的 `ValueKey<String>` 里取出 id；形态不符返回 null。
+String? _downloadIdFromKey(Key key, String prefix) {
+  if (key is! ValueKey<String>) return null;
+  final value = key.value;
+  if (!value.startsWith(prefix)) return null;
+  return value.substring(prefix.length);
+}
+
 /// 经 MainActivity 的 FileProvider MethodChannel 生成 content:// URI。
 /// 失败（通道缺失/异常）返回 null，由调用方兜底。
 Future<String?> _androidContentUriFor(String path) async {
@@ -435,10 +477,14 @@ class DownloadPage extends ConsumerWidget {
                 key: const ValueKey('downloads-list-view'),
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 itemCount: sortedTasks.length,
+                // 直接子节点已是带稳定 key 的卡片（download-task-<id>），
+                // 缺的只是「key → 子下标」反查。
+                findChildIndexCallback: (key) =>
+                    _downloadCardIndexByKey(key, sortedTasks),
                 itemBuilder: (context, index) {
                   final task = sortedTasks[index];
                   return _DownloadTaskCard(
-                    key: ValueKey('download-task-${task.id}'),
+                    key: ValueKey('$_kDownloadCardKeyPrefix${task.id}'),
                     task: task,
                     onOpenFile: onOpenFile,
                   );
@@ -459,11 +505,16 @@ class DownloadPage extends ConsumerWidget {
       padding: _kWideGridPadding,
       // 两卡一行：奇数个任务时末行右侧留白（不拉伸卡片）。
       itemCount: (tasks.length + 1) ~/ 2,
+      findChildIndexCallback: (key) => _downloadRowIndexByKey(key, tasks),
       itemBuilder: (context, index) {
         final left = tasks[index * 2];
         final rightIndex = index * 2 + 1;
         final right = rightIndex < tasks.length ? tasks[rightIndex] : null;
         return IntrinsicHeight(
+          // 稳定 key 必须挂在**直接子节点**（这层 IntrinsicHeight）上：框架只读
+          // 直接子节点的 key，挂在两层之下的卡片上等于没有 key（换下标必重建）。
+          // 行身份 = 左卡 id（行内容由 left/right 决定，左卡 id 唯一确定行）。
+          key: ValueKey('$_kDownloadRowKeyPrefix${left.id}'),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -482,7 +533,7 @@ class DownloadPage extends ConsumerWidget {
 
   Widget _wideCard(DownloadTask task) {
     return _DownloadTaskCard(
-      key: ValueKey('download-task-${task.id}'),
+      key: ValueKey('$_kDownloadCardKeyPrefix${task.id}'),
       task: task,
       onOpenFile: onOpenFile,
       margin: _kWideCardMargin,
