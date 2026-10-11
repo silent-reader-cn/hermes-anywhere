@@ -971,9 +971,9 @@ class SessionListController extends AsyncNotifier<SessionListState> {
           refreshing: false,
           lastAttemptAt: () => now,
           consecutiveFailures: prev.consecutiveFailures + 1,
-          // 保持缓存覆盖的会话/可见窗口一致
+          // 保持缓存覆盖的会话一致；窗口取较大者，别把用户已展开的分页窗口缩回去。
           sessions: result.sessions,
-          visibleCount: result.visibleCount,
+          visibleCount: max(prev.visibleCount, result.visibleCount),
           actionError: () => result.actionError,
         );
         state = AsyncData(failed);
@@ -984,6 +984,15 @@ class SessionListController extends AsyncNotifier<SessionListState> {
       // filterMode / filterValue / archivedSessions），以 result 作 copyWith
       // 基底会把搜索态、归档态、来源/项目筛选静默清掉。注意失败分支用的是
       // previous.copyWith（保留），即「成功丢、失败不丢」的不对称 —— 此处补回。
+      // 分页窗口也是用户的视图态：`_loadFirstPage` 返回的 visibleCount 恒为
+      // min(pageSize, n)，直接采用会把深滚用户已展开的窗口打回 50 行 —— 屏上那批行
+      // 被整批撤掉，实测刷新后第一帧 maxScrollExtent 由 9637 归零、树里只剩 6 行，
+      // 观感就是「列表被清空又长回来」。这里取「旧窗口 vs 新数据能给的窗口」的较大者
+      // （消费侧 `sessionListVisibleSessionsProvider` 本就会按可用长度 clamp）。
+      final preservedWindow = max(
+        previous?.visibleCount ?? 0,
+        result.visibleCount,
+      );
       final withRefresh = result.copyWith(
         searchQuery: () => previous?.searchQuery,
         searchResults: () => previous?.searchResults,
@@ -991,6 +1000,7 @@ class SessionListController extends AsyncNotifier<SessionListState> {
         filterValue: () => previous?.filterValue,
         archivedSessions: previous?.archivedSessions,
         archivedCount: () => previous?.archivedCount,
+        visibleCount: preservedWindow,
         lastRefreshAt: () => now,
         lastAttemptAt: () => now,
         refreshing: false,

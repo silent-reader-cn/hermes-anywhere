@@ -173,4 +173,82 @@ void main() {
           '（重排时应把 key 反查到新下标并移动元素）',
     );
   });
+
+  testWidgets('宽屏侧栏刷新：不得把已展开的分页窗口打回 pageSize（列表当帧不塌陷）', (
+    tester,
+  ) async {
+    // 这条守的是「列表被清空」的第二种成因：refresh() → _loadFirstPage 会把
+    // visibleCount 无条件写成 min(pageSize, n)；深滚用户刷新后屏上那批行被整批撤掉，
+    // 当帧 maxScrollExtent 归零（实测 9637 → 0、树里只剩 6 行），随后靠
+    // _maybeLoadMore 逐页补回 ⇒ 观感就是「列表塌了再长回来」。
+    final sessions = [
+      for (var i = 0; i < 120; i++) _session('s$i', i, workspace: workspace),
+    ];
+    final api = FakeSessionListApi(sessions: sessions);
+    await pumpWideSidebar(tester, api);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SessionListPage)),
+    );
+    final controller = container.read(sessionListControllerProvider.notifier);
+    final scroll = tester
+        .widget<CustomScrollView>(
+          find.byKey(const ValueKey('session-list-scroll')),
+        )
+        .controller!;
+
+    int rowsBuilt() => find
+        .byWidgetPredicate(
+          (w) =>
+              w.key is ValueKey<String> &&
+              (w.key! as ValueKey<String>).value.startsWith('session-row-'),
+        )
+        .evaluate()
+        .length;
+
+    SessionListState state() =>
+        container.read(sessionListControllerProvider).valueOrNull!;
+
+    await controller.loadMore();
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    final windowBefore = state().visibleCount;
+    expect(
+      windowBefore,
+      greaterThan(SessionListState.pageSize),
+      reason: '前置：窗口应已展开到一页以上，否则本条判据无效',
+    );
+
+    scroll.jumpTo(scroll.position.maxScrollExtent);
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(
+      scroll.position.maxScrollExtent,
+      greaterThan(0),
+      reason: '前置：列表应可滚（有内容）',
+    );
+    expect(rowsBuilt(), greaterThan(20), reason: '前置：树里应已建出足量行');
+
+    // 同一份数据、同一顺序的刷新 —— 只考察「窗口是否被重置」这一个变量。
+    await controller.refresh();
+    await tester.pump(const Duration(milliseconds: 16));
+
+    expect(
+      state().visibleCount,
+      windowBefore,
+      reason: '刷新是重载数据，不该把用户已展开的分页窗口打回 pageSize',
+    );
+    expect(
+      scroll.position.maxScrollExtent,
+      greaterThan(0),
+      reason: '刷新后当帧列表不该塌成不可滚（= 观感上的「被清空」）',
+    );
+    expect(
+      rowsBuilt(),
+      greaterThan(20),
+      reason: '刷新后当帧树里仍应保有足量行（修复前实测只剩 6 行）',
+    );
+  });
 }

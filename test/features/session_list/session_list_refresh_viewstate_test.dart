@@ -152,5 +152,37 @@ void main() {
       expect(st.searchQuery, isNull, reason: '无搜索时保持无搜索');
       expect(st.filterMode, SessionListFilterMode.all);
     });
+
+    test('分页窗口同样是视图态：refresh() 不得把已展开窗口打回 pageSize', () async {
+      final api = FakeSessionListApi(
+        sessions: [
+          for (var i = 0; i < 120; i++) _session('s$i', '会话 $i'),
+        ],
+      );
+      final container = _container(api);
+      await container.read(sessionListControllerProvider.future);
+      final c = container.read(sessionListControllerProvider.notifier);
+
+      await c.loadMore();
+      await c.loadMore();
+      final before = _state(container).visibleCount;
+      expect(
+        before,
+        greaterThan(SessionListState.pageSize),
+        reason: '前置：窗口应已展开到一页以上，否则本条判据无效',
+      );
+
+      await c.refresh();
+
+      expect(
+        _state(container).visibleCount,
+        before,
+        reason:
+            '刷新是「重载数据」，不该把用户已展开的分页窗口打回 pageSize —— '
+            '否则深滚用户每刷一次列表就塌回 50 行（实测页面层：刷新后第一帧 '
+            'maxScrollExtent 由 9637 归零、树里只剩 6 行，观感是「列表被清空又长回来」）',
+      );
+      expect(_state(container).sessions, hasLength(120), reason: '数据仍应真的重载');
+    });
   });
 }
