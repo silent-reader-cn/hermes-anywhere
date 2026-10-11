@@ -109,6 +109,10 @@ jobs:
           readelf -d "$BUNDLE/lib/libmedia_kit_video_plugin.so" | grep -E "RPATH|RUNPATH|NEEDED" || true
           readelf -d "$MPV" | grep -E "RPATH|RUNPATH" || true
 
+          # ⚠️ 根文件必须单独拷：copy_closure 只递归「依赖」，不会拷传入的那个文件本身
+          # （首版就栽在这里 —— ffmpeg 栈全进了包，独独缺 libmpv.so.1，② 一藏系统库就 127）
+          cp -L "$MPV" "$BUNDLE/lib/$(basename "$MPV")"
+          echo "  + $(basename "$MPV")"
           copy_closure "$MPV"
 
           # 同目录内的媒体库互解析：rpath 必须可传递
@@ -116,6 +120,14 @@ jobs:
             patchelf --force-rpath --set-rpath '$ORIGIN' "$so"
           done
           patchelf --force-rpath --set-rpath '$ORIGIN/lib' "$BUNDLE/hermes_ui"
+
+          # 硬断言：缺了就等于又发一个「在用户机上升不起来」的包
+          for must in libmpv.so.1 libavcodec.so.58 libavformat.so.58 libavutil.so.56; do
+            if [ ! -f "$BUNDLE/lib/$must" ]; then
+              echo "::error::自足性检查未过：bundle/lib 缺 $must"
+              exit 1
+            fi
+          done
 
           echo "--- 补丁后：插件动态段 ---"
           readelf -d "$BUNDLE/lib/libmedia_kit_video_plugin.so" | grep -E "RPATH|RUNPATH" || true
