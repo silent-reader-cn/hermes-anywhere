@@ -29,6 +29,17 @@ const _kanbanDarkControlFill = Color(0xFF2C2C2E);
 // Resolved yellow on this tint: 7.39:1 (7.30:1 at high contrast).
 const _kanbanDarkDependencyFill = Color(0xFF4A3F14);
 
+/// 卡片拖拽包装层（`LongPressDraggable`）的 key 前缀：`kanban-drag-<cardId>`。
+///
+/// 为什么要它：列内列表是 `SliverList`，`SliverMultiBoxAdaptorElement.
+/// performRebuild` 只拿**直接子节点** element 的 `widget.key` 去
+/// `delegate.findIndexByKey(key)`；直接子节点是 `LongPressDraggable`，而
+/// `kanban-card-<id>` 这个稳定 key 挂在更深的 `_KanbanCardTile` 上 —— 框架
+/// 取不到，卡片换下标（同列首卡被拖走/状态变更）就整段销毁重建。
+/// 故稳定 key 提到直接子节点，并配 [ListView.separated] 的
+/// `findItemIndexCallback` 反查（内部自己 ×2 换算成子下标）。
+const String _kKanbanDragKeyPrefix = 'kanban-drag-';
+
 /// Kanban 状态展示标题（对齐 Hermex KanbanStatusPresentation.title）。
 String kanbanStatusTitle(String? rawValue, [BuildContext? context]) {
   if (context != null) {
@@ -634,9 +645,30 @@ class _KanbanColumnView extends StatelessWidget {
                       ),
                       padding: const EdgeInsets.only(bottom: 8),
                       itemCount: cards.length,
+                      // 直接子节点（LongPressDraggable）带稳定 key + 反查：
+                      // 卡片换下标时框架才能搬 element，而不是销毁重建。
+                      findItemIndexCallback: (key) {
+                        if (key is! ValueKey<String>) return null;
+                        final value = key.value;
+                        if (!value.startsWith(_kKanbanDragKeyPrefix)) {
+                          return null;
+                        }
+                        final cardId = value.substring(
+                          _kKanbanDragKeyPrefix.length,
+                        );
+                        final index = cards.indexWhere(
+                          (card) => (card.cardID ?? '') == cardId,
+                        );
+                        return index < 0 ? null : index;
+                      },
                       separatorBuilder: (_, _) => const SizedBox(height: 8),
                       itemBuilder: (context, index) =>
                           LongPressDraggable<KanbanCard>(
+                            // 稳定 key 提出到直接子节点（见 _kKanbanDragKeyPrefix 注释）；
+                            // `_KanbanCardTile` 内的 `kanban-card-<id>` 保持不变。
+                            key: ValueKey(
+                              '$_kKanbanDragKeyPrefix${cards[index].cardID ?? ''}',
+                            ),
                             data: cards[index],
                             // Drag copies are decorative motion/position cues;
                             // the readable card remains the interaction source.

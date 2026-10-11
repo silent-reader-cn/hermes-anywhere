@@ -8,6 +8,13 @@ import '../../../l10n/app_localizations.dart';
 import '../pending_attachments_provider.dart';
 import 'chat_media_view.dart';
 
+/// 待发附件缩略图在列表里的 key 前缀：`attachment-thumb-<attachment.id>`。
+///
+/// 需要它是因为 `SliverMultiBoxAdaptorElement.performRebuild` 只读**直接子节点**
+/// element 的 `widget.key`：无 key 时框架不会移动 element，删除前面一项就让后面
+/// 的缩略图按新下标重建（`Image.memory` 重新解码、缩略图闪白）。
+const String _kAttachmentThumbKeyPrefix = 'attachment-thumb-';
+
 /// 待发附件横条面板（需求：粘贴/上传不进流、不直接发送）。
 ///
 /// 消费 [pendingAttachmentsProvider(sessionId)]，横向排布缩略图，
@@ -57,8 +64,21 @@ class AttachmentPendingBar extends ConsumerWidget {
               key: const ValueKey('attachment-pending-list'),
               scrollDirection: Axis.horizontal,
               itemCount: attachments.length,
+              // 稳定 key 提到直接子节点 + 反查条目下标（separated 内部自己 ×2
+              // 换算成子下标）；缺它则删前一项后整块缩略图被销毁重建。
+              findItemIndexCallback: (key) {
+                if (key is! ValueKey<String>) return null;
+                final value = key.value;
+                if (!value.startsWith(_kAttachmentThumbKeyPrefix)) return null;
+                final id = value.substring(_kAttachmentThumbKeyPrefix.length);
+                final index = attachments.indexWhere((a) => a.id == id);
+                return index < 0 ? null : index;
+              },
               separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (context, index) => _AttachmentThumb(
+                key: ValueKey(
+                  '$_kAttachmentThumbKeyPrefix${attachments[index].id}',
+                ),
                 attachment: attachments[index],
                 onRemove: () => ref
                     .read(pendingAttachmentsProvider(sessionId).notifier)
@@ -73,7 +93,11 @@ class AttachmentPendingBar extends ConsumerWidget {
 }
 
 class _AttachmentThumb extends StatelessWidget {
-  const _AttachmentThumb({required this.attachment, required this.onRemove});
+  const _AttachmentThumb({
+    super.key,
+    required this.attachment,
+    required this.onRemove,
+  });
 
   final PendingAttachment attachment;
   final VoidCallback onRemove;
