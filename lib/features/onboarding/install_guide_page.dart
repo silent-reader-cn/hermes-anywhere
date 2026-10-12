@@ -251,6 +251,17 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     }
   }
 
+  /// 当前 locale 的文案包。
+  ///
+  /// 与直接 `AppLocalizations.of(context)` 的区别：安装/配对是长跑的异步链，用户
+  /// 中途离开页面后仍可能走到 `_appendLog`／`_failureReason` 赋值 —— 那一刻对已
+  /// defunct 的 element 做 inherited 查找会抛断言。这里未挂载时退回中文包，只为
+  /// 保证「取文案」这一步不炸（日志本身仍由 [_appendLog] 按 mounted 丢弃）。
+  AppLocalizations _l10n() {
+    if (!mounted) return const AppLocalizations(Locale('zh'));
+    return AppLocalizations.of(context);
+  }
+
   void _appendLog(String line) {
     if (!mounted) return;
     setState(() {
@@ -378,35 +389,36 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
 
   Future<bool> _executeStage(InstallStageKey stage) async {
     final psInstaller = ref.read(powershellInstallerProvider);
+    final l10n = _l10n();
     try {
       switch (stage) {
         case InstallStageKey.prereqs:
-          _appendLog('===> [1/5] 检查安装环境与下载官方 install.ps1 ...');
+          _appendLog(l10n.installWizardLogPrereqs);
           await psInstaller.ensureScriptCached();
           await for (final event in psInstaller.runStage('prereqs')) {
             _handleInstallerEvent(event);
             if (event.type == InstallerEventType.stageFailure) {
-              _failureReason = event.reason ?? '环境检查失败';
+              _failureReason = event.reason ?? l10n.installWizardFailPrereqs;
               return false;
             }
           }
           return true;
         case InstallStageKey.agent:
-          _appendLog('===> [2/5] 拉取与安装 Hermes Agent 源码 ...');
+          _appendLog(l10n.installWizardLogAgent);
           await for (final event in psInstaller.runStage('agent')) {
             _handleInstallerEvent(event);
             if (event.type == InstallerEventType.stageFailure) {
-              _failureReason = event.reason ?? '拉取 Agent 失败';
+              _failureReason = event.reason ?? l10n.installWizardFailAgent;
               return false;
             }
           }
           return true;
         case InstallStageKey.agentDeps:
-          _appendLog('===> [3/5] 安装 Agent Python 虚拟环境及依赖 ...');
+          _appendLog(l10n.installWizardLogDeps);
           await for (final event in psInstaller.runStage('deps')) {
             _handleInstallerEvent(event);
             if (event.type == InstallerEventType.stageFailure) {
-              _failureReason = event.reason ?? '安装 Agent 依赖失败';
+              _failureReason = event.reason ?? l10n.installWizardFailAgentDeps;
               return false;
             }
           }
@@ -419,7 +431,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
       }
     } catch (e) {
       _failureReason = '$e';
-      _appendLog('执行步骤异常: $e');
+      _appendLog(l10n.installWizardLogStepError('$e'));
       return false;
     }
   }
@@ -437,12 +449,13 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
   // ---------------------------------------------------------------------------
 
   Future<bool> _executeServiceStage() async {
-    _appendLog('===> [4/5] 拉起内置 WebUI 服务并开启局域网访问 ...');
+    final l10n = _l10n();
+    _appendLog(l10n.installWizardLogService);
     try {
       final configNotifier = ref.read(webuiSidecarConfigProvider.notifier);
       final initial = ref.read(webuiSidecarConfigProvider);
       if (initial.host != '0.0.0.0') {
-        _appendLog('监听地址 ${initial.host} → 0.0.0.0（同一 Wi-Fi 的手机才能连上）');
+        _appendLog(l10n.installWizardLogHostSwitch(initial.host));
         await configNotifier.setHost('0.0.0.0');
       }
       await configNotifier.setEnabled(true);
@@ -453,9 +466,9 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
       final running = await _waitForServiceRunning();
       if (!running) {
         _failureReason = _serviceFailureReason.isEmpty
-            ? '内置服务启动失败'
+            ? l10n.installWizardFailService
             : _serviceFailureReason;
-        _appendLog('内置服务启动失败：$_failureReason');
+        _appendLog(l10n.installWizardLogServiceFailed(_failureReason));
         return false;
       }
       final config = ref.read(webuiSidecarConfigProvider);
@@ -463,16 +476,16 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
       if (mounted) {
         setState(() => _serviceAddress = address);
       }
-      _appendLog('内置服务已就绪：$address');
+      _appendLog(l10n.installWizardLogServiceReady(address));
       if (ref.read(tailscaleOptInProvider)) {
         await _runTailscaleInstall();
       } else {
-        _appendLog('未勾选 Tailscale：跳过内网穿透（同一 Wi-Fi 下手机仍可直接连）');
+        _appendLog(l10n.installWizardLogTailscaleSkipped);
       }
       return true;
     } catch (e) {
       _failureReason = '$e';
-      _appendLog('启动服务异常: $e');
+      _appendLog(l10n.installWizardLogServiceError('$e'));
       return false;
     }
   }
@@ -492,7 +505,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
       await Future<void>.delayed(interval);
       waited += interval;
     }
-    _serviceFailureReason = '启动超时（30s 未就绪）';
+    _serviceFailureReason = _l10n().installWizardServiceTimeout;
     return false;
   }
 
@@ -514,7 +527,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
 
   /// Tailscale 一键安装（勾选时）：过程整体走横向轨，失败不阻断向导。
   Future<void> _runTailscaleInstall() async {
-    final l10n = AppLocalizations.of(context);
+    final l10n = _l10n();
     final TailscaleService service;
     try {
       service = ref.read(tailscaleServiceProvider);
@@ -526,7 +539,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
       return;
     }
     _tailscaleService = service;
-    _appendLog('===> [4/5] 一起安装 Tailscale：静默安装 + 打开登录页 ...');
+    _appendLog(l10n.installWizardLogTailscale);
     try {
       await for (final status in service.installAndLogin()) {
         if (!mounted) return;
@@ -535,7 +548,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
           _appendLog('Tailscale: ${status.detail}');
         }
         if (status.isReady) {
-          _appendLog('Tailscale 已就绪：${status.ipv4}');
+          _appendLog(l10n.installWizardLogTailscaleReady(status.ipv4));
           return;
         }
         if (status.state == TailscaleState.failed) {
@@ -544,7 +557,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
         }
       }
     } catch (e) {
-      _appendLog('Tailscale 安装异常：$e');
+      _appendLog(l10n.installWizardLogTailscaleError('$e'));
     }
   }
 
@@ -571,6 +584,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
 
   /// 进入配对步骤：先订阅成功事件，再生成配对码。
   Future<void> _beginPairing() async {
+    final l10n = _l10n();
     setState(() {
       _phase = GuidePhase.pairing;
       _pairingError = '';
@@ -582,7 +596,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
       service = ref.read(pairingServiceProvider);
     } catch (_) {
       setState(() => _pairingUnavailable = true);
-      _appendLog('配对服务不可用：请稍后在「设置 → 连接」里用配对码接入');
+      _appendLog(l10n.installWizardLogPairingUnavailable);
       return;
     }
     // 先订阅再接码，避免手机接入事件抢在订阅之前（流可能是广播流）。
@@ -609,7 +623,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
         _pairingAddress = baseUrl;
         _pairingError = '';
       });
-      _appendLog('配对码已生成，等待手机接入（10 分钟内有效）');
+      _appendLog(_l10n().installWizardLogPairingReady);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -642,7 +656,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
       _stageStatuses[InstallStageKey.pairing] = StageStatus.success;
       _phase = GuidePhase.done;
     });
-    _appendLog('手机已连上：${accepted.deviceLabel}');
+    _appendLog(_l10n().installWizardLogPhoneConnected(accepted.deviceLabel));
   }
 
   void _regeneratePairingCode() {
@@ -662,7 +676,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
 
   /// 保存（或跳过）模型配置，然后进入配对步。
   Future<void> _submitModelConfigAndContinue({required bool skip}) async {
-    final l10n = AppLocalizations.of(context);
+    final l10n = _l10n();
     setState(() {
       _savingModel = true;
       _modelFormError = null;
@@ -686,12 +700,12 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
           baseUrl: _baseUrlController.text.trim(),
           model: _modelController.text.trim(),
         );
-        _appendLog('正在保存大模型配置到 WebUI...');
+        _appendLog(l10n.installWizardLogSavingModel);
         await api.saveConfig(
           serverBaseUrl: 'http://127.0.0.1:8787',
           config: config,
         );
-        _appendLog('模型配置已保存');
+        _appendLog(l10n.installWizardLogModelSaved);
       }
       if (mounted) setState(() => _savingModel = false);
       // 收尾「启动服务」步（用户在它里面配完/跳过了模型），再进配对步 —— 此刻
@@ -704,9 +718,9 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
       if (!mounted) return;
       setState(() {
         _savingModel = false;
-        _modelFormError = '保存配置失败: $e';
+        _modelFormError = l10n.installWizardModelSaveFailed('$e');
       });
-      _appendLog('保存配置失败: $e');
+      _appendLog(l10n.installWizardModelSaveFailed('$e'));
     }
   }
 
@@ -730,7 +744,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
       if (!mounted) return;
       context.go('/');
     } catch (e) {
-      _appendLog('写入本机连接失败: $e');
+      _appendLog(_l10n().installWizardLogConnectionFailed('$e'));
     }
   }
 
@@ -1268,7 +1282,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
             Expanded(
               child: _ghostButton(
                 key: const ValueKey('wizard-network-recheck-btn'),
-                label: l10n.agentGateRecheck,
+                label: l10n.installWizardNetworkRecheck,
                 icon: CupertinoIcons.arrow_clockwise,
                 onPressed: _recheckNetwork,
               ),
@@ -1776,7 +1790,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
         Center(
           child: _ghostButton(
             key: const ValueKey('wizard-pairing-regenerate-btn'),
-            label: l10n.agentGateRegeneratePassword,
+            label: l10n.installWizardPairingRegenerate,
             icon: CupertinoIcons.arrow_clockwise,
             onPressed: _regeneratePairingCode,
           ),
@@ -2061,7 +2075,9 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
               ),
               const SizedBox(width: 8),
               Text(
-                '步骤失败: ${_failedStage != null ? _stepTitle(l10n, _failedStage!) : ""}',
+                l10n.installWizardStepFailed(
+                  _failedStage != null ? _stepTitle(l10n, _failedStage!) : '',
+                ),
                 style: TextStyle(
                   fontSize: kFontItemTitle,
                   fontWeight: FontWeight.bold,
@@ -2347,9 +2363,9 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
               padding: const EdgeInsets.all(10),
               color: CupertinoColors.black,
               child: _logs.isEmpty
-                  ? const Text(
-                      '等待安装启动...',
-                      style: TextStyle(
+                  ? Text(
+                      l10n.installWizardLogWaiting,
+                      style: const TextStyle(
                         fontSize: kFontCode,
                         color: CupertinoColors.systemGrey,
                         fontFamily: 'monospace',

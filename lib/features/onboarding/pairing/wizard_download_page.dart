@@ -89,8 +89,8 @@ class _WizardDownloadPageState extends State<WizardDownloadPage> {
                 ),
               ],
               const SizedBox(height: 12),
-              PairingMicroText(
-                l10n.pairingDownloadLinkLabel,
+              const PairingMicroText(
+                hermesDownloadUrl,
                 align: TextAlign.center,
               ),
               const SizedBox(height: 14),

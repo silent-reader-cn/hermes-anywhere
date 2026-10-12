@@ -810,7 +810,7 @@ void main() {
       expect(l10n.pairingNavPair, '配对');
       expect(l10n.pairingNavDownload, '下载桌面版');
       expect(l10n.pairingStartTitle, 'Hermes 跑在哪台电脑上？');
-      expect(l10n.pairingStartSubtitle, 'Hermes 需要一个常驻的后端电脑。选一种情况，下面这几步本机会自动做完。');
+      expect(l10n.pairingStartSubtitle, 'Hermes 需要一个常驻的后端电脑。选一种情况，剩下的几步会引导你完成。');
       expect(l10n.pairingStartSameWifiTitle, '电脑就在同一个 Wi-Fi');
       expect(l10n.pairingStartSameWifiDesc, '自动发现，配对后即可连接');
       expect(l10n.pairingStartElsewhereTitle, '电脑在别处');
@@ -849,7 +849,6 @@ void main() {
       expect(l10n.pairingDownloadStep3Desc, '完成，之后打开 App 自动连接');
       expect(l10n.pairingDownloadCopyLink, '复制下载链接');
       expect(l10n.pairingDownloadLinkCopied, '下载链接已复制');
-      expect(l10n.pairingDownloadLinkLabel, 'github.com/silent-reader-cn/hermes-keep/releases/latest');
       expect(l10n.pairingDownloadFootnote, '复制后发到电脑上的微信 / QQ，打开就能下载');
     });
   });
@@ -908,6 +907,51 @@ void main() {
       expect(l10n.installWizardPairedJustNow, '刚刚配对');
       expect(l10n.installWizardPairedService('0.0.0.0', 8787), '内置服务 · 0.0.0.0:8787');
     });
+
+    test('服务状态与日志台（本批从 install_guide_page 收编）中文原文', () {
+      expect(l10n.installWizardServiceTimeout, '启动超时（30s 未就绪）');
+      expect(l10n.installWizardStepFailed('拉取 Agent'), '步骤失败: 拉取 Agent');
+      expect(l10n.installWizardLogWaiting, '等待安装启动...');
+      expect(l10n.installWizardLogPrereqs, '===> [1/5] 检查安装环境与下载官方 install.ps1 ...');
+      expect(l10n.installWizardLogAgent, '===> [2/5] 拉取与安装 Hermes Agent 源码 ...');
+      expect(l10n.installWizardLogDeps, '===> [3/5] 安装 Agent Python 虚拟环境及依赖 ...');
+      expect(l10n.installWizardLogService, '===> [4/5] 拉起内置 WebUI 服务并开启局域网访问 ...');
+      expect(l10n.installWizardLogTailscale, '===> [4/5] 一起安装 Tailscale：静默安装 + 打开登录页 ...');
+      expect(
+        l10n.installWizardLogHostSwitch('127.0.0.1'),
+        '监听地址 127.0.0.1 → 0.0.0.0（同一 Wi-Fi 的手机才能连上）',
+      );
+      expect(l10n.installWizardLogServiceReady('0.0.0.0:8787'), '内置服务已就绪：0.0.0.0:8787');
+      expect(l10n.installWizardLogServiceFailed('端口占用'), '内置服务启动失败：端口占用');
+      expect(l10n.installWizardLogServiceError('boom'), '启动服务异常: boom');
+      expect(l10n.installWizardLogStepError('boom'), '执行步骤异常: boom');
+      expect(
+        l10n.installWizardLogTailscaleSkipped,
+        '未勾选 Tailscale：跳过内网穿透（同一 Wi-Fi 下手机仍可直接连）',
+      );
+      expect(
+        l10n.installWizardLogTailscaleReady('100.101.87.11'),
+        'Tailscale 已就绪：100.101.87.11',
+      );
+      expect(l10n.installWizardLogTailscaleError('boom'), 'Tailscale 安装异常：boom');
+      expect(
+        l10n.installWizardLogPairingUnavailable,
+        '配对服务不可用：请稍后在「设置 → 连接」里用配对码接入',
+      );
+      expect(l10n.installWizardLogPairingReady, '配对码已生成，等待手机接入（10 分钟内有效）');
+      expect(l10n.installWizardLogPhoneConnected('iPhone 15 Pro'), '手机已连上：iPhone 15 Pro');
+      expect(l10n.installWizardLogSavingModel, '正在保存大模型配置到 WebUI...');
+      expect(l10n.installWizardLogModelSaved, '模型配置已保存');
+      expect(l10n.installWizardModelSaveFailed('boom'), '保存配置失败: boom');
+      expect(l10n.installWizardLogConnectionFailed('boom'), '写入本机连接失败: boom');
+      expect(l10n.installWizardFailPrereqs, '环境检查失败');
+      expect(l10n.installWizardFailAgent, '拉取 Agent 失败');
+      expect(l10n.installWizardFailAgentDeps, '安装 Agent 依赖失败');
+      expect(l10n.installWizardFailService, '内置服务启动失败');
+      // 2026-10-12 定稿新增的两个键（不再复用 agentGate* 的同文键）。
+      expect(l10n.installWizardNetworkRecheck, '重新检测');
+      expect(l10n.installWizardPairingRegenerate, '重新生成');
+    });
   });
 
   group('配对批次：英文侧抽查（复用的既有键 + 新键）', () {
@@ -915,9 +959,27 @@ void main() {
 
     test('关键键的英文取值', () {
       expect(l10n.pairingStartTitle, 'Which computer runs Hermes?');
+      expect(
+        l10n.pairingStartSubtitle,
+        'Hermes needs a computer running in the background. Pick one and the app walks you through the rest.',
+      );
+      expect(l10n.pairingDiscoverChecklistTitle, "Can't find it?");
       expect(l10n.pairingCodeErrorExpired, 'That code has expired — generate a new one on the computer');
       expect(l10n.installWizardStepService, 'Start Service');
-      expect(l10n.installWizardCheckAgentPending, 'Not installed · uses the official install.ps1');
+      expect(l10n.installWizardCheckAgentPending, 'Not installed · official install.ps1');
+      expect(l10n.installWizardNetworkNormal, 'OK');
+      expect(l10n.installWizardNetworkRecheck, 'Check Again');
+      expect(l10n.installWizardNextPairing, 'Next: Pair Phone');
+      expect(l10n.installWizardPairingRegenerate, 'Regenerate');
+      expect(l10n.installWizardServiceTimeout, 'Startup timed out (not ready in 30s)');
+      expect(l10n.installWizardLogWaiting, 'Waiting for the install to start...');
+      expect(l10n.installWizardStepFailed('Pull Agent'), 'Step failed: Pull Agent');
+      expect(
+        l10n.installWizardLogTailscale,
+        '===> [4/5] Installing Tailscale along the way: silent install + open the sign-in page ...',
+      );
+      expect(l10n.installWizardLogTailscaleSkipped.contains('mesh VPN'), isTrue);
+      expect(l10n.installWizardLogPhoneConnected('iPhone'), 'Phone connected: iPhone');
       expect(l10n.installWizardNetworkContinue, 'Continue anyway');
       expect(l10n.installWizardTailscaleBadge, 'Recommended');
       expect(l10n.installWizardLanOff, 'This machine only (127.0.0.1)');

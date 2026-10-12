@@ -158,7 +158,7 @@ void main() {
       expect(find.text('开始使用'), findsOneWidget);
       // 页大标题 + 副文
       expect(find.text('Hermes 跑在哪台电脑上？'), findsOneWidget);
-      expect(find.text('Hermes 需要一个常驻的后端电脑。选一种情况，下面这几步本机会自动做完。'), findsOneWidget);
+      expect(find.text('Hermes 需要一个常驻的后端电脑。选一种情况，剩下的几步会引导你完成。'), findsOneWidget);
       // 三张卡（标题 + 副行）
       expect(find.text('电脑就在同一个 Wi-Fi'), findsOneWidget);
       expect(find.text('自动发现，配对后即可连接'), findsOneWidget);
@@ -611,7 +611,7 @@ void main() {
       expect(find.text('桌面版会显示 6 位配对码'), findsOneWidget);
       expect(find.text('回到手机输入配对码'), findsOneWidget);
       expect(find.text('完成，之后打开 App 自动连接'), findsOneWidget);
-      expect(find.text('github.com/silent-reader-cn/hermes-keep/releases/latest'), findsOneWidget);
+      expect(find.text(hermesDownloadUrl), findsOneWidget);
       expect(find.text('复制后发到电脑上的微信 / QQ，打开就能下载'), findsOneWidget);
       expect(find.text('复制下载链接'), findsOneWidget);
     });
