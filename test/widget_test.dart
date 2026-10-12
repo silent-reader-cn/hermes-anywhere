@@ -46,7 +46,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.text('连接你的 Hermes 服务器'), findsOneWidget);
+    // 形态 B 首启已改版为配对决策树（M1）：这里断言新首问页在场。
+    // 旧地址表单改为兜底入口（其字段/placeholder/提交逻辑契约由 onboarding 域用例覆盖）。
+    expect(find.text('Hermes 跑在哪台电脑上？'), findsOneWidget);
     expect(find.text('暂无会话'), findsNothing);
   });
 

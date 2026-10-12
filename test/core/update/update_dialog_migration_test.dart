@@ -313,6 +313,11 @@ void main() {
           ],
           home: const OnboardingPage(),
         );
+        // 首启已改版为配对决策树：先进兜底入口，才能到达旧地址表单。
+        await tester.tap(
+          find.byKey(const ValueKey('pairing-start-manual-address')),
+        );
+        await tester.pump();
         await tester.enterText(
           find.byKey(const ValueKey('onboarding-url')),
           'not-a-url',
