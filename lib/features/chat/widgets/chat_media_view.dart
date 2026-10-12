@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -422,7 +423,7 @@ class _ChatInlineMediaWidgetState extends ConsumerState<ChatInlineMediaWidget> {
           gaplessPlayback: true,
           frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
             if (wasSynchronouslyLoaded || frame != null) {
-              return _mediaFadeIn(child);
+              return _mediaFadeIn(context, child);
             }
             return _loadingBox(
               context,
@@ -478,7 +479,7 @@ class _ChatInlineMediaWidgetState extends ConsumerState<ChatInlineMediaWidget> {
         gaplessPlayback: true,
         frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
           if (wasSynchronouslyLoaded || frame != null) {
-            return _mediaFadeIn(child);
+            return _mediaFadeIn(context, child);
           }
           return _loadingBox(
             context,
@@ -1334,7 +1335,7 @@ class _LightboxNetworkImage extends ConsumerWidget {
         gaplessPlayback: true,
         frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
           if (wasSynchronouslyLoaded || frame != null) {
-            return _mediaFadeIn(child);
+            return _mediaFadeIn(context, child);
           }
           return const Center(child: CupertinoActivityIndicator());
         },
@@ -1377,14 +1378,79 @@ class _LightboxNetworkImage extends ConsumerWidget {
 /// extent 单次到位，配合列表 ScrollMetricsNotification 跟底一次补跳）。
 /// const Tween 实例：仅首帧构建一次，后续帧同实例 →
 /// TweenAnimationBuilder 不重启动画。
-Widget _mediaFadeIn(Widget child) {
-  return TweenAnimationBuilder<double>(
-    tween: Tween<double>(begin: 0, end: 1),
-    duration: const Duration(milliseconds: 150),
-    curve: Curves.easeOut,
-    builder: (context, value, child) => Opacity(opacity: value, child: child),
-    child: child,
-  );
+Widget _mediaFadeIn(BuildContext context, Widget child) {
+  // 关闭动画（系统辅助功能 / widget 测试）时直接给终态：不建 Ticker，也就不可能卡住。
+  if (MediaQuery.disableAnimationsOf(context)) return child;
+  return _MediaFadeIn(child: child);
+}
+
+/// 真图淡入的一次性包装（带**看门狗**）。
+///
+/// ⚠️ 2026-10-12 主人真机报障修复：`TweenAnimationBuilder` 首帧是
+/// `Opacity(opacity: 0)`，而 **`Opacity(0)` 只隐藏绘制、照样占布局** —— 一旦这
+/// 150ms 内 ticker 没有推进（桌面端窗口失焦时引擎不产帧；或所在子树 `TickerMode`
+/// 被关），它就**永远停在 0**：表现为「图片那块地方完全透明、点一下窗口任意处才
+/// 出现」（既不是加载占位、也没有任何报错日志）。
+///
+/// 看门狗用 **Dart 定时器**（不受帧调度与 ticker 静音影响）：超时仍未自然收尾就
+/// 强制终态，让「永久不可见」这个状态在构造上不可能出现。
+class _MediaFadeIn extends StatefulWidget {
+  const _MediaFadeIn({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_MediaFadeIn> createState() => _MediaFadeInState();
+}
+
+class _MediaFadeInState extends State<_MediaFadeIn> {
+  /// 淡入时长（原实现口径，勿改）。
+  static const Duration _fadeDuration = Duration(milliseconds: 150);
+
+  /// 看门狗超时：显著大于淡入时长，又短到用户几乎无感。
+  static const Duration _watchdogTimeout = Duration(milliseconds: 600);
+
+  Timer? _watchdog;
+
+  /// 看门狗已强制终态。
+  bool _forced = false;
+
+  /// 动画已自然收尾（用于收线，取消看门狗）。
+  bool _settled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _watchdog = Timer(_watchdogTimeout, () {
+      if (!mounted || _settled) return;
+      setState(() => _forced = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _watchdog?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_forced) {
+      // 强制终态：不再包 Opacity（零 Ticker、零额外合成层）。
+      return widget.child;
+    }
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: _fadeDuration,
+      curve: Curves.easeOut,
+      onEnd: () {
+        _settled = true;
+        _watchdog?.cancel();
+      },
+      builder: (context, value, child) => Opacity(opacity: value, child: child),
+      child: widget.child,
+    );
+  }
 }
 
 /// 计算占位容器尺寸：若 URL 携带尺寸提示则按 contain 计算，否则回退默认 160×120。

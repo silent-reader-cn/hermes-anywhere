@@ -1075,4 +1075,118 @@ void main() {
       expect(downloadBtn.onPressed, isNull);
     });
   });
+
+  // ── 2026-10-12 主人真机报障：图片「完全透明、点一下窗口才出现」 ──
+  // 根因：淡入用 TweenAnimationBuilder，首帧 Opacity(0) 且**保留布局** ⇒ ticker 不推进时
+  // （窗口失焦引擎不产帧 / 子树 TickerMode 被关）永远停在 0。以下三条锁住修法。
+  group('图片淡入不得卡在完全透明（看门狗 + 关闭动画终态）', () {
+    Future<File> writeTempPng(WidgetTester tester, String name) async {
+      final f = File('${Directory.systemTemp.path}${Platform.pathSeparator}$name');
+      await tester.runAsync(
+        () => f.writeAsBytes(base64Decode(_k1x1Png.split(',').last)),
+      );
+      addTearDown(() async {
+        try {
+          await f.delete();
+        } on FileSystemException {
+          // ignore
+        }
+      });
+      return f;
+    }
+
+    Future<void> pumpMedia(
+      WidgetTester tester,
+      File f, {
+      bool disableAnimations = false,
+      bool muteTicker = false,
+    }) async {
+      Widget home = const CupertinoPageScaffold(
+        child: ChatInlineMediaWidget(
+          rawUri: 'https://example.com/assets/banner.png',
+          alt: 'banner.png',
+        ),
+      );
+      // 注意：MediaQuery / TickerMode 必须挂在 App **内部**（CupertinoApp 自带
+      // MediaQuery 会遮蔽外层的 disableAnimations）。
+      if (disableAnimations) {
+        home = MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: home,
+        );
+      }
+      if (muteTicker) home = TickerMode(enabled: false, child: home);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            mediaFileProvider.overrideWith((ref, url) async => f),
+          ],
+          child: CupertinoApp(home: home),
+        ),
+      );
+      await tester.pump();
+      // 真图解码必须放行真实异步：FakeAsync 下真实文件 IO 不会自己推进，
+      // 只有解码出帧、frameBuilder 才会返回淡入包裹（本仓既有配方：10 轮
+      // runAsync(30ms) + pump(50ms)；单次 _settleMediaAsync 不足以出帧）。
+      // 累计假时钟 500ms < 看门狗 600ms，故首帧仍处于「淡入中」。
+      for (var i = 0; i < 10; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 30)),
+        );
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+    }
+
+    testWidgets('关闭动画时直接给终态：图片不再被 Opacity 包住等 ticker', (tester) async {
+      final f = await writeTempPng(tester, 'hermex_fade_disableanim.png');
+      await pumpMedia(tester, f, disableAnimations: true);
+
+      expect(find.byType(TweenAnimationBuilder<double>), findsNothing);
+      expect(tester.widget<Image>(find.byType(Image)).image, isA<FileImage>());
+    });
+
+    testWidgets('ticker 被静音（TickerMode 关）时看门狗强制终态，图片不再透明', (tester) async {
+      final f = await writeTempPng(tester, 'hermex_fade_watchdog.png');
+      await pumpMedia(tester, f, muteTicker: true);
+
+      // 首帧仍在淡入：被静音的 ticker 永不推进
+      expect(find.byType(TweenAnimationBuilder<double>), findsOneWidget);
+
+      // 看门狗是 Dart 定时器（不受帧调度影响）⇒ 超时后必须落终态
+      await tester.pump(const Duration(milliseconds: 900));
+      expect(find.byType(TweenAnimationBuilder<double>), findsNothing);
+      expect(tester.widget<Image>(find.byType(Image)).image, isA<FileImage>());
+    });
+
+    testWidgets('正常路径自然收尾：终态不残留半透明包裹（图片一定可见）', (tester) async {
+      final f = await writeTempPng(tester, 'hermex_fade_normal.png');
+      await pumpMedia(tester, f);
+
+      // 淡入包裹应当在（证明不是靠「删掉动画」来修）
+      expect(
+        find.byType(TweenAnimationBuilder<double>),
+        findsOneWidget,
+        reason: '正常路径应当仍有淡入包裹',
+      );
+
+      // 给足时间：自然收尾（150ms）或看门狗（600ms）都**必须**落到「完全可见」。
+      // 判据用用户可见口径（不得残留半透明包裹），而不是赌哪条路径先到 ——
+      // 图片出帧时刻在放行循环里会浮动，断言包裏存在与否会变成 flaky。
+      await tester.pump(const Duration(seconds: 1));
+      final opacities = tester
+          .widgetList<Opacity>(
+            find.ancestor(
+              of: find.byType(Image),
+              matching: find.byType(Opacity),
+            ),
+          )
+          .map((o) => o.opacity)
+          .toList();
+      expect(
+        opacities.every((o) => o >= 0.99),
+        isTrue,
+        reason: '终态不得残留半透明包裹（实测 opacities=$opacities）',
+      );
+    });
+  });
 }
