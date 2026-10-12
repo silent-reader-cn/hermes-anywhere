@@ -15,6 +15,7 @@ import '../../core/utils/uuid.dart';
 import '../../l10n/app_localizations.dart';
 import '../webui_sidecar/webui_sidecar_providers.dart';
 import 'onboarding_providers.dart';
+import 'pairing/pairing_wizard.dart';
 import 'widgets/builtin_tab.dart';
 import 'widgets/onboarding_field_style.dart';
 import 'widgets/wide_dual_pane.dart';
@@ -370,37 +371,29 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       });
     }
     if (!useBuiltinPane) {
-      // 形态 B（非 Windows / dev 无内置包）：现状远程表单逐像素不变
-      return CupertinoPageScaffold(
-        backgroundColor:
-            CupertinoTheme.brightnessOf(context) == Brightness.light
-            ? LightSurfaces.page
-            : null,
-        navigationBar: CupertinoNavigationBar(
-          border: null,
-          bottom: const NavBarHairline(),
-          backgroundColor:
-              CupertinoTheme.brightnessOf(context) == Brightness.light
-              ? LightSurfaces.page
-              : null,
-          middle: Text(l10n.connectServer),
-        ),
-        child: SafeArea(
-          child: WideDualPane(
-            wideChild: _buildWideForm(l10n),
-            child: Column(
-              children: [
-                Expanded(child: _buildForm()),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: _buildSubmitButton(l10n),
-                  ),
-                ),
-              ],
+      // 形态 B（非 Windows / dev 无内置包）：手机端首启走**决策树** ——
+      // M1「Hermes 跑在哪台电脑上？」→ 同一 Wi-Fi 发现（M2）/ 配对码（M3）/
+      // 下载引导（M4）；旧远程表单不再是首屏，降级为兜底入口
+      // （M1 底部「我有服务器地址」与 M2 的「手动输入地址」进入）。
+      //
+      // 兜底的两块与改造前是**同一份表达式**（字段、placeholder、health 检查、
+      // 密码校验与提交逻辑一行未改），导航标题也沿用 l10n.connectServer，
+      // 故进入兜底后的画面与改造前的首屏逐像素一致（取证见
+      // test/features/onboarding/pairing_wizard_test.dart 的兜底用例）。
+      return PairingWizard(
+        key: const ValueKey('onboarding-pairing-wizard'),
+        legacyWide: _buildWideForm,
+        legacyNarrow: (l10n) => Column(
+          children: [
+            Expanded(child: _buildForm()),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+              child: SizedBox(
+                width: double.infinity,
+                child: _buildSubmitButton(l10n),
+              ),
             ),
-          ),
+          ],
         ),
       );
     }

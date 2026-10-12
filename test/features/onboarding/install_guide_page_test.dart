@@ -411,7 +411,20 @@ void main() {
     await tester.tap(find.text('返回远程连接'));
     await tester.pumpAndSettle();
 
+    // 首启已改版为决策树（M1）：返回后落到新的首问页，而非改造前的那张地址表单。
+    // 可达性结论：`/install-guide` 在本仓**只有路由声明**（lib/app/router.dart:84），
+    // lib/ 里没有任何 widget 入口指向它 —— 改造前后都只能由路由直接到达，
+    // 故此处只是首屏契约变更，不是入口回归。
+    expect(find.text('Hermes 跑在哪台电脑上？'), findsOneWidget);
+    expect(find.text('连接你的 Hermes 服务器'), findsNothing);
+
+    // 返回后仍能两步走到旧远程表单（兜底入口可达）
+    await tester.tap(
+      find.byKey(const ValueKey('pairing-start-manual-address')),
+    );
+    await tester.pumpAndSettle();
     expect(find.text('连接你的 Hermes 服务器'), findsOneWidget);
+    expect(find.byKey(const ValueKey('onboarding-url')), findsOneWidget);
   });
 
   // -------------------------------------------------------------------------
