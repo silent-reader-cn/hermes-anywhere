@@ -130,6 +130,21 @@ class PairingAccepted {
 }
 
 /// 桌面端配对服务：出码 + 局域网应答。
+/// 可选能力：服务能报告「对外公布地址」的状态。
+///
+/// 契约主体 [PairingService] 只保证「出码 / 应答 / 收到接入」；而「手机到底该连哪个
+/// 地址」是**桌面端实现才知道**的事（要枚举网卡 + 逐个探活校验）。UI 通过本接口读该
+/// 状态，从而在**没有可用地址**时给明确提示，而不是显示一个必然连不上的地址。
+///
+/// 未实现本接口的实现（测试 fake / 未来其它端）：UI 退化为按调用方传入的地址显示。
+abstract class AdvertisedAddressReporting {
+  /// 探活校验通过的对外 host；没有可用地址时为 null。
+  String? get advertisedHost;
+
+  /// 是否存在探活校验通过的对外地址。
+  bool get hasAdvertisedLanAddress;
+}
+
 abstract class PairingService {
   /// 当前会话；未开启时为 null。
   PairingSession? get current;

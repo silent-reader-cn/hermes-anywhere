@@ -2642,6 +2642,11 @@ extension AppLocalizationsInstallWizard on AppLocalizations {
       ? 'The first time you run this, Windows may ask once whether to allow network access — choose "Allow", or your phone will not be able to connect.'
       : '首次运行 Windows 可能弹一次网络访问询问，请点「允许」——否则手机连不上。';
 
+  /// 出了配对码但**没有任何手机能连上的地址**时的明确提示（不再是静默 / 死地址）。
+  String get installWizardNoLanAddress => isEnglish
+      ? 'No LAN address your phone can reach. Make sure this computer is on the same Wi-Fi as your phone; if a proxy or virtual adapter is active, turn it off and tap "Regenerate".'
+      : '没找到手机能连上的局域网地址：请确认这台电脑已连上 Wi-Fi（与手机同一个网络）；若开了代理或虚拟网卡，请先关掉再点「重新生成」。';
+
   // ---- 本机部署向导（桌面端）· 手机配对步 ----
 
   /// 等待手机接入。

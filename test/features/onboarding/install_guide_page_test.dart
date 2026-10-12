@@ -215,7 +215,15 @@ class _FakeTailscaleService implements TailscaleService {
 }
 
 /// 假配对服务：记录 start() 入参，测试用 [emitAccepted] 模拟手机接入。
-class _FakePairingService implements PairingService {
+class _FakePairingService implements PairingService, AdvertisedAddressReporting {
+  /// 探活校验后「对外公布」的 host（默认给局域网地址，与既有用例的 lastBaseUrl 口径一致）；
+  /// 置空串可模拟「一块可用网卡都没有」。
+  @override
+  String? advertisedHost = '192.168.1.7';
+
+  @override
+  bool get hasAdvertisedLanAddress =>
+      advertisedHost != null && advertisedHost!.isNotEmpty;
   PairingSession? _current;
   final StreamController<PairingAccepted> _acceptedController =
       StreamController<PairingAccepted>.broadcast();
@@ -1201,6 +1209,51 @@ void main() {
         );
         await unmountHermesPage(tester);
       });
+    }
+  });
+
+  testWidgets('配对地址显示的是**探活校验过的 host**，不是向导自己猜的', (tester) async {
+    final pairing = _FakePairingService()..advertisedHost = '10.20.30.40';
+    await tester.pumpWidget(
+      buildTestApp(tester, injectPairing: true, pairing: pairing),
+    );
+    await openGuide(tester);
+    await reachPairing(tester);
+
+    // 向导自己算出来的 baseUrl 是 192.168.1.7（见「末步出 6 位配对码」用例的 lastBaseUrl）；
+    // 显示的必须是服务端探活校验过的那个 host，否则就是把「连不上」当「已就绪」展示。
+    expect(
+      find.byKey(const ValueKey('wizard-pairing-address')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('10.20.30.40'), findsOneWidget);
+    expect(find.textContaining('192.168.1.7'), findsNothing);
+  });
+
+  testWidgets('没有可用局域网地址 → 明确告警卡 + 不显示地址行（不再静默 / 死地址）', (tester) async {
+    final pairing = _FakePairingService()..advertisedHost = '';
+    await tester.pumpWidget(
+      buildTestApp(tester, injectPairing: true, pairing: pairing),
+    );
+    await openGuide(tester);
+    await reachPairing(tester);
+
+    expect(
+      find.byKey(const ValueKey('wizard-no-lan-address-card')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('没找到手机能连上的局域网地址'), findsOneWidget);
+    // 不显示地址行（日志台里出现的 127.0.0.1 是诊断日志，不是公布地址，故按 key 断言）
+    expect(
+      find.byKey(const ValueKey('wizard-pairing-address')),
+      findsNothing,
+    );
+    // 码照常出（本机仍可自测 / 手输），只是不再公布死地址。
+    for (var i = 0; i < 6; i++) {
+      expect(
+        find.byKey(ValueKey<String>('wizard-pairing-digit-$i')),
+        findsOneWidget,
+      );
     }
   });
 }

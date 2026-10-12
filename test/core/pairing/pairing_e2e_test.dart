@@ -66,7 +66,14 @@ void main() {
     final candidate = candidates.single;
     expect(candidate.deviceName, 'E2E-PC');
     expect(candidate.installId, installId);
-    expect(candidate.webuiBaseUrl, webuiBaseUrl);
+    // 口径（2026-10-12 定稿）：回给手机的 host 必须是**校验过能连上**的那个
+    // （本用例 caller 故意传不可达的 192.168.1.7，校验过的是 127.0.0.1），
+    // 端口仍是 WebUI 端口。
+    expect(Uri.parse(candidate.webuiBaseUrl).host, '127.0.0.1');
+    expect(
+      Uri.parse(candidate.webuiBaseUrl).port,
+      Uri.parse(webuiBaseUrl).port,
+    );
     expect(candidate.pairingBaseUrl, service.pairingEndpoint);
     expect(Uri.parse(candidate.pairingBaseUrl).port, Uri.parse(service.pairingEndpoint!).port);
 
@@ -74,7 +81,9 @@ void main() {
       pairingBaseUrl: candidate.pairingBaseUrl,
       code: session.code,
     );
-    expect(credentials.baseUrl, webuiBaseUrl);
+    // 同上：host 被换成校验过的那个，端口保留 WebUI 端口。
+    expect(Uri.parse(credentials.baseUrl).host, '127.0.0.1');
+    expect(Uri.parse(credentials.baseUrl).port, Uri.parse(webuiBaseUrl).port);
     expect(credentials.password, password);
     expect(credentials.installId, installId);
 

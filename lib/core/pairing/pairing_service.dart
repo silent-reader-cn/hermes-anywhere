@@ -145,7 +145,8 @@ Future<String?> resolvePairingAdvertisedHost(
 /// 桌面端配对服务。
 ///
 /// 生命周期：`start()` 起 socket → `accepted` 上报接入 → `stop()` 关 socket（幂等）。
-class DesktopPairingService implements PairingService {
+class DesktopPairingService
+    implements PairingService, AdvertisedAddressReporting {
   DesktopPairingService({
     this.codeGenerator = const SecurePairingCodeGenerator(),
     DateTime Function()? clock,
@@ -215,17 +216,24 @@ class DesktopPairingService implements PairingService {
   /// `null` = 一个候选都没能探活通过（含「一块可用网卡都没有」）：
   /// 调用方/UI 必须据此给出明确状态，**不得**回落 `127.0.0.1` ——
   /// 那只会把「配对必然失败」伪装成「配对已就绪」。
+  @override
   String? get advertisedHost => _advertisedHost;
 
   /// 是否存在已探活通过的局域网地址（[advertisedHost] 非空）。
   ///
   /// 为 `false` 时：配对码照常出（本机仍可自测/手输），但发现通道不会对外
   /// 公布任何地址（[pairingEndpoint] 为 null，UDP 应答里不会出现假地址）。
+  @override
   bool get hasAdvertisedLanAddress => _advertisedHost != null;
 
   /// 发现应答实际监听的 UDP 端口（[discoveryPort] 传 0 时为系统分配值）；
   /// 未开启发现通道时为 null。
   int? get discoveryBoundPort => _udp?.port;
+  /// 配对 HTTP 服务实际绑定的端口（未开启时为 null）。
+  ///
+  /// 仅测试/诊断用（排查「手机连不上」时确认服务真的在监听）；
+  /// 对外公布地址请读 [pairingEndpoint]，它带探活校验。
+  int? get pairingPort => _http?.port;
 
   @override
   Future<PairingSession> start({
@@ -396,7 +404,9 @@ class DesktopPairingService implements PairingService {
       'deviceName': _hostNameResolver(),
       'pairingBaseUrl': endpoint,
       'installId': session.installId,
-      'webuiBaseUrl': session.baseUrl,
+      // WebUI 地址：host 用**探活校验过**的那块网卡（调用方传进来的可能是
+      // 127.0.0.1 / 虚拟网卡 / fake-ip，手机拿去必连不上），端口仍是 WebUI 端口。
+      'webuiBaseUrl': _withAdvertisedHost(session.baseUrl),
     });
     try {
       socket.send(utf8.encode(payload), datagram.address, datagram.port);
@@ -462,6 +472,18 @@ class DesktopPairingService implements PairingService {
         <String, Object?>{'error': PairingErrorCodes.noSession},
       );
     }
+    final advertised = _pairingEndpoint; // 仅用于判定是否存在可用 host
+    if (advertised == null) {
+      // 没有探活通过的对外地址：**绝不能**把调用方传进来的「猜的地址」回给手机
+      // （可能是 127.0.0.1 / 虚拟网卡 / fake-ip），那会让手机存下一个死地址、
+      // 且两端都毫无提示。回 503（空体）⇒ 手机端映射为「找不到配对服务」。
+      // 该判定放在码校验之前：码不该因为「本机没有可用地址」而被烧掉。
+      return await _writeJson(
+        request,
+        HttpStatus.serviceUnavailable,
+        <String, Object?>{},
+      );
+    }
     if (_redeemed) {
       // 一次性：成功兑换过就作废，绝不第二次吐密码。
       return await _writeJson(
@@ -498,10 +520,25 @@ class DesktopPairingService implements PairingService {
       );
     }
     return await _writeJson(request, HttpStatus.ok, <String, Object?>{
-      'baseUrl': session.baseUrl,
+      // 同样：host 换成探活校验过的那个，端口保留调用方给的 WebUI 端口。
+      'baseUrl': _withAdvertisedHost(session.baseUrl),
       'password': session.password,
       'installId': session.installId,
     });
+  }
+
+  /// 把 [baseUrl] 的 host 换成**探活校验过的**对外 host（端口/路径/协议保留）。
+  ///
+  /// 为什么不能直接用 [baseUrl]：它是调用方（桌面向导）自己猜的，可能是
+  /// `127.0.0.1`、虚拟网卡或 Clash fake-ip —— 手机拿去必然连不上，而错误会
+  /// 一直静默到「手机连不上」为止。为什么不能直接用 [pairingEndpoint]：那是
+  /// **配对服务自己**的临时端口，不是 WebUI 端口，手机要连的是后者。
+  String _withAdvertisedHost(String baseUrl) {
+    final host = _advertisedHost;
+    if (host == null || host.isEmpty) return baseUrl;
+    final uri = Uri.tryParse(baseUrl.trim());
+    if (uri == null || uri.host.isEmpty) return baseUrl;
+    return uri.replace(host: host).toString();
   }
 
   Future<void> _writeJson(

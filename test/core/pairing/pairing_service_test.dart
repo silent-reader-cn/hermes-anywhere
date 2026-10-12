@@ -37,12 +37,14 @@ DateTime _defaultClock() => _baseNow;
 DesktopPairingService _buildService({
   DateTime Function()? clock,
   PairingCodeGenerator? generator,
+  /// 探活校验后「对外公布」的地址；传空串模拟「一块可用网卡都没有」。
+  String advertisedHost = _lanHost,
 }) {
   return DesktopPairingService(
     codeGenerator: generator ?? _FixedCodeGenerator('123456'),
     clock: clock ?? _defaultClock,
     hostNameResolver: () => _host,
-    advertisedHostResolver: (String baseUrl) async => _lanHost,
+    advertisedHostResolver: (String baseUrl) async => advertisedHost,
     httpBindAddress: InternetAddress.loopbackIPv4,
     discoveryBindAddress: InternetAddress.loopbackIPv4,
     discoveryPort: 0,
@@ -264,10 +266,75 @@ void main() {
 
       expect(response.statusCode, 200);
       final payload = jsonDecode(response.body) as Map<String, dynamic>;
+      // 口径（2026-10-12 定稿）：host 必须是**探活校验过**的那块网卡，端口仍是 WebUI 端口。
+      // 本用例里调用方的 host 恰好 == 校验过的 host，故与 _webuiBaseUrl 等值。
       expect(payload['baseUrl'], _webuiBaseUrl);
       expect(payload['installId'], _installId);
       // 唯一允许出现密码的地方：这一次性 200 响应体。
       expect(payload['password'], _password);
+    });
+
+    test('回给手机的是校验过的对外地址，不是调用方猜的那个（含探活地址≠入参地址）', () async {
+      final service = _buildService(generator: _FixedCodeGenerator('654321'));
+      addTearDown(service.stop);
+      // 调用方故意传一个「不是本机局域网地址」的 baseUrl（模拟向导自己猜错）。
+      final session = await service.start(
+        baseUrl: 'http://10.99.99.99:8787',
+        password: _password,
+        installId: _installId,
+        ttl: const Duration(minutes: 10),
+      );
+
+      final response = await _redeem(
+        _loopbackOf(service.pairingEndpoint!), <String, Object?>{
+        'code': session.code,
+        'device': 'iPhone 15 Pro',
+      });
+
+      expect(response.statusCode, 200);
+      final payload = jsonDecode(response.body) as Map<String, dynamic>;
+      // host 必须被换成校验过的那个，端口保留调用方给的 WebUI 端口。
+      expect(payload['baseUrl'], 'http://$_lanHost:8787');
+      expect(
+        '${payload['baseUrl']}'.contains('10.99.99.99'),
+        isFalse,
+        reason: '绝不能把调用方猜的地址回给手机 —— 手机存下它就是死地址',
+      );
+      expect(payload['baseUrl'], contains(_lanHost));
+    });
+
+    test('没有探活通过的对外地址 → 503 且不吐凭据；判定在码校验之前（码不被烧掉）', () async {
+      final service = _buildService(
+        generator: _FixedCodeGenerator('654321'),
+        advertisedHost: '', // 模拟：一块可用网卡都没有
+      );
+      addTearDown(service.stop);
+      final session = await service.start(
+        baseUrl: _webuiBaseUrl,
+        password: _password,
+        installId: _installId,
+        ttl: const Duration(minutes: 10),
+      );
+      expect(service.hasAdvertisedLanAddress, isFalse);
+      expect(service.pairingEndpoint, isNull);
+      // 端口仍然存在（HTTP 服务照常起来），否则下面的请求无从发起。
+      final port = service.pairingPort;
+      expect(port, isNotNull);
+
+      final response = await _redeem(
+        'http://127.0.0.1:$port',
+        <String, Object?>{'code': session.code, 'device': 'iPhone 15 Pro'},
+      );
+      expect(response.statusCode, 503);
+      expect(response.body.contains(_password), isFalse);
+
+      // 判定在码校验之前：连**错码**也应当是 503（而不是 409 wrong_code）——
+      // 证明这一轮没有走到码比对，码自然也没被烧掉。
+      final wrong = await _redeem(
+        'http://127.0.0.1:$port',
+        <String, Object?>{'code': '000000', 'device': 'iPhone 15 Pro'},
+      );
+      expect(wrong.statusCode, 503);
     });
 
     test('码错 → 409 wrong_code（不是 expired），且码错不作废会话', () async {

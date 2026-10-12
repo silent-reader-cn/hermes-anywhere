@@ -620,7 +620,9 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
       if (!mounted) return;
       setState(() {
         _pairingSession = session;
-        _pairingAddress = baseUrl;
+        // 显示/交给手机的地址 = **服务端探活校验过的 host** + WebUI 端口
+        // （不能用向导自己猜的 baseUrl：可能是 127.0.0.1 / 虚拟网卡 / fake-ip）。
+        _pairingAddress = _advertisedWebuiBaseUrl(service, baseUrl);
         _pairingError = '';
       });
       _appendLog(_l10n().installWizardLogPairingReady);
@@ -631,6 +633,23 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
             '${AppLocalizations.of(context).installWizardPairingErrorPrefix}$e';
       });
     }
+  }
+
+  /// 向导要显示、也是手机将要保存的 WebUI 地址。
+  ///
+  /// host 取**服务端探活校验过**的那块网卡（`AdvertisedAddressReporting`），端口沿用
+  /// WebUI 端口；服务端 `/pair` 应答与 UDP 发现应答下发的是同一个地址（同一口径）。
+  /// 没有可用地址时返回空串 —— 调用方据此显示明确提示，绝不回 `127.0.0.1`。
+  String _advertisedWebuiBaseUrl(PairingService service, String fallback) {
+    final reporting = service is AdvertisedAddressReporting
+        ? service as AdvertisedAddressReporting
+        : null;
+    if (reporting == null) return fallback; // 未实现该能力的实现：按现状显示
+    final host = reporting.advertisedHost;
+    if (host == null || host.isEmpty) return '';
+    final uri = Uri.tryParse(fallback.trim());
+    final port = uri?.port ?? ref.read(webuiSidecarConfigProvider).port;
+    return 'http://$host:$port';
   }
 
   /// 配对地址：Tailscale 就绪则用 tailnet 地址（跨网可连），否则局域网地址。
@@ -1226,6 +1245,51 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     ];
   }
 
+  /// 没有手机能连上的局域网地址时的告警卡（同 [_buildNetworkWarningCard] 的视觉 token）。
+  Widget _buildNoLanAddressCard(AppLocalizations l10n) {
+    final bg = LightSurfaces.resolve(
+      context,
+      LightSurfaces.tintWarning,
+      dark: statusOrangeText.resolveFrom(context).withValues(alpha: 0.14),
+    );
+    final border = LightSurfaces.resolve(
+      context,
+      const Color(0xFFF0D6B8),
+      dark: statusOrangeText.resolveFrom(context).withValues(alpha: 0.36),
+    );
+    final textColor = LightSurfaces.resolve(
+      context,
+      const Color(0xFF5B3A16),
+      dark: statusOrangeText.resolveFrom(context),
+    );
+    return Container(
+      key: const ValueKey('wizard-no-lan-address-card'),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            CupertinoIcons.exclamationmark_triangle,
+            size: 15,
+            color: statusOrangeText.resolveFrom(context),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              l10n.installWizardNoLanAddress,
+              style: TextStyle(fontSize: kFontCaption, height: 1.5, color: textColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildNetworkWarningCard(AppLocalizations l10n) {
     // 设计稿 §5 N1 真值：底 #FFF4E8 / 边 #F0D6B8 / 文字 #5B3A16。
     final bg = LightSurfaces.resolve(
@@ -1769,6 +1833,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
           const SizedBox(height: 8),
           Text(
             '${l10n.installWizardPairingAddressPrefix}$_pairingAddress',
+            key: const ValueKey('wizard-pairing-address'),
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: kFontMicro, color: _secondary),
           ),
@@ -1779,6 +1844,11 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: kFontMicro, color: _secondary),
         ),
+        // 出了码但**没有任何手机能连上的地址**：明确说清，不要让用户拿着配对码干等。
+        if (_pairingSession != null && _pairingAddress.isEmpty) ...[
+          const SizedBox(height: 10),
+          _buildNoLanAddressCard(l10n),
+        ],
         if (_pairingError.isNotEmpty) ...[
           const SizedBox(height: 8),
           Text(
