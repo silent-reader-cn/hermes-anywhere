@@ -1396,6 +1396,10 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
       ],
       const SizedBox(height: 12),
       _noteCard(l10n.installWizardTailscaleExempt),
+      const SizedBox(height: 12),
+      // 首次放行提示：本步是内置服务首次绑 0.0.0.0:8787 的时点，Windows 会弹一次
+      // 「是否允许访问网络」；点了取消 / 关掉后手机侧就静默连不上（同款 notecard 样式）。
+      _noteCard(l10n.installWizardFirewallAllowHint),
       if (_phase == GuidePhase.configuringModel) ...[
         const SizedBox(height: 12),
         _buildModelConfigForm(l10n),
