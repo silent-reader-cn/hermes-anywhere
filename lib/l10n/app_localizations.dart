@@ -2326,6 +2326,16 @@ extension AppLocalizationsPairingWizard on AppLocalizations {
       ? '3. Check that the computer firewall allows 8787'
       : '3. 检查电脑防火墙是否放行 8787';
 
+  /// M2 自检第 4 条（2026-10-12 本批新增键：Windows 首次放行的网络访问询问）。
+  ///
+  /// 为什么单列一条：Windows **首次**监听 `0.0.0.0:8787` 时系统会弹一次
+  /// 「是否允许访问网络」；点了取消 / 关掉后，手机侧会**静默连不上**（两端都无提示）。
+  /// 第 3 条只讲「防火墙要放行 8787」，这条把 Windows 与首次放行点名到步，
+  /// 让用户知道那句询问该点「允许」。**不出现 VPN 字样**（本仓敏感措辞口径）。
+  String get pairingDiscoverCheck4 => isEnglish
+      ? "4. Check that the computer's Windows Firewall allows 8787 (it may ask once on the first run — choose \"Allow\")"
+      : '4. 检查电脑的 Windows 防火墙是否放行 8787（首次运行可能弹一次询问，请点「允许」）';
+
   /// M2 兜底链接（进入旧远程表单）。
   String get pairingDiscoverManualEntryLink =>
       isEnglish ? 'Enter address manually' : '手动输入地址';
@@ -2620,6 +2630,17 @@ extension AppLocalizationsInstallWizard on AppLocalizations {
   /// 启动服务步尾部主按钮（进入配对）。英文与同屏步骤名 'Phone Pairing' 同口径。
   String get installWizardNextPairing =>
       isEnglish ? 'Next: Pair Phone' : '下一步：配对';
+
+  // ---- 本机部署向导（桌面端）· 启动服务步尾部提示（2026-10-12 本批新增键）----
+
+  /// 启动服务步「首次放行」提示（本批新增）。
+  ///
+  /// 为什么落在这一步：本步是内置服务**首次**绑 `0.0.0.0:8787` 的时点，Windows 会弹
+  /// 一次「是否允许访问网络」。点了取消 / 关掉，手机侧会**静默连不上**（两端都无提示），
+  /// 故在服务卡下方提前说明该点「允许」。**不出现 VPN 字样**（本仓敏感措辞口径）。
+  String get installWizardFirewallAllowHint => isEnglish
+      ? 'The first time you run this, Windows may ask once whether to allow network access — choose "Allow", or your phone will not be able to connect.'
+      : '首次运行 Windows 可能弹一次网络访问询问，请点「允许」——否则手机连不上。';
 
   // ---- 本机部署向导（桌面端）· 手机配对步 ----
 

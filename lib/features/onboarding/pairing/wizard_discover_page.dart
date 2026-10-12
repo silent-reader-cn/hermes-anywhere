@@ -11,7 +11,10 @@ import 'pairing_style.dart';
 /// 进入即调一次 [discover]（超时由调用方给定，本例 4s）：
 /// - 拿到 ≥1 台 → 发现卡（机名 + 「内置服务 · 端口 · 同一网络」 + 「配对」小按钮）；
 /// - 空列表 / 实现抛错 / provider 未注入（调用方已降级成空列表）→ 页大标题换成
-///   「没找到你的电脑」，三条自检与「手动输入地址」依旧在场。
+///   「没找到你的电脑」，四条自检与「手动输入地址」依旧在场。
+///
+/// 第 4 条自检点名 Windows 防火墙的**首次放行**（本批新增）：Windows 首次监听
+/// `0.0.0.0:8787` 会弹一次「是否允许访问网络」，点了取消手机侧会静默连不上。
 class WizardDiscoverPage extends StatefulWidget {
   const WizardDiscoverPage({
     super.key,
@@ -107,7 +110,8 @@ class _WizardDiscoverPageState extends State<WizardDiscoverPage> {
               PairingMicroText(
                 '${l10n.pairingDiscoverCheck1}\n'
                 '${l10n.pairingDiscoverCheck2}\n'
-                '${l10n.pairingDiscoverCheck3}',
+                '${l10n.pairingDiscoverCheck3}\n'
+                '${l10n.pairingDiscoverCheck4}',
               ),
               const SizedBox(height: 16),
               PairingTextLink(
