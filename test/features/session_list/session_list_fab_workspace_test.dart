@@ -376,28 +376,32 @@ void main() {
       expect(find.text('操作失败'), findsNothing);
     });
 
-    testWidgets('多选模式下长按 FAB：不弹出工作区菜单', (tester) async {
+    testWidgets('多选模式下不渲染 FAB（#184：批量栏占据底部操作区）', (tester) async {
       final api = FakeSessionListApi(sessions: [_buildSession('s1', '会话 1')]);
       api.workspaces = [const WorkspaceRoot(path: '/ws/1', name: 'W1')];
 
       await pumpSessionListPage(tester, api);
 
+      // 空闲态：FAB 在（长按扇出工作区菜单）。
+      expect(find.byKey(const ValueKey('session-list-new')), findsOneWidget);
+
       // 长按会话行进入多选模式
       await tester.longPress(find.byKey(const ValueKey('session-row-s1')));
       await tester.pumpAndSettle();
 
-      final fabFinder = find.byKey(const ValueKey('session-list-new'));
-      final fabCenter = tester.getCenter(fabFinder);
-
-      final gesture = await tester.startGesture(fabCenter);
-      await tester.pump(const Duration(milliseconds: 400));
-      await tester.pump();
-
-      // 多选模式下长按不弹菜单
+      // #184（主人 2026-10-12）：多选态 FAB **整体不渲染** —— 批量栏就是底部
+      // 操作区，悬浮加号会压在它上面（旧实现只把 bottom 抬到 76，仍与栏重叠）。
+      expect(find.byKey(const ValueKey('session-list-new')), findsNothing);
+      expect(find.byKey(const ValueKey('batch-bar')), findsOneWidget);
+      // 旧契约的核心结论保留：多选态不存在「长按 FAB 弹工作区菜单」这条路径。
       expect(find.byKey(const ValueKey('fab-workspace-menu')), findsNothing);
 
-      await gesture.up();
+      // 退出多选（头部「完成」= ×）→ FAB 回来。
+      await tester.tap(
+        find.byKey(const ValueKey('session-list-selection-done')),
+      );
       await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('session-list-new')), findsOneWidget);
     });
 
     testWidgets('在多个工作区项间滑动：高亮跟随切换并以最终选定项创建', (tester) async {

@@ -263,158 +263,162 @@ class _SessionListPageState extends ConsumerState<SessionListPage> {
     final content = SessionAutoRefreshObserver(
       child: CupertinoPageScaffold(
         backgroundColor: isLight ? LightSurfaces.page : null,
-        child: Stack(
+        child: Column(
           children: [
-            // 无感刷新：拖动/惯性滚动中不换内容（新内容挂起到 settle 再应用）。
-            NotificationListener<ScrollNotification>(
-              onNotification: _onListScrollNotification,
-              child: CustomScrollView(
-                key: const ValueKey('session-list-scroll'),
-                controller: _scrollController,
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                  // #149 修正：侧栏场景（宽屏 + showUtilityRows=false）下头部四个
-                  // action 的渲染条件全部不成立（筛选/设置/新建/刷新都已由品牌行与
-                  // 工具列表承担）⇒ 该 SliverPersistentHeader 只剩一个 50px 的空架子，
-                  // 表现为「工具列表下方一大块空白」。侧栏场景直接不渲染它；
-                  // 窄屏单栈（!isWide）仍然需要它承载大标题与新建入口。
-                  if (widget.showUtilityRows || !isWide)
-                    SliverPersistentHeader(
-                      pinned: true,
-                      delegate: SessionListHeaderDelegate(
-                        title: l10n.sessions,
-                        topPadding: MediaQuery.paddingOf(context).top,
-                        brightness:
-                            CupertinoTheme.of(context).brightness ??
-                            Brightness.light,
-                        // 侧栏复用（showUtilityRows=false）→ 紧凑头部：不渲染「会话」
-                        // 大标题，搜索框与操作按钮（筛选/加号）整合为单行 pinned 头部；
-                        // 手机端单栈 → 宽敞大标题头部（49pt）。
-                        compactHeader: !widget.showUtilityRows,
-                        // #149：侧栏场景的搜索框改由顶部品牌行（SidebarBrandBar）
-                        // 承担（其搜索图标展开），列表内不再重复出一条搜索行。
-                        searchField: null,
-                        titleTrailing: !isWide && !isSearchMode
-                            ? _buildNarrowNavigationAction()
-                            : null,
-                        // #128：窄屏点击「会话」大标题（及收起态中标题）= 点击 ▾；
-                        // 条件与 titleTrailing 完全一致（无 ▾ 则不接线、点击无效）。
-                        onTitleTap: !isWide && !isSearchMode
-                            ? _requestNarrowNavMenu
-                            : null,
-                        actions: [
-                          // #149：筛选/新建/刷新在侧栏场景由品牌行与工具列表承担，
-                          // 列表头部只在非侧栏（窄屏单栈）时保留这些入口，避免双入口。
-                          if (!isSearchMode && widget.showUtilityRows)
-                            _buildFilterAction(state),
-                          if (widget.showSettingsTrailing)
-                            _buildSettingsOrDoneAction(state),
-                          if (!widget.showUtilityRows && !isWide)
-                            _buildNewSessionAction(),
-                          if (showDesktopRefresh && widget.showUtilityRows)
-                            _buildDesktopRefreshAction(refreshing),
-                        ],
-                      ),
-                    ),
-                  // 注意：刷新指示器必须排在所有 SliverToBoxAdapter 之前
-                  // （视口会把 overscroll 逐级分给前面的 box sliver，导致
-                  // 指示器拿不到负 overlap 而无法触发）。
-                  AppRefreshControl(onRefresh: _onRefresh),
-                  if (widget.showUtilityRows)
-                    SliverToBoxAdapter(child: _buildSearchBar()),
-                  if (widget.showUtilityRows && !isSearchMode && isWide)
-                    const SliverToBoxAdapter(child: SessionListUtilityRows()),
-                  ..._buildContentSlivers(
-                    async,
-                    state,
-                    sections,
-                    isSearchMode,
-                    subtitleSettings,
-                    projectNames,
-                  ),
-                ],
-              ),
-            ),
-            if (state?.isSelectionMode == true)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: _buildBatchBar(state!),
-              ),
-            // 桌面侧栏场景隐藏 FAB（新建入口在头部右上角，见
-            // [SessionListHeaderDelegate.actions]）。
-            // #174：批量操作完成后的结果提示（仅全成功；2s 自动消失）。
-            if (_batchResultNotice != null)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 96,
-                child: IgnorePointer(
-                  child: Center(
-                    child: Container(
-                      key: const ValueKey('batch-result-notice'),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 9,
-                      ),
-                      decoration: BoxDecoration(
-                        color: CupertinoColors.black.withValues(alpha: 0.82),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: CupertinoColors.black.withValues(alpha: 0.2),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
+            Expanded(
+              child: Stack(
+                children: [
+                  // 无感刷新：拖动/惯性滚动中不换内容（新内容挂起到 settle 再应用）。
+                  NotificationListener<ScrollNotification>(
+                    onNotification: _onListScrollNotification,
+                    child: CustomScrollView(
+                      key: const ValueKey('session-list-scroll'),
+                      controller: _scrollController,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      slivers: [
+                        // #149 修正：侧栏场景（宽屏 + showUtilityRows=false）下头部四个
+                        // action 的渲染条件全部不成立（筛选/设置/新建/刷新都已由品牌行与
+                        // 工具列表承担）⇒ 该 SliverPersistentHeader 只剩一个 50px 的空架子，
+                        // 表现为「工具列表下方一大块空白」。侧栏场景直接不渲染它；
+                        // 窄屏单栈（!isWide）仍然需要它承载大标题与新建入口。
+                        if (widget.showUtilityRows || !isWide)
+                          SliverPersistentHeader(
+                            pinned: true,
+                            delegate: SessionListHeaderDelegate(
+                              title: l10n.sessions,
+                              topPadding: MediaQuery.paddingOf(context).top,
+                              brightness:
+                                  CupertinoTheme.of(context).brightness ??
+                                  Brightness.light,
+                              // 侧栏复用（showUtilityRows=false）→ 紧凑头部：不渲染「会话」
+                              // 大标题，搜索框与操作按钮（筛选/加号）整合为单行 pinned 头部；
+                              // 手机端单栈 → 宽敞大标题头部（49pt）。
+                              compactHeader: !widget.showUtilityRows,
+                              // #149：侧栏场景的搜索框改由顶部品牌行（SidebarBrandBar）
+                              // 承担（其搜索图标展开），列表内不再重复出一条搜索行。
+                              searchField: null,
+                              titleTrailing: !isWide && !isSearchMode
+                                  ? _buildNarrowNavigationAction()
+                                  : null,
+                              // #128：窄屏点击「会话」大标题（及收起态中标题）= 点击 ▾；
+                              // 条件与 titleTrailing 完全一致（无 ▾ 则不接线、点击无效）。
+                              onTitleTap: !isWide && !isSearchMode
+                                  ? _requestNarrowNavMenu
+                                  : null,
+                              actions: [
+                                // #149：筛选/新建/刷新在侧栏场景由品牌行与工具列表承担，
+                                // 列表头部只在非侧栏（窄屏单栈）时保留这些入口，避免双入口。
+                                if (!isSearchMode && widget.showUtilityRows)
+                                  _buildFilterAction(state),
+                                if (widget.showSettingsTrailing)
+                                  _buildSettingsOrDoneAction(state),
+                                if (!widget.showUtilityRows && !isWide)
+                                  _buildNewSessionAction(),
+                                if (showDesktopRefresh && widget.showUtilityRows)
+                                  _buildDesktopRefreshAction(refreshing),
+                              ],
+                            ),
                           ),
-                        ],
-                      ),
-                      child: Text(
-                        _batchResultNotice!,
-                        style: const TextStyle(
-                          color: CupertinoColors.white,
-                          fontSize: kFontSidebarTitle,
-                          fontWeight: FontWeight.w500,
-                          decoration: TextDecoration.none,
+                        // 注意：刷新指示器必须排在所有 SliverToBoxAdapter 之前
+                        // （视口会把 overscroll 逐级分给前面的 box sliver，导致
+                        // 指示器拿不到负 overlap 而无法触发）。
+                        AppRefreshControl(onRefresh: _onRefresh),
+                        if (widget.showUtilityRows)
+                          SliverToBoxAdapter(child: _buildSearchBar()),
+                        if (widget.showUtilityRows && !isSearchMode && isWide)
+                          const SliverToBoxAdapter(child: SessionListUtilityRows()),
+                        ..._buildContentSlivers(
+                          async,
+                          state,
+                          sections,
+                          isSearchMode,
+                          subtitleSettings,
+                          projectNames,
+                        ),
+                      ],
+                    ),
+                  ),
+                  // 桌面侧栏场景隐藏 FAB（新建入口在头部右上角，见
+                  // [SessionListHeaderDelegate.actions]）。
+                  // #174：批量操作完成后的结果提示（仅全成功；2s 自动消失）。
+                  if (_batchResultNotice != null)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 96,
+                      child: IgnorePointer(
+                        child: Center(
+                          child: Container(
+                            key: const ValueKey('batch-result-notice'),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 9,
+                            ),
+                            decoration: BoxDecoration(
+                              color: CupertinoColors.black.withValues(alpha: 0.82),
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: CupertinoColors.black.withValues(alpha: 0.2),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              _batchResultNotice!,
+                              style: const TextStyle(
+                                color: CupertinoColors.white,
+                                fontSize: kFontSidebarTitle,
+                                fontWeight: FontWeight.w500,
+                                decoration: TextDecoration.none,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-              ),
-            if (widget.showFab)
-              Positioned(
-                right: 20,
-                bottom: state?.isSelectionMode == true ? 76 : 24,
-                child: Listener(
-                  onPointerDown: (event) => _onFabPointerDown(event, state),
-                  onPointerMove: _onFabPointerMove,
-                  onPointerUp: _onFabPointerUp,
-                  onPointerCancel: _onFabPointerCancel,
-                  child: AccessibleButton.filled(
-                    key: const ValueKey('session-list-new'),
-                    label: l10n.newSession,
-                    onPressed: () {
-                      if (_suppressNextTap) {
-                        _suppressNextTap = false;
-                        return;
-                      }
-                      unawaited(_onNewSession(context));
-                    },
-                    padding: EdgeInsets.zero,
-                    minimumSize: const Size(56, 56),
-                    borderRadius: BorderRadius.circular(28),
-                    child: SizedBox(
-                      key: _fabKey,
-                      width: 56,
-                      height: 56,
-                      child: const Center(
-                        child: Icon(CupertinoIcons.add, size: 26),
+                  // #184：多选态**不渲染** FAB —— 批量栏本身就是底部操作区，
+                  // 悬浮加号会压在它上面（主人 2026-10-12 反馈）。
+                  if (widget.showFab && state?.isSelectionMode != true)
+                    Positioned(
+                      right: 20,
+                      bottom: 24,
+                      child: Listener(
+                        onPointerDown: (event) => _onFabPointerDown(event, state),
+                        onPointerMove: _onFabPointerMove,
+                        onPointerUp: _onFabPointerUp,
+                        onPointerCancel: _onFabPointerCancel,
+                        child: AccessibleButton.filled(
+                          key: const ValueKey('session-list-new'),
+                          label: l10n.newSession,
+                          onPressed: () {
+                            if (_suppressNextTap) {
+                              _suppressNextTap = false;
+                              return;
+                            }
+                            unawaited(_onNewSession(context));
+                          },
+                          padding: EdgeInsets.zero,
+                          minimumSize: const Size(56, 56),
+                          borderRadius: BorderRadius.circular(28),
+                          child: SizedBox(
+                            key: _fabKey,
+                            width: 56,
+                            height: 56,
+                            child: const Center(
+                              child: Icon(CupertinoIcons.add, size: 26),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
+                ],
               ),
+            ),
+            // #184：批量栏是**真正的底部 footer**（此前是 Stack 浮层）——
+            // 列表视口随它收缩，长列表末尾几条能滚上来、可点，不再被压住。
+            if (state?.isSelectionMode == true) _buildBatchBar(state!),
           ],
         ),
       ),
@@ -707,6 +711,8 @@ class _SessionListPageState extends ConsumerState<SessionListPage> {
     );
 
     return Container(
+      // #184：几何判据锚（footer 顶边 == 列表视口底边），测试用。
+      key: const ValueKey('batch-bar'),
       decoration: BoxDecoration(
         color: LightSurfaces.resolve(
           context,
