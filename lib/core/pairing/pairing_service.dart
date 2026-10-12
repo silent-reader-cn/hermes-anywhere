@@ -33,6 +33,14 @@
 /// ## 可测性
 /// 时钟、配对码生成器、主机名、局域网地址解析、监听地址与发现端口全部可注入；
 /// 单测用回环地址 + 临时端口跑真实 socket（既验证线协议又不碰主机网络状态）。
+///
+/// ## 局域网地址怎么定（见 `lan_address_selector.dart`）
+/// 默认解析走 [LanAddressSelector]：排除环回 / 链路本地 / Clash fake-ip / 虚拟网卡，
+/// 按「与默认路由同网段 > 普通私网 > tailnet」排序，并对每个候选做真实探活
+/// （`GET http://<候选>:<配对端口>/health`），失败换下一个。
+/// 一个都没有时公布地址为 `null`（[advertisedHost] / [hasAdvertisedLanAddress]）
+/// 且 [pairingEndpoint] 为 `null` —— **绝不**回落 `127.0.0.1`：
+/// 那是手机永远连不上的地址，回落只会把「配对必然失败」伪装成「配对已就绪」。
 library;
 
 import 'dart:async';
@@ -40,6 +48,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'lan_address_selector.dart';
 import 'pairing_contract.dart';
 
 /// UDP 发现端口（手机端广播、桌面端应答）。
@@ -115,38 +124,22 @@ String systemPairingHostName() {
   }
 }
 
-/// 默认局域网地址解析。
+/// 默认局域网地址解析（新实现：委托 [LanAddressSelector]）。
 ///
-/// 优先用 WebUI 地址自身的 host —— 用户能把 WebUI 地址填成局域网 IP，
-/// 那它就是手机可达的地址；只有 host 是回环/localhost 时才去遍历网卡。
-Future<String> resolvePairingAdvertisedHost(String baseUrl) async {
-  final host = Uri.tryParse(baseUrl)?.host ?? '';
-  if (host.isNotEmpty && !_isLoopbackHost(host)) {
-    return host;
-  }
-  try {
-    final interfaces = await NetworkInterface.list(
-      type: InternetAddressType.IPv4,
-      includeLoopback: false,
-    );
-    for (final interface in interfaces) {
-      for (final address in interface.addresses) {
-        if (!address.isLoopback && address.address.isNotEmpty) {
-          return address.address;
-        }
-      }
-    }
-  } catch (_) {
-    // 网卡枚举在沙箱/受限环境可能失败 —— 退回回环，让本机自测仍可用。
-  }
-  return InternetAddress.loopbackIPv4.address;
-}
-
-bool _isLoopbackHost(String host) {
-  final normalized = host.toLowerCase();
-  return normalized == 'localhost' ||
-      normalized == '::1' ||
-      normalized.startsWith('127.');
+/// 返回 `null` 表示**没有可用局域网地址**（一个候选都没探活通过）：
+/// 调用方必须据此给出明确状态，**不得**回落 `127.0.0.1`。
+///
+/// [probePort] 是探活目标端口（桌面端传自己刚绑定好的 HTTP 端口）。
+/// [selector] 可注入（单测注入假网卡 / 假探针，不起真网络）。
+Future<String?> resolvePairingAdvertisedHost(
+  String baseUrl, {
+  required int probePort,
+  LanAddressSelector selector = const LanAddressSelector(),
+}) {
+  return selector.select(
+    probePort: probePort,
+    requestedHost: Uri.tryParse(baseUrl.trim())?.host ?? '',
+  );
 }
 
 /// 桌面端配对服务。
@@ -157,20 +150,27 @@ class DesktopPairingService implements PairingService {
     this.codeGenerator = const SecurePairingCodeGenerator(),
     DateTime Function()? clock,
     PairingHostNameResolver? hostNameResolver,
-    PairingAdvertisedHostResolver? advertisedHostResolver,
+    this.advertisedHostResolver,
+    this.lanAddressSelector = const LanAddressSelector(),
     this.httpBindAddress,
     this.discoveryBindAddress,
     this.discoveryPort = kPairingDiscoveryPort,
   })  : _clock = clock ?? DateTime.now,
-        _hostNameResolver = hostNameResolver ?? systemPairingHostName,
-        _advertisedHostResolver =
-            advertisedHostResolver ?? resolvePairingAdvertisedHost;
+        _hostNameResolver = hostNameResolver ?? systemPairingHostName;
 
   /// 配对码生成器（可注入供单测替换成固定码）。
   final PairingCodeGenerator codeGenerator;
   final DateTime Function() _clock;
   final PairingHostNameResolver _hostNameResolver;
-  final PairingAdvertisedHostResolver _advertisedHostResolver;
+
+  /// 局域网地址解析注入点；`null` = 走默认选路器 [lanAddressSelector]。
+  ///
+  /// 注入了就**完全由注入方决定**（不套用选路器的排除/探活规则，
+  /// 老用例注入假 resolver 的行为原样保留）。
+  final PairingAdvertisedHostResolver? advertisedHostResolver;
+
+  /// 默认局域网地址选路器（仅在未注入 [advertisedHostResolver] 时生效）。
+  final LanAddressSelector lanAddressSelector;
 
   /// HTTP 端点绑定地址（生产用 `0.0.0.0`；单测传回环）。
   final InternetAddress? httpBindAddress;
@@ -198,14 +198,30 @@ class DesktopPairingService implements PairingService {
   /// 但对端要从发现应答拿到它，故实现内部持有并对外暴露只读 getter。
   String? _pairingEndpoint;
 
+  /// 本次配对公布给手机的主机地址；`null` = 没有可用局域网地址。
+  String? _advertisedHost;
+
   @override
   PairingSession? get current => _current;
 
   @override
   Stream<PairingAccepted> get accepted => _accepted.stream;
 
-  /// 兑换端点地址；未开启时为 null。
+  /// 兑换端点地址；未开启、或**没有可用局域网地址**时为 null。
   String? get pairingEndpoint => _pairingEndpoint;
+
+  /// 本次配对对外公布的主机地址（手机端就用它连桌面）。
+  ///
+  /// `null` = 一个候选都没能探活通过（含「一块可用网卡都没有」）：
+  /// 调用方/UI 必须据此给出明确状态，**不得**回落 `127.0.0.1` ——
+  /// 那只会把「配对必然失败」伪装成「配对已就绪」。
+  String? get advertisedHost => _advertisedHost;
+
+  /// 是否存在已探活通过的局域网地址（[advertisedHost] 非空）。
+  ///
+  /// 为 `false` 时：配对码照常出（本机仍可自测/手输），但发现通道不会对外
+  /// 公布任何地址（[pairingEndpoint] 为 null，UDP 应答里不会出现假地址）。
+  bool get hasAdvertisedLanAddress => _advertisedHost != null;
 
   /// 发现应答实际监听的 UDP 端口（[discoveryPort] 传 0 时为系统分配值）；
   /// 未开启发现通道时为 null。
@@ -222,12 +238,22 @@ class DesktopPairingService implements PairingService {
     await stop();
 
     final code = codeGenerator.generate();
-    final host = await _advertisedHostResolver(baseUrl);
     // 先绑定，拿到端口再登记会话 —— 绑定失败时不留下半截会话。
+    // 绑定必须早于选路：默认选路器要对自己刚监听的端口做探活
+    // （「手机能不能连上这个地址」才是要回答的问题）。
     final server = await HttpServer.bind(
       httpBindAddress ?? InternetAddress.anyIPv4,
       0,
     );
+
+    final String? host;
+    try {
+      host = await _resolveAdvertisedHost(baseUrl, server.port);
+    } catch (_) {
+      // 解析抛了（注入的 resolver 实现出错）：不留半开的 socket，也不假装有地址。
+      await _closeQuietly(server);
+      rethrow;
+    }
 
     final session = PairingSession(
       code: code,
@@ -245,11 +271,35 @@ class DesktopPairingService implements PairingService {
     _current = session;
     _installId = installId;
     _redeemed = false;
-    _pairingEndpoint = 'http://$host:${server.port}';
+    // 没有可用地址就把端点留空：公布 `127.0.0.1` 是骗人（手机连不上），
+    // 调用方从 [advertisedHost] / [hasAdvertisedLanAddress] 读到明确状态。
+    _advertisedHost = host == null || host.isEmpty ? null : host;
+    _pairingEndpoint =
+        _advertisedHost == null ? null : 'http://$_advertisedHost:${server.port}';
 
     await _startDiscovery();
 
     return session;
+  }
+
+  /// 取本次要公布的主机地址；无可用地址时返回 null（不抛、不回落回环）。
+  Future<String?> _resolveAdvertisedHost(String baseUrl, int probePort) {
+    final resolver = advertisedHostResolver;
+    if (resolver != null) {
+      // 注入了 resolver 就完全由它决定（老用例的假 resolver 行为原样保留）。
+      return resolver(baseUrl);
+    }
+    return resolvePairingAdvertisedHost(
+      baseUrl,
+      probePort: probePort,
+      selector: lanAddressSelector,
+    );
+  }
+
+  Future<void> _closeQuietly(HttpServer server) async {
+    try {
+      await server.close(force: true);
+    } catch (_) {}
   }
 
   @override
@@ -266,6 +316,7 @@ class DesktopPairingService implements PairingService {
     _installId = '';
     _redeemed = false;
     _pairingEndpoint = null;
+    _advertisedHost = null;
 
     if (http != null) {
       try {
@@ -335,6 +386,8 @@ class DesktopPairingService implements PairingService {
     }
     final session = _current;
     final endpoint = _pairingEndpoint;
+    // endpoint 为 null = 本次没有探活通过的局域网地址：**不发**应答，
+    // 而不是发一个回环/假地址（那会让手机去连一个必然失败的目标）。
     if (session == null || endpoint == null) return;
     if (_redeemed || session.isExpiredAt(_clock())) return;
 
