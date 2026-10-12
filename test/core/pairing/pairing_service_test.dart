@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hermes_ui/core/pairing/lan_address_selector.dart';
 import 'package:hermes_ui/core/pairing/pairing_client.dart';
 import 'package:hermes_ui/core/pairing/pairing_contract.dart';
 import 'package:hermes_ui/core/pairing/pairing_service.dart';
@@ -42,6 +43,25 @@ DesktopPairingService _buildService({
     clock: clock ?? _defaultClock,
     hostNameResolver: () => _host,
     advertisedHostResolver: (String baseUrl) async => _lanHost,
+    httpBindAddress: InternetAddress.loopbackIPv4,
+    discoveryBindAddress: InternetAddress.loopbackIPv4,
+    discoveryPort: 0,
+  );
+}
+
+/// 选路器路径下的服务：不注入 `advertisedHostResolver`，改注入假选路器
+/// （假网卡 + 假探针）—— 默认 resolver 的实际行为就是这么被驱动的。
+DesktopPairingService _buildSelectorService(
+  LanAddressSelector selector, {
+  PairingAdvertisedHostResolver? resolver,
+  PairingCodeGenerator? generator,
+}) {
+  return DesktopPairingService(
+    codeGenerator: generator ?? _FixedCodeGenerator('123456'),
+    clock: _defaultClock,
+    hostNameResolver: () => _host,
+    advertisedHostResolver: resolver,
+    lanAddressSelector: selector,
     httpBindAddress: InternetAddress.loopbackIPv4,
     discoveryBindAddress: InternetAddress.loopbackIPv4,
     discoveryPort: 0,
@@ -575,6 +595,218 @@ void main() {
         seen.add(code);
       }
       expect(seen.length > 100, isTrue, reason: '安全随机不应退化成恒定码');
+    });
+  });
+
+  group('局域网地址选路器接入（无可用地址不静默、不回落回环）', () {
+    test('选路器全探不通 ⇒ 码照出，但 advertisedHost 与 pairingEndpoint 均为 null，发现通道不发假地址', () async {
+      final selector = LanAddressSelector(
+        listInterfaces: () async => const <LanInterface>[
+          LanInterface(name: 'WLAN', ipv4: <String>['192.168.1.95']),
+          LanInterface(name: 'Tailscale', ipv4: <String>['100.71.87.11']),
+        ],
+        readDefaultGateways: () async => const <String>['192.168.1.1'],
+        probe: (String host, int port) async => false,
+      );
+      final service = _buildSelectorService(selector);
+      addTearDown(service.stop);
+
+      final session = await service.start(
+        baseUrl: 'http://127.0.0.1:8787',
+        password: _password,
+        installId: _installId,
+        ttl: const Duration(minutes: 10),
+      );
+
+      expect(session.baseUrl, 'http://127.0.0.1:8787');
+      expect(session.code.length, kPairingCodeLength);
+      expect(service.current, isNotNull, reason: '出码照常：本机仍可自测 / 手输');
+      // 明确状态：没有可用局域网地址 —— 不是「静默公布 127.0.0.1」。
+      expect(service.advertisedHost, isNull);
+      expect(service.hasAdvertisedLanAddress, isFalse);
+      expect(service.pairingEndpoint, isNull);
+
+      expect(
+        await _udpProbe(service.discoveryBoundPort!, kPairingProbePayload),
+        isEmpty,
+        reason: '没有可用地址就不许公布任何地址（更不许公布回环）',
+      );
+    });
+
+    test('第一个候选探不通、第二个通 ⇒ 公布第二个；探活打的就是本服务刚绑定的端口', () async {
+      final probedPorts = <int>[];
+      final selector = LanAddressSelector(
+        listInterfaces: () async => const <LanInterface>[
+          LanInterface(name: '以太网', ipv4: <String>['192.168.1.77']),
+          LanInterface(name: 'WLAN', ipv4: <String>['192.168.1.95']),
+        ],
+        readDefaultGateways: () async => const <String>['192.168.1.1'],
+        probe: (String host, int port) async {
+          probedPorts.add(port);
+          return host == '192.168.1.95';
+        },
+      );
+      final service = _buildSelectorService(selector);
+      addTearDown(service.stop);
+
+      await service.start(
+        baseUrl: 'http://127.0.0.1:8787',
+        password: _password,
+        installId: _installId,
+        ttl: const Duration(minutes: 10),
+      );
+
+      expect(probedPorts, hasLength(2), reason: '第一个探不通要换下一个继续探');
+      expect(probedPorts.toSet(), hasLength(1), reason: '同一轮的探活端口必须一致');
+      expect(service.advertisedHost, '192.168.1.95');
+      expect(service.hasAdvertisedLanAddress, isTrue);
+
+      final endpoint = Uri.parse(service.pairingEndpoint!);
+      expect(endpoint.host, '192.168.1.95');
+      expect(
+        endpoint.port,
+        probedPorts.first,
+        reason: '探活端口 = 刚绑定的配对端口，而不是 baseUrl 里的 8787',
+      );
+      // 证明确实是本服务的端口：同端口回环能拿到 /health 200。
+      final health = await _rawGet(
+        'http://127.0.0.1:${endpoint.port}$kPairingHealthPath',
+      );
+      expect(health.statusCode, 200);
+      expect(health.body.contains(_password), isFalse);
+    });
+
+    test('stop() 后公布地址归零，不留上一轮残留', () async {
+      final selector = LanAddressSelector(
+        listInterfaces: () async => const <LanInterface>[
+          LanInterface(name: 'WLAN', ipv4: <String>['192.168.1.95']),
+        ],
+        readDefaultGateways: () async => const <String>['192.168.1.1'],
+        probe: (String host, int port) async => true,
+      );
+      final service = _buildSelectorService(selector);
+      addTearDown(service.stop);
+
+      await service.start(
+        baseUrl: 'http://127.0.0.1:8787',
+        password: _password,
+        installId: _installId,
+        ttl: const Duration(minutes: 10),
+      );
+      expect(service.advertisedHost, '192.168.1.95');
+
+      await service.stop();
+      expect(service.advertisedHost, isNull);
+      expect(service.hasAdvertisedLanAddress, isFalse);
+      expect(service.pairingEndpoint, isNull);
+    });
+
+    test('resolvePairingAdvertisedHost 把 baseUrl 的 host 当显式候选交给选路器；回环 baseUrl 不会被当成可公布地址', () async {
+      final seen = <String>[];
+      final selector = LanAddressSelector(
+        listInterfaces: () async => const <LanInterface>[],
+        readDefaultGateways: () async => const <String>[],
+        probe: (String host, int port) async {
+          seen.add('$host:$port');
+          return host == '192.168.1.95';
+        },
+      );
+
+      expect(
+        await resolvePairingAdvertisedHost(
+          'http://192.168.1.95:8787',
+          probePort: 38911,
+          selector: selector,
+        ),
+        '192.168.1.95',
+      );
+      expect(seen, <String>['192.168.1.95:38911']);
+
+      expect(
+        await resolvePairingAdvertisedHost(
+          'http://127.0.0.1:8787',
+          probePort: 38911,
+          selector: selector,
+        ),
+        isNull,
+        reason: '回环 host 不入候选，且没有网卡时返回 null 而不是 127.0.0.1',
+      );
+      expect(seen, <String>['192.168.1.95:38911'], reason: '回环 host 连线都不该进候选');
+    });
+  });
+
+  group('注入点优先级（老 advertisedHostResolver 仍然说了算）', () {
+    test('注入了 advertisedHostResolver ⇒ 选路器完全不参与（一次探活都不做）', () async {
+      final probed = <String>[];
+      final selector = LanAddressSelector(
+        listInterfaces: () async => const <LanInterface>[
+          LanInterface(name: 'WLAN', ipv4: <String>['192.168.1.95']),
+        ],
+        readDefaultGateways: () async => const <String>[],
+        probe: (String host, int port) async {
+          probed.add(host);
+          return true;
+        },
+      );
+      final service = _buildSelectorService(
+        selector,
+        resolver: (String baseUrl) async => '10.9.9.9',
+      );
+      addTearDown(service.stop);
+
+      await service.start(
+        baseUrl: _webuiBaseUrl,
+        password: _password,
+        installId: _installId,
+        ttl: const Duration(minutes: 10),
+      );
+
+      expect(service.advertisedHost, '10.9.9.9');
+      expect(service.pairingEndpoint, startsWith('http://10.9.9.9:'));
+      expect(probed, isEmpty);
+    });
+
+    test('注入的 resolver 返回空串 ⇒ 同样算「没有可用地址」，不回落回环', () async {
+      final service = _buildSelectorService(
+        const LanAddressSelector(),
+        resolver: (String baseUrl) async => '',
+      );
+      addTearDown(service.stop);
+
+      await service.start(
+        baseUrl: _webuiBaseUrl,
+        password: _password,
+        installId: _installId,
+        ttl: const Duration(minutes: 10),
+      );
+
+      expect(service.current, isNotNull);
+      expect(service.advertisedHost, isNull);
+      expect(service.hasAdvertisedLanAddress, isFalse);
+      expect(service.pairingEndpoint, isNull);
+    });
+
+    test('注入的 resolver 抛异常 ⇒ start 抛出，且不留半截会话 / 半开监听', () async {
+      final service = _buildSelectorService(
+        const LanAddressSelector(),
+        resolver: (String baseUrl) async => throw StateError('boom'),
+      );
+      addTearDown(service.stop);
+
+      await expectLater(
+        service.start(
+          baseUrl: _webuiBaseUrl,
+          password: _password,
+          installId: _installId,
+          ttl: const Duration(minutes: 10),
+        ),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(service.current, isNull);
+      expect(service.advertisedHost, isNull);
+      expect(service.pairingEndpoint, isNull);
+      expect(service.discoveryBoundPort, isNull);
     });
   });
 }
