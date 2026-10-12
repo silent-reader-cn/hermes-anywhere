@@ -23,6 +23,7 @@ class ServerConnection {
     this.customHeaders = const {},
     required this.createdAt,
     this.kind = ConnectionKind.remote,
+    this.installId = '',
     bool enabled = true,
   }) : enabled = (kind == ConnectionKind.builtin) ? enabled : true;
 
@@ -53,6 +54,15 @@ class ServerConnection {
   /// 连接类别：builtin（内置 sidecar）或 remote（远程服务器），默认 remote。
   final ConnectionKind kind;
 
+  /// 后端安装标识（配对契约 `PairingCredentials.installId`，**可选**）。
+  ///
+  /// 用途：识别「**同一台后端的不同地址**」——同一 installId 的多个 baseUrl
+  /// （局域网 IP / 内网域名 / 公网地址 / 换端口）属于同一台电脑，设置页据此
+  /// 折叠成一条主行（见 [groupConnectionsByInstallId]）。
+  ///
+  /// 空串 = 未知（旧连接 / 手动添加）。绝不作为身份凭证，只在本地做分组线索。
+  final String installId;
+
   /// 是否启用：builtin 专用语义；remote 恒为 true。
   final bool enabled;
 
@@ -75,6 +85,9 @@ class ServerConnection {
         : ConnectionKind.remote;
     final enabledRaw = json['enabled'];
     final enabled = enabledRaw is bool ? enabledRaw : true;
+    // 容错：缺字段 / 非字符串 ⇒ 空串（旧 JSON 解析结果与加字段前逐字段一致）。
+    final installIdRaw = json['install_id'];
+    final installId = installIdRaw is String ? installIdRaw : '';
 
     return ServerConnection(
       id: id.isEmpty ? uuidV4() : id,
@@ -86,10 +99,13 @@ class ServerConnection {
       createdAt: _parseDate(json['created_at']),
       kind: kind,
       enabled: enabled,
+      installId: installId,
     );
   }
 
   /// 持久化 JSON（**不含密码**；custom_headers 整体进 secure storage 加密区）。
+  ///
+  /// `install_id` 仅在非空时写出：旧连接的 JSON 与加字段前逐字节一致。
   Map<String, Object?> toJson() {
     return {
       'id': id,
@@ -100,6 +116,7 @@ class ServerConnection {
       'created_at': createdAt.toUtc().toIso8601String(),
       'kind': kind.name,
       'enabled': enabled,
+      if (installId.isNotEmpty) 'install_id': installId,
     };
   }
 
@@ -113,6 +130,7 @@ class ServerConnection {
     DateTime? createdAt,
     ConnectionKind? kind,
     bool? enabled,
+    String? installId,
   }) {
     final resolvedKind = kind ?? this.kind;
     return ServerConnection(
@@ -125,6 +143,7 @@ class ServerConnection {
       createdAt: createdAt ?? this.createdAt,
       kind: resolvedKind,
       enabled: enabled ?? this.enabled,
+      installId: installId ?? this.installId,
     );
   }
 
@@ -159,7 +178,8 @@ class ServerConnection {
         _mapEquals(other.customHeaders, customHeaders) &&
         other.createdAt == createdAt &&
         other.kind == kind &&
-        other.enabled == enabled;
+        other.enabled == enabled &&
+        other.installId == installId;
   }
 
   @override
@@ -172,6 +192,7 @@ class ServerConnection {
         createdAt,
         kind,
         enabled,
+        installId,
       );
 
   static bool _mapEquals(Map<String, String> a, Map<String, String> b) {
@@ -181,4 +202,79 @@ class ServerConnection {
     }
     return true;
   }
+}
+
+// ---------------------------------------------------------------------------
+// 同机多地址分组（设置页「服务器」列表折叠用）
+// ---------------------------------------------------------------------------
+
+/// 一条「同一台后端」的服务器分组。
+///
+/// [primary] = 该分组的主行（优先取组内当前激活的那条，其次取列表里靠前的）；
+/// [others] = 被折叠的其余地址（可能为空 ⇒ 单条，无需折叠）。
+class ConnectionGroup {
+  const ConnectionGroup({required this.primary, this.others = const []});
+
+  final ServerConnection primary;
+  final List<ServerConnection> others;
+
+  /// 分组判定用的标识（主行的 [ServerConnection.installId]）。
+  String get installId => primary.installId;
+
+  /// 是否可折叠（同 installId 的地址多于一条）。
+  bool get isMulti => others.isNotEmpty;
+
+  /// 组内全部连接（主行在前）。
+  List<ServerConnection> get members => [primary, ...others];
+
+  @override
+  String toString() =>
+      'ConnectionGroup(installId: $installId, primary: ${primary.id}, '
+      'others: ${others.map((c) => c.id).toList()})';
+}
+
+/// 按 [ServerConnection.installId] 把连接列表折成「主行 + 折叠掉的其余地址」。
+///
+/// 纯函数（无 IO / 无 UI 依赖），便于单测与 UI 复用。
+///
+/// 规则：
+/// - **builtin 永不参与折叠**（内置连接各自单列，位置不变）；
+/// - `installId` 为空（旧连接 / 手动添加）**不与任何连接合并**（逐像素同现状）；
+/// - 同 installId 的多条（非 builtin）合成一组，组的位置取该 installId 首次出现处；
+/// - 主行优先取组内正在激活的那条（[activeId]），否则取组内第一条 —— 折叠后
+///   用户仍能一眼看到「当前在用的是哪条地址」。
+List<ConnectionGroup> groupConnectionsByInstallId(
+  List<ServerConnection> connections, {
+  String activeId = '',
+}) {
+  final groups = <ConnectionGroup>[];
+  final seenInstallIds = <String>{};
+  for (final connection in connections) {
+    if (connection.kind == ConnectionKind.builtin ||
+        connection.installId.isEmpty) {
+      groups.add(ConnectionGroup(primary: connection));
+      continue;
+    }
+    if (!seenInstallIds.add(connection.installId)) continue;
+    final members = [
+      for (final candidate in connections)
+        if (candidate.kind != ConnectionKind.builtin &&
+            candidate.installId == connection.installId)
+          candidate,
+    ];
+    final primaryIndex = activeId.isEmpty
+        ? -1
+        : members.indexWhere((c) => c.id == activeId);
+    final primary = primaryIndex >= 0 ? members[primaryIndex] : members.first;
+    groups.add(
+      ConnectionGroup(
+        primary: primary,
+        others: [
+          for (final member in members)
+            if (!identical(member, primary)) member,
+        ],
+      ),
+    );
+  }
+  return groups;
 }

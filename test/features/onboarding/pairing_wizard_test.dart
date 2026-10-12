@@ -581,6 +581,8 @@ void main() {
       expect(saved['name'], '192.168.1.7');
       expect(saved.containsKey('username'), isFalse);
       expect((saved['custom_headers'] as Map), isEmpty);
+      // 配对契约的 installId 落到连接上（设置页「同机多地址」折叠的依据）
+      expect(saved['install_id'], 'install-1');
       expect(
         storage.data[ConnectionStore.passwordKey(saved['id'] as String)],
         'pw-from-pairing',
@@ -589,6 +591,36 @@ void main() {
         storage.data[ConnectionStore.activeConnectionKey],
         saved['id'],
       );
+    });
+
+    testWidgets('兑换成功 → 新建连接的 installId 取自凭据（非同机多地址也能各自区分）', (tester) async {
+      final client = _FakePairingClient(
+        candidates: [_candidate()],
+        credentials: const PairingCredentials(
+          baseUrl: 'https://home.example.com:8443',
+          password: 'pw-pub',
+          installId: 'iid-9f3a-77',
+        ),
+      );
+      await pumpWizard(
+        tester,
+        overrides: [pairingClientProvider.overrideWithValue(client)],
+      );
+
+      await tester.tap(find.byKey(const ValueKey('pairing-start-same-wifi')));
+      await settle(tester);
+      await tester.tap(find.text('配对'));
+      await settle(tester);
+      await fillCode(tester);
+      await tester.tap(find.byKey(const ValueKey('pairing-code-submit')));
+      await settle(tester, 8);
+      await tester.pump(const Duration(milliseconds: 400));
+
+      final raw = storage.data[ConnectionStore.connectionsKey];
+      expect(raw, isNotNull);
+      final saved = (jsonDecode(raw!) as List).single as Map<String, Object?>;
+      expect(saved['base_url'], 'https://home.example.com:8443');
+      expect(saved['install_id'], 'iid-9f3a-77');
     });
   });
 
@@ -713,6 +745,8 @@ void main() {
       final saved = (jsonDecode(raw!) as List).single as Map<String, Object?>;
       expect(saved['base_url'], 'http://hermes.local:30002');
       expect(saved['name'], 'hermes.local');
+      // 手动填地址的旧链路没有配对凭据 ⇒ 不写 install_id（旧 JSON 形状不变）
+      expect(saved.containsKey('install_id'), isFalse);
       expect(storage.data[ConnectionStore.passwordKey(saved['id'] as String)], 'pw123');
       expect(storage.data[ConnectionStore.activeConnectionKey], saved['id']);
     });

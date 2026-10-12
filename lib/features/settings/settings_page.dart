@@ -129,7 +129,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
-  /// 宽屏主体：左 220 分类导航（常用 / 服务 / 其他 三组）+ 右内容限宽 744 居中。  /// 双栏宿主：把「剩余视口高度」算准后交给两栏（两栏各自内部滚动）。
+  /// 宽屏主体：左 220 分类导航（常用 / 服务 / 其他 三组）+ 右内容限宽 744 居中。
+  /// 双栏宿主：把「剩余视口高度」算准后交给两栏（两栏各自内部滚动）。
   ///
   /// 刻意**不用** `SliverFillRemaining`：`hasScrollBody: false` 会向子级要
   /// intrinsic 高度 —— 子级里含 viewport 时直接抛
@@ -1391,14 +1392,37 @@ class _NotificationSectionState extends ConsumerState<_NotificationSection> {
 // ---------------------------------------------------------------------------
 
 /// 服务器分组：当前服务器信息 + 服务器列表（切换 / 编辑 / 删除 / 新增）。
-class _ServerSection extends ConsumerWidget {
+///
+/// 列表形态：**同一台后端（同 `installId`）的多个地址折叠成一条主行**
+/// + 「另有 N 个地址」标注（见 [_ServerSectionState._buildGroupRows]）。
+/// 折叠判定抽在纯函数 [groupConnectionsByInstallId]（`server_connection.dart`）。
+class _ServerSection extends ConsumerStatefulWidget {
   const _ServerSection();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ServerSection> createState() => _ServerSectionState();
+}
+
+/// 「另有 N 个地址」文案（本批不许改 `lib/l10n/**`，故就地按既有
+/// `isEnglish` 双语约定取词，不新增 l10n 键）。测试锚定中文串。
+String _moreAddressesLabel(AppLocalizations l10n, int count) => l10n.isEnglish
+    ? 'Also $count more address${count == 1 ? '' : 'es'}'
+    : '另有 $count 个地址';
+
+class _ServerSectionState extends ConsumerState<_ServerSection> {
+  /// 已展开的同机分组（键 = `installId`）。默认折叠：主行 + 「另有 N 个地址」。
+  final Set<String> _expandedInstallIds = <String>{};
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final connections = ref.watch(connectionsProvider);
     final active = ref.watch(activeConnectionProvider);
+    // 主行优先取「组内当前激活的那条」：折叠态下也一眼看到在用的是哪个地址。
+    final groups = groupConnectionsByInstallId(
+      connections,
+      activeId: active?.id ?? '',
+    );
     return SettingsSurfaces.section(
       context,
       CupertinoListSection(
@@ -1409,18 +1433,13 @@ class _ServerSection extends ConsumerWidget {
           active == null ? l10n.serverSectionDisconnected : l10n.serverSection,
         ),
         children: [
-          if (connections.isEmpty)
+          if (groups.isEmpty)
             CupertinoListTile(
               title: Text(l10n.noServerConfigured),
               subtitle: Text(l10n.noServerConfiguredSubtitle),
             ),
-          for (final connection in connections)
-            _buildServerRow(
-              context,
-              ref,
-              connection,
-              connection.id == active?.id,
-            ),
+          for (final group in groups)
+            ..._buildGroupRows(context, ref, group, active),
           CupertinoListTile(
             key: const ValueKey('server-add'),
             leading: const Icon(CupertinoIcons.add_circled),
@@ -1432,12 +1451,89 @@ class _ServerSection extends ConsumerWidget {
     );
   }
 
+  /// 一个分组的行序列：主行（与折叠前逐像素同款）+ 折叠标注 + 展开后的其余地址。
+  ///
+  /// 关键（不丢切换路径）：被折叠的地址**没有被删掉或改写**，展开时在同一个
+  /// 列表里**原样复用 [_buildServerRow]** —— 同一套 key（`server-row-<id>`）、
+  /// 同一个 `onTap → setActive`、同一编辑/删除入口，只是整体缩进一档以示从属。
+  /// 单条分组（`installId` 为空 / builtin / 独一份）走的就是「只有主行」这一支，
+  /// 与折叠功能加入前逐像素一致。
+  List<Widget> _buildGroupRows(
+    BuildContext context,
+    WidgetRef ref,
+    ConnectionGroup group,
+    ServerConnection? active,
+  ) {
+    final rows = <Widget>[
+      _buildServerRow(
+        context,
+        ref,
+        group.primary,
+        group.primary.id == active?.id,
+      ),
+    ];
+    if (!group.isMulti) return rows;
+    final expanded = _expandedInstallIds.contains(group.installId);
+    rows.add(_buildGroupToggleTile(context, group, expanded));
+    if (expanded) {
+      for (final connection in group.others) {
+        rows.add(
+          _buildServerRow(
+            context,
+            ref,
+            connection,
+            connection.id == active?.id,
+            indented: true,
+          ),
+        );
+      }
+    }
+    return rows;
+  }
+
+  /// 「另有 N 个地址」标注行：点一下在同一列表内展开 / 收起该后端的其余地址。
+  ///
+  /// 用 `CupertinoListTile`（`SettingsSurfaces.section` 只对 tile 行套用项名档
+  /// 排版）；标题走注解档 [kFontCaption] + 次级色，读起来是「附注」而非新服务器。
+  Widget _buildGroupToggleTile(
+    BuildContext context,
+    ConnectionGroup group,
+    bool expanded,
+  ) {
+    final l10n = AppLocalizations.of(context);
+    final secondary = LightSurfaces.resolve(
+      context,
+      LightSurfaces.textSecondary,
+      dark: CupertinoColors.secondaryLabel,
+    );
+    return CupertinoListTile(
+      key: ValueKey('server-group-toggle-${group.installId}'),
+      leading: Icon(
+        expanded ? CupertinoIcons.chevron_down : CupertinoIcons.chevron_right,
+        size: 14,
+        color: secondary,
+      ),
+      title: Text(
+        _moreAddressesLabel(l10n, group.others.length),
+        style: TextStyle(fontSize: kFontCaption, color: secondary),
+      ),
+      onTap: () => setState(() {
+        if (expanded) {
+          _expandedInstallIds.remove(group.installId);
+        } else {
+          _expandedInstallIds.add(group.installId);
+        }
+      }),
+    );
+  }
+
   Widget _buildServerRow(
     BuildContext context,
     WidgetRef ref,
     ServerConnection connection,
-    bool isActive,
-  ) {
+    bool isActive, {
+    bool indented = false,
+  }) {
     final l10n = AppLocalizations.of(context);
     final isBuiltin = connection.kind == ConnectionKind.builtin;
     final defaultName = isBuiltin ? l10n.builtinWebuiName : connection.baseUrl;
@@ -1447,6 +1543,11 @@ class _ServerSection extends ConsumerWidget {
     return CupertinoListTile(
       key: ValueKey('server-row-${connection.id}'),
       backgroundColor: SettingsSurfaces.selection(context, isActive),
+      // 折叠分组里被展开的从属地址：仅左内边距缩进一档（默认 20 → 36），
+      // 其余（标题/副标题/trailing/onTap）与主行逐字段同款。
+      padding: indented
+          ? const EdgeInsetsDirectional.only(start: 36, end: 14)
+          : null,
       title: Text(
         name,
         style: TextStyle(
