@@ -80,10 +80,22 @@ def rel_lib_path(sf: str) -> str | None:
     return None
 
 
+# Windows 专属 UI 源文件：它们的交互流程只能在 Windows 上执行（对应测试以
+# `skip: !Platform.isWindows` 标定），非 Windows runner 上必然大面积未覆盖 ——
+# 把它计入该平台的汇总比率，等于「用 Linux 的覆盖率闸门惩罚 Windows 专属代码」，
+# 只会逼人下调基线（本文件与 tools/coverage_baseline.json 都明确禁止静默下调）。
+# 故：非 Windows 平台不计入汇总；Windows 上照常计入（那里有真实覆盖）。
+WINDOWS_ONLY_SOURCES = ("lib/features/onboarding/install_guide_page.dart",)
+
+
 def is_excluded(rel: str) -> bool:
     if rel.endswith(GENERATED_SUFFIXES):
         return True
-    return any(marker in rel for marker in GENERATED_MARKERS)
+    if any(marker in rel for marker in GENERATED_MARKERS):
+        return True
+    if not sys.platform.startswith("win") and rel in WINDOWS_ONLY_SOURCES:
+        return True
+    return False
 
 
 def parse_lcov(path: str) -> dict[str, list[int]]:
