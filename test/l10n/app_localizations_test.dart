@@ -794,4 +794,154 @@ void main() {
       expect(find.text('OK'), findsOneWidget);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // 配对批次（2026-10-12）迁入的向导文案：中文原文逐条钉死。
+  //
+  // 这些字符串是**金照像素基线**的直接来源（install_guide 系列金照 + 配对向导用例
+  // 都按中文渲染），改中文即等于改渲染 —— 必须红测试而不是悄悄漂移。
+  // ---------------------------------------------------------------------------
+  group('配对向导（手机端 pairing*）中文原文', () {
+    const l10n = AppLocalizations(Locale('zh'));
+
+    test('M1 ~ M4 全量键 = 迁入前常量原文', () {
+      expect(l10n.pairingNavStart, '开始使用');
+      expect(l10n.pairingNavSameWifi, '同一 Wi-Fi 连接');
+      expect(l10n.pairingNavPair, '配对');
+      expect(l10n.pairingNavDownload, '下载桌面版');
+      expect(l10n.pairingStartTitle, 'Hermes 跑在哪台电脑上？');
+      expect(l10n.pairingStartSubtitle, 'Hermes 需要一个常驻的后端电脑。选一种情况，下面这几步本机会自动做完。');
+      expect(l10n.pairingStartSameWifiTitle, '电脑就在同一个 Wi-Fi');
+      expect(l10n.pairingStartSameWifiDesc, '自动发现，配对后即可连接');
+      expect(l10n.pairingStartElsewhereTitle, '电脑在别处');
+      expect(l10n.pairingStartElsewhereDesc, '4G／公司／外地：用配对码连接，需先开启远程访问');
+      expect(l10n.pairingStartNotInstalledTitle, '我还没在电脑上装 Hermes');
+      expect(l10n.pairingStartNotInstalledDesc, '先下载桌面版，装好再回到这里');
+      expect(l10n.pairingStartManualEntryLink, '我有服务器地址');
+      expect(l10n.pairingStartFooterNote, '多台电脑可以稍后在「设置 → 连接」里添加');
+      expect(l10n.pairingDiscoverTitleSearching, '正在找你的电脑');
+      expect(l10n.pairingDiscoverTitleEmpty, '没找到你的电脑');
+      expect(l10n.pairingDiscoverSubtitle, '请保持手机与电脑在同一个 Wi-Fi，并确认电脑上的 Hermes 已经打开。');
+      expect(l10n.pairingDiscoverPairAction, '配对');
+      expect(l10n.pairingDiscoverCandidateMetaDefault, '内置服务 · 8787 · 同一网络');
+      expect(l10n.pairingDiscoverChecklistTitle, '没找到？');
+      expect(l10n.pairingDiscoverCheck1, '1. 确认电脑上的 Hermes 正在运行');
+      expect(l10n.pairingDiscoverCheck2, '2. 确认两台设备连的是同一个 Wi-Fi');
+      expect(l10n.pairingDiscoverCheck3, '3. 检查电脑防火墙是否放行 8787');
+      expect(l10n.pairingDiscoverManualEntryLink, '手动输入地址');
+      expect(l10n.pairingDiscoverCandidateMetaOnPort(9090), '内置服务 · 9090 · 同一网络');
+      expect(l10n.pairingCodeTitle, '输入电脑上的配对码');
+      expect(l10n.pairingCodeSubtitle, '在电脑上点「让手机连上」，会显示 6 位配对码。密码由 App 后台交接，不需要你抄。');
+      expect(l10n.pairingCodeSubmit, '配对并连接');
+      expect(l10n.pairingCodeScanAction, '改用扫一扫');
+      expect(l10n.pairingCodeFootnote, '配对码 10 分钟内有效，配对成功后立即失效。');
+      expect(l10n.pairingCodeErrorExpired, '配对码已过期，请在电脑上重新生成');
+      expect(l10n.pairingCodeErrorWrongCode, '配对码不对，请核对电脑上显示的 6 位码');
+      expect(l10n.pairingCodeErrorUnavailable, '没有找到配对服务，确认电脑上的 Hermes 正在运行');
+      expect(l10n.pairingCodeErrorNetwork, '网络不可达，确认两台设备在同一个 Wi-Fi');
+      expect(l10n.pairingDownloadTitle, '先在电脑上装 Hermes');
+      expect(l10n.pairingDownloadSubtitle, '桌面版装好后会自动启动后端，不需要配置任何东西。');
+      expect(l10n.pairingDownloadStep1Title, '下载 Windows / macOS 桌面版');
+      expect(l10n.pairingDownloadStep1Desc, '安装包已内置后端，无需装 Python');
+      expect(l10n.pairingDownloadStep2Title, '安装并打开，点「让手机连上」');
+      expect(l10n.pairingDownloadStep2Desc, '桌面版会显示 6 位配对码');
+      expect(l10n.pairingDownloadStep3Title, '回到手机输入配对码');
+      expect(l10n.pairingDownloadStep3Desc, '完成，之后打开 App 自动连接');
+      expect(l10n.pairingDownloadCopyLink, '复制下载链接');
+      expect(l10n.pairingDownloadLinkCopied, '下载链接已复制');
+      expect(l10n.pairingDownloadLinkLabel, 'github.com/silent-reader-cn/hermes-keep/releases/latest');
+      expect(l10n.pairingDownloadFootnote, '复制后发到电脑上的微信 / QQ，打开就能下载');
+    });
+  });
+
+  group('本机部署向导（桌面端 installWizard*）中文原文', () {
+    const l10n = AppLocalizations(Locale('zh'));
+
+    test('进度/步骤/检查卡/网络/Tailscale/局域网/配对全量键 = 迁入前常量原文', () {
+      expect(l10n.installWizardProgressText(0, 5), '进度: 0 / 5 步骤');
+      expect(l10n.installWizardStepService, '启动服务');
+      expect(l10n.installWizardStepPairing, '手机配对');
+      expect(l10n.installWizardDescService, '拉起 WebUI 并开启局域网访问');
+      expect(l10n.installWizardDescPairing, '生成配对码，等待手机接入');
+      expect(l10n.installWizardStageRunning, '执行中…');
+      expect(l10n.installWizardCheckWindows, 'Windows 11');
+      expect(l10n.installWizardCheckWindowsValue, '系统与权限检查通过');
+      expect(l10n.installWizardCheckAgent, 'Hermes Agent');
+      expect(l10n.installWizardCheckAgentPending, '待安装 · 使用官方 install.ps1');
+      expect(l10n.installWizardCheckAgentInstalled, '已安装 · 使用官方 install.ps1');
+      expect(l10n.installWizardCheckServicePending, '安装后自动启动');
+      expect(l10n.installWizardCheckNetwork, '网络环境');
+      expect(l10n.installWizardNetworkNormal, '正常');
+      expect(l10n.installWizardNetworkChecking, '检测中…');
+      expect(l10n.installWizardNetworkFailed, '检测失败');
+      expect(l10n.installWizardNetworkContinue, '仍然继续');
+      expect(l10n.installWizardNetworkWarning, '在中国大陆等网络受限地区部署时，建议先开启网络加速（代理）再安装，否则「拉取 Agent」与「安装依赖」两步容易超时失败。已开启加速就点重新检测。');
+      expect(l10n.installWizardNetworkSkipHint, '也可以先跳过：检测只影响安装速度，不影响功能');
+      expect(l10n.installWizardTailscaleTitle, '一起安装 Tailscale（内网穿透）');
+      expect(l10n.installWizardTailscaleBadge, '推荐');
+      expect(l10n.installWizardTailscaleSub1, '装好后手机在任何网络都能连（4G / 公司 / 外地），不需要同一个 Wi-Fi。');
+      expect(l10n.installWizardTailscaleSub2, '勾选后这一步会替你下载安装并打开登录页；需要 Tailscale 账号（Google / 微软 / GitHub / Apple），官方不支持邮箱注册。');
+      expect(l10n.installWizardTailscaleExempt, '不勾选也能用：同一 Wi-Fi 下手机可以直接连；跨网再走「远程访问」。Tailscale 只做组网，流量端到端加密，不经过我们的服务器。');
+      expect(l10n.installWizardTailscaleUnavailable, 'Tailscale 服务不可用，已跳过内网穿透安装。');
+      expect(l10n.installWizardTailscaleSteps, <String>['下载安装包', '静默安装', '登录生成地址']);
+      expect(l10n.installWizardTailscaleReadyPrefix, '已就绪 · ');
+      expect(l10n.installWizardTailscaleFailedHint, 'Tailscale 未就绪，不影响本次向导；可稍后在本机部署向导或「远程访问」里重试。');
+      expect(l10n.installWizardTailscaleLoginHint, '请在浏览器完成 Tailscale 授权：');
+      expect(l10n.installWizardTailscaleWorking, '正在处理…');
+      expect(l10n.installWizardLanTitle, '允许局域网设备访问');
+      expect(l10n.installWizardLanOn('0.0.0.0', 8787), '已开启 · 0.0.0.0:8787');
+      expect(l10n.installWizardLanOff, '仅本机（127.0.0.1）');
+      expect(l10n.installWizardCredentialTitle, '访问凭据');
+      expect(l10n.installWizardCredentialValue, '配对码交接 · 不使用明文密码');
+      expect(l10n.installWizardServiceRunning('0.0.0.0', 8787), '● 运行中 0.0.0.0:8787');
+      expect(l10n.installWizardNextPairing, '下一步：配对');
+      expect(l10n.installWizardPairingWaiting, '等待手机接入…');
+      expect(l10n.installWizardPairingHint, '打开手机上的 Hermes → 连接服务器，会自动发现这台电脑');
+      expect(l10n.installWizardPairingTtl, '配对码 10 分钟内有效，配对成功后立即失效');
+      expect(l10n.installWizardPairingAddressPrefix, '配对地址：');
+      expect(l10n.installWizardPairingUnavailable, '配对服务不可用');
+      expect(l10n.installWizardPairingUnavailableHint, '当前构建没有注入配对服务。可以跳过这一步，稍后在「设置 → 连接」里用配对码接入。');
+      expect(l10n.installWizardPairingErrorPrefix, '配对码生成失败：');
+      expect(l10n.installWizardPairingSkip, '跳过配对，先进入应用');
+      expect(l10n.installWizardPairedTitle, '手机已连上');
+      expect(l10n.installWizardPairedSub, '配对完成。以后打开 App 会自动连接这台电脑。');
+      expect(l10n.installWizardPairedJustNow, '刚刚配对');
+      expect(l10n.installWizardPairedService('0.0.0.0', 8787), '内置服务 · 0.0.0.0:8787');
+    });
+  });
+
+  group('配对批次：英文侧抽查（复用的既有键 + 新键）', () {
+    const l10n = AppLocalizations(Locale('en'));
+
+    test('关键键的英文取值', () {
+      expect(l10n.pairingStartTitle, 'Which computer runs Hermes?');
+      expect(l10n.pairingCodeErrorExpired, 'That code has expired — generate a new one on the computer');
+      expect(l10n.installWizardStepService, 'Start Service');
+      expect(l10n.installWizardCheckAgentPending, 'Not installed · uses the official install.ps1');
+      expect(l10n.installWizardNetworkContinue, 'Continue anyway');
+      expect(l10n.installWizardTailscaleBadge, 'Recommended');
+      expect(l10n.installWizardLanOff, 'This machine only (127.0.0.1)');
+      expect(l10n.installWizardPairedJustNow, 'Paired just now');
+      expect(l10n.finish, 'Finish');
+      expect(l10n.agentGateRecheck, 'Recheck');
+      expect(l10n.installGuideStagePrereqs, 'Environment Check');
+      expect(l10n.installGuideStatusPending, 'Pending');
+      expect(l10n.failedStatus, 'Failed');
+      expect(l10n.onboardingTabBuiltin, 'Built-in Service');
+      expect(l10n.webuiStatusTitle, 'Service Status');
+      expect(l10n.webuiStatusStarting, 'Starting…');
+      expect(l10n.onboardingBuiltinNotStarted, 'Not Started');
+      expect(l10n.agentGateRegeneratePassword, 'Regenerate');
+      expect(l10n.pairingDiscoverCandidateMetaOnPort(9090),
+          'Built-in service · 9090 · Same network');
+    });
+
+    test('受限地区提示的英文不含 VPN 字样、含 network acceleration (proxy)', () {
+      expect(l10n.installWizardNetworkWarning.contains('VPN'), isFalse);
+      expect(
+        l10n.installWizardNetworkWarning.contains('network acceleration (proxy)'),
+        isTrue,
+      );
+    });
+  });
 }

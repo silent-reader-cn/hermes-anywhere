@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
-import 'pairing_strings.dart';
+import '../../../l10n/app_localizations.dart';
 import 'pairing_style.dart';
 
 /// M3 · 输入电脑上的配对码（设计稿 §1 第三屏）。
@@ -68,7 +68,9 @@ class _WizardCodePageState extends State<WizardCodePage> {
     if (!_complete) {
       // 位数不足：不发请求，就地按「配对码不对」分档提示（设计稿里主按钮
       // 始终是主色可点态，不做禁用灰化）。
-      setState(() => _error = PairingStrings.m3ErrorWrongCode);
+      setState(() {
+        _error = AppLocalizations.of(context).pairingCodeErrorWrongCode;
+      });
       return;
     }
     setState(() {
@@ -86,12 +88,13 @@ class _WizardCodePageState extends State<WizardCodePage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return ListView(
       padding: EdgeInsets.zero,
       children: [
-        const PairingPageIntro(
-          title: PairingStrings.m3Title,
-          subtitle: PairingStrings.m3Subtitle,
+        PairingPageIntro(
+          title: l10n.pairingCodeTitle,
+          subtitle: l10n.pairingCodeSubtitle,
         ),
         const SizedBox(height: 34),
         Padding(
@@ -105,7 +108,7 @@ class _WizardCodePageState extends State<WizardCodePage> {
               const SizedBox(height: 30),
               PairingActionButton(
                 key: const ValueKey('pairing-code-submit'),
-                label: PairingStrings.m3Submit,
+                label: l10n.pairingCodeSubmit,
                 busy: _busy,
                 // 照设计稿：主按钮恒为主色可点态（不做「不足 6 位就灰掉」），
                 // 位数不足由 _onSubmit 就地按分档文案提示。
@@ -121,17 +124,14 @@ class _WizardCodePageState extends State<WizardCodePage> {
               ],
               const SizedBox(height: 14),
               // v1 禁用占位：扫码入口不引新依赖，灰字即「暂不可用」。
-              const PairingActionButton(
-                key: ValueKey('pairing-code-scan'),
-                label: PairingStrings.m3ScanAction,
+              PairingActionButton(
+                key: const ValueKey('pairing-code-scan'),
+                label: l10n.pairingCodeScanAction,
                 icon: CupertinoIcons.camera,
                 ghost: true,
               ),
               const SizedBox(height: 16),
-              const PairingMicroText(
-                PairingStrings.m3Footnote,
-                align: TextAlign.center,
-              ),
+              PairingMicroText(l10n.pairingCodeFootnote, align: TextAlign.center),
             ],
           ),
         ),

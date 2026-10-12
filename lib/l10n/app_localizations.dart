@@ -2211,3 +2211,457 @@ extension AppLocalizationsWorkspaceGroup146 on AppLocalizations {
   /// 会话列表未绑定工作区的「其他」分组标题。
   String get otherSection => isEnglish ? 'Other' : '其他';
 }
+// ---------------------------------------------------------------------------
+// 手机端首启配对向导（形态 B 决策树 · 2026-10-12 配对批次）
+//
+// 键名与 `wizard_start/discover/code/download_page.dart` 各屏一一对应：
+// M1 首问 → pairingStart*；M2 发现 → pairingDiscover*；M3 配对码 → pairingCode*；
+// M4 下载引导 → pairingDownload*；导航栏标题 → pairingNav*。
+// 调用点：`final l10n = AppLocalizations.of(context);` 后取 `l10n.<key>`。
+// ---------------------------------------------------------------------------
+extension AppLocalizationsPairingWizard on AppLocalizations {
+  // ---- 配对向导（手机端）· 导航栏标题 ----
+
+  /// M1 首问页导航标题。
+  String get pairingNavStart => isEnglish ? 'Get Started' : '开始使用';
+
+  /// M2 发现页导航标题。
+  String get pairingNavSameWifi => isEnglish ? 'Same Wi-Fi' : '同一 Wi-Fi 连接';
+
+  /// M3 配对码页导航标题。
+  String get pairingNavPair => isEnglish ? 'Pair' : '配对';
+
+  /// M4 下载引导页导航标题。
+  String get pairingNavDownload => isEnglish ? 'Desktop App' : '下载桌面版';
+
+  // ---- 配对向导（手机端）· M1 第一问「Hermes 跑在哪台电脑上？」 ----
+
+  /// M1 页大标题。
+  String get pairingStartTitle =>
+      isEnglish ? 'Which computer runs Hermes?' : 'Hermes 跑在哪台电脑上？';
+
+  /// M1 副文。
+  String get pairingStartSubtitle => isEnglish
+      ? 'Hermes needs a computer that stays on as its backend. Pick your case — the steps below run on this phone automatically.'
+      : 'Hermes 需要一个常驻的后端电脑。选一种情况，下面这几步本机会自动做完。';
+
+  /// M1 卡片①标题（同一 Wi-Fi）。
+  String get pairingStartSameWifiTitle =>
+      isEnglish ? 'The computer is on the same Wi-Fi' : '电脑就在同一个 Wi-Fi';
+
+  /// M1 卡片①副行。
+  String get pairingStartSameWifiDesc =>
+      isEnglish ? 'Found automatically, connects after pairing' : '自动发现，配对后即可连接';
+
+  /// M1 卡片②标题（电脑在别处）。
+  String get pairingStartElsewhereTitle =>
+      isEnglish ? 'The computer is somewhere else' : '电脑在别处';
+
+  /// M1 卡片②副行。
+  String get pairingStartElsewhereDesc => isEnglish
+      ? 'On 4G, at the office, or away from home: connect with a pairing code — turn on remote access first'
+      : '4G／公司／外地：用配对码连接，需先开启远程访问';
+
+  /// M1 卡片③标题（还没装桌面版）。
+  String get pairingStartNotInstalledTitle => isEnglish
+      ? 'Hermes is not installed on my computer yet'
+      : '我还没在电脑上装 Hermes';
+
+  /// M1 卡片③副行。
+  String get pairingStartNotInstalledDesc => isEnglish
+      ? 'Download the desktop app first, then come back here'
+      : '先下载桌面版，装好再回到这里';
+
+  /// M1 底部次级链接（进入旧远程表单兜底入口）。
+  String get pairingStartManualEntryLink =>
+      isEnglish ? 'I have a server address' : '我有服务器地址';
+
+  /// M1 最底部微文案。
+  String get pairingStartFooterNote => isEnglish
+      ? 'Add more computers later in Settings → Connections'
+      : '多台电脑可以稍后在「设置 → 连接」里添加';
+
+  // ---- 配对向导（手机端）· M2 同一 Wi-Fi 自动发现 ----
+
+  /// M2 搜索中页大标题。
+  String get pairingDiscoverTitleSearching =>
+      isEnglish ? 'Looking for your computer' : '正在找你的电脑';
+
+  /// M2 未发现任何电脑时的页大标题。
+  String get pairingDiscoverTitleEmpty =>
+      isEnglish ? 'No computer found' : '没找到你的电脑';
+
+  /// M2 副文。
+  String get pairingDiscoverSubtitle => isEnglish
+      ? 'Keep your phone and your computer on the same Wi-Fi, and make sure Hermes is open on the computer.'
+      : '请保持手机与电脑在同一个 Wi-Fi，并确认电脑上的 Hermes 已经打开。';
+
+  /// M2 发现卡右侧小按钮。
+  String get pairingDiscoverPairAction => isEnglish ? 'Pair' : '配对';
+
+  /// M2 发现卡副行（候选未带 WebUI 地址时的默认口径：内置服务固定 8787）。
+  String get pairingDiscoverCandidateMetaDefault => isEnglish
+      ? 'Built-in service · 8787 · Same network'
+      : '内置服务 · 8787 · 同一网络';
+
+  /// M2 自检小标题。
+  String get pairingDiscoverChecklistTitle => isEnglish ? 'Not finding it?' : '没找到？';
+
+  /// M2 自检第 1 条。
+  String get pairingDiscoverCheck1 => isEnglish
+      ? '1. Make sure Hermes is running on the computer'
+      : '1. 确认电脑上的 Hermes 正在运行';
+
+  /// M2 自检第 2 条。
+  String get pairingDiscoverCheck2 => isEnglish
+      ? '2. Make sure both devices are on the same Wi-Fi'
+      : '2. 确认两台设备连的是同一个 Wi-Fi';
+
+  /// M2 自检第 3 条。
+  String get pairingDiscoverCheck3 => isEnglish
+      ? '3. Check that the computer firewall allows 8787'
+      : '3. 检查电脑防火墙是否放行 8787';
+
+  /// M2 兜底链接（进入旧远程表单）。
+  String get pairingDiscoverManualEntryLink =>
+      isEnglish ? 'Enter address manually' : '手动输入地址';
+
+  /// M2 发现卡副行（候选自带 WebUI 地址时按其端口显示）。
+  String pairingDiscoverCandidateMetaOnPort(int port) => isEnglish
+      ? 'Built-in service · $port · Same network'
+      : '内置服务 · $port · 同一网络';
+
+  // ---- 配对向导（手机端）· M3 配对码 ----
+
+  /// M3 页大标题。
+  String get pairingCodeTitle =>
+      isEnglish ? 'Enter the pairing code from your computer' : '输入电脑上的配对码';
+
+  /// M3 副文。
+  String get pairingCodeSubtitle => isEnglish
+      ? 'Tap "Connect phone" on the computer to see a 6-digit pairing code. The password is handed over in the background, so you never type it.'
+      : '在电脑上点「让手机连上」，会显示 6 位配对码。密码由 App 后台交接，不需要你抄。';
+
+  /// M3 主按钮。
+  String get pairingCodeSubmit => isEnglish ? 'Pair & Connect' : '配对并连接';
+
+  /// M3 次级按钮（v1 禁用占位）。
+  String get pairingCodeScanAction => isEnglish ? 'Scan instead' : '改用扫一扫';
+
+  /// M3 底部微文案。
+  String get pairingCodeFootnote => isEnglish
+      ? 'The code is valid for 10 minutes and expires as soon as pairing succeeds.'
+      : '配对码 10 分钟内有效，配对成功后立即失效。';
+
+  /// 配对码过期。
+  String get pairingCodeErrorExpired => isEnglish
+      ? 'That code has expired — generate a new one on the computer'
+      : '配对码已过期，请在电脑上重新生成';
+
+  /// 配对码不匹配。
+  String get pairingCodeErrorWrongCode => isEnglish
+      ? 'Wrong code — check the 6 digits shown on the computer'
+      : '配对码不对，请核对电脑上显示的 6 位码';
+
+  /// 对端没有开启配对 / 不是 Hermes 后端（也用于「压根没有可用的配对服务地址」）。
+  String get pairingCodeErrorUnavailable => isEnglish
+      ? 'No pairing service found — make sure Hermes is running on the computer'
+      : '没有找到配对服务，确认电脑上的 Hermes 正在运行';
+
+  /// 网络不可达。
+  String get pairingCodeErrorNetwork => isEnglish
+      ? 'Network unreachable — make sure both devices are on the same Wi-Fi'
+      : '网络不可达，确认两台设备在同一个 Wi-Fi';
+
+  // ---- 配对向导（手机端）· M4 下载桌面版引导 ----
+
+  /// M4 页大标题。
+  String get pairingDownloadTitle =>
+      isEnglish ? 'Install Hermes on your computer first' : '先在电脑上装 Hermes';
+
+  /// M4 副文。
+  String get pairingDownloadSubtitle => isEnglish
+      ? 'Once installed, the desktop app starts the backend automatically. Nothing to configure.'
+      : '桌面版装好后会自动启动后端，不需要配置任何东西。';
+
+  /// M4 步骤①标题。
+  String get pairingDownloadStep1Title =>
+      isEnglish ? 'Download the Windows / macOS app' : '下载 Windows / macOS 桌面版';
+
+  /// M4 步骤①副行。
+  String get pairingDownloadStep1Desc => isEnglish
+      ? 'The installer bundles the backend — no Python needed'
+      : '安装包已内置后端，无需装 Python';
+
+  /// M4 步骤②标题。
+  String get pairingDownloadStep2Title => isEnglish
+      ? 'Install it, open it, and tap "Connect phone"'
+      : '安装并打开，点「让手机连上」';
+
+  /// M4 步骤②副行。
+  String get pairingDownloadStep2Desc =>
+      isEnglish ? 'The desktop app shows a 6-digit pairing code' : '桌面版会显示 6 位配对码';
+
+  /// M4 步骤③标题。
+  String get pairingDownloadStep3Title =>
+      isEnglish ? 'Come back to your phone and enter the code' : '回到手机输入配对码';
+
+  /// M4 步骤③副行。
+  String get pairingDownloadStep3Desc => isEnglish
+      ? 'Done — the app connects automatically from now on'
+      : '完成，之后打开 App 自动连接';
+
+  /// M4 主按钮。
+  String get pairingDownloadCopyLink =>
+      isEnglish ? 'Copy Download Link' : '复制下载链接';
+
+  /// M4 复制成功回执（设计稿无此条，就地反馈用；仅本页出现）。
+  String get pairingDownloadLinkCopied =>
+      isEnglish ? 'Download link copied' : '下载链接已复制';
+
+  /// M4 界面展示的短链（地址本身无语言差异，仍走 l10n 统一出口）。
+  String get pairingDownloadLinkLabel =>
+      'github.com/silent-reader-cn/hermes-keep/releases/latest';
+
+  /// M4 底部微文案。
+  String get pairingDownloadFootnote => isEnglish
+      ? 'Send it to WeChat / QQ on your computer, then open it to download'
+      : '复制后发到电脑上的微信 / QQ，打开就能下载';
+}
+
+// ---------------------------------------------------------------------------
+// 桌面端本机部署向导（usr:/install-guide · 2026-10-12 配对批次）
+//
+// `installWizard*` 前缀承载本批新增文案；步骤名/状态等与既有 `installGuide*`
+// 完全同文的键**继续复用既有键**（见调用点，不在本段重复造键）。
+// ---------------------------------------------------------------------------
+extension AppLocalizationsInstallWizard on AppLocalizations {
+  // ---- 本机部署向导（桌面端）· 进度与步骤名 ----
+
+  /// 进度行：`进度: 0 / 5 步骤`。
+  String installWizardProgressText(int done, int total) =>
+      isEnglish ? 'Progress: $done / $total steps' : '进度: $done / $total 步骤';
+
+  /// 第 4 步「启动服务」（本批新增）。
+  String get installWizardStepService => isEnglish ? 'Start Service' : '启动服务';
+
+  /// 第 5 步「手机配对」（本批新增）。
+  String get installWizardStepPairing => isEnglish ? 'Phone Pairing' : '手机配对';
+
+  // ---- 本机部署向导（桌面端）· 各步副行 ----
+
+  /// 启动服务副行。
+  String get installWizardDescService => isEnglish
+      ? 'Start the WebUI and enable LAN access'
+      : '拉起 WebUI 并开启局域网访问';
+
+  /// 手机配对副行。
+  String get installWizardDescPairing => isEnglish
+      ? 'Generate a pairing code and wait for your phone'
+      : '生成配对码，等待手机接入';
+
+  // ---- 本机部署向导（桌面端）· 步骤状态 ----
+
+  /// 执行中（与 `installGuideStatusRunning` 的区别：设计稿带省略号）。
+  String get installWizardStageRunning => isEnglish ? 'Running…' : '执行中…';
+
+  // ---- 本机部署向导（桌面端）· 首屏检查卡 ----
+
+  /// Windows 行标题（产品名，中英一致）。
+  String get installWizardCheckWindows => 'Windows 11';
+
+  /// Windows 行值。
+  String get installWizardCheckWindowsValue =>
+      isEnglish ? 'System and permission checks passed' : '系统与权限检查通过';
+
+  /// Agent 行标题（产品名，中英一致）。
+  String get installWizardCheckAgent => 'Hermes Agent';
+
+  /// Agent 行值（未安装）。
+  String get installWizardCheckAgentPending => isEnglish
+      ? 'Not installed · uses the official install.ps1'
+      : '待安装 · 使用官方 install.ps1';
+
+  /// Agent 行值（已装完）。
+  String get installWizardCheckAgentInstalled => isEnglish
+      ? 'Installed · uses the official install.ps1'
+      : '已安装 · 使用官方 install.ps1';
+
+  /// 内置服务行值（未启动）。
+  String get installWizardCheckServicePending =>
+      isEnglish ? 'Starts automatically after install' : '安装后自动启动';
+
+  /// 网络环境行标题。
+  String get installWizardCheckNetwork => isEnglish ? 'Network' : '网络环境';
+
+  /// 网络环境行值（正常）。
+  String get installWizardNetworkNormal => isEnglish ? 'Normal' : '正常';
+
+  /// 网络环境行值（检测中）。
+  String get installWizardNetworkChecking => isEnglish ? 'Checking…' : '检测中…';
+
+  /// 网络环境行值（探测过程本身出错）。
+  String get installWizardNetworkFailed => isEnglish ? 'Check failed' : '检测失败';
+
+  /// 「仍然继续」按钮。
+  String get installWizardNetworkContinue =>
+      isEnglish ? 'Continue anyway' : '仍然继续';
+
+  /// 受限地区提示卡正文。
+  ///
+  /// 用词铁律：只写「网络加速（代理）」，**不出现 VPN 字样**（主人 2026-10-12 拍板）。
+  String get installWizardNetworkWarning => isEnglish
+      ? 'When deploying in mainland China or another network-restricted region, '
+            'turn on network acceleration (proxy) before installing — otherwise '
+            'the "Pull Agent" and "Install Dependencies" steps tend to time out. '
+            'If it is already on, tap Recheck.'
+      : '在中国大陆等网络受限地区部署时，建议先开启网络加速（代理）再安装，'
+            '否则「拉取 Agent」与「安装依赖」两步容易超时失败。已开启加速就点重新检测。';
+
+  /// 提示卡下方微文案。
+  String get installWizardNetworkSkipHint => isEnglish
+      ? 'You can skip for now: the check only affects install speed, not features'
+      : '也可以先跳过：检测只影响安装速度，不影响功能';
+
+  // ---- 本机部署向导（桌面端）· 启动服务步：Tailscale 勾选 ----
+
+  /// Tailscale 行标题。
+  String get installWizardTailscaleTitle => isEnglish
+      ? 'Also install Tailscale (mesh VPN)'
+      : '一起安装 Tailscale（内网穿透）';
+
+  /// Tailscale 行「推荐」徽标。
+  String get installWizardTailscaleBadge =>
+      isEnglish ? 'Recommended' : '推荐';
+
+  /// Tailscale 副行 1。
+  String get installWizardTailscaleSub1 => isEnglish
+      ? 'Once installed, your phone can connect on any network (4G / office / away) — no need to share a Wi-Fi.'
+      : '装好后手机在任何网络都能连（4G / 公司 / 外地），不需要同一个 Wi-Fi。';
+
+  /// Tailscale 副行 2（诚实边界：浏览器授权无法代劳）。
+  String get installWizardTailscaleSub2 => isEnglish
+      ? 'With this checked, the wizard downloads and installs it and opens the sign-in page for you. A Tailscale account is required '
+            '(Google / Microsoft / GitHub / Apple); email sign-up is not supported.'
+      : '勾选后这一步会替你下载安装并打开登录页；需要 Tailscale 账号'
+            '（Google / 微软 / GitHub / Apple），官方不支持邮箱注册。';
+
+  /// Tailscale 豁免说明（未勾选也能用）。
+  String get installWizardTailscaleExempt => isEnglish
+      ? 'It works without Tailscale too: on the same Wi-Fi your phone can connect directly, and across networks it goes through Remote Access. '
+            'Tailscale only builds the mesh; traffic is end-to-end encrypted and never passes through our servers.'
+      : '不勾选也能用：同一 Wi-Fi 下手机可以直接连；跨网再走「远程访问」。'
+            'Tailscale 只做组网，流量端到端加密，不经过我们的服务器。';
+
+  /// Tailscale 服务未注入时的降级提示（不崩，只是没得装）。
+  String get installWizardTailscaleUnavailable => isEnglish
+      ? 'Tailscale service unavailable; mesh VPN install skipped.'
+      : 'Tailscale 服务不可用，已跳过内网穿透安装。';
+
+  /// Tailscale 安装三态轨的步骤名（与主步骤条同一形态）。
+  List<String> get installWizardTailscaleSteps => isEnglish
+      ? const ['Download installer', 'Silent install', 'Sign in to get address']
+      : const ['下载安装包', '静默安装', '登录生成地址'];
+
+  /// Tailscale 就绪摘要前缀（后接 100.x 地址）。
+  String get installWizardTailscaleReadyPrefix => isEnglish ? 'Ready · ' : '已就绪 · ';
+
+  /// Tailscale 未就绪（失败）时的收尾说明：不阻断向导，可稍后重试。
+  String get installWizardTailscaleFailedHint => isEnglish
+      ? 'Tailscale is not ready. It does not block this wizard; you can retry later from this guide or from Remote Access.'
+      : 'Tailscale 未就绪，不影响本次向导；可稍后在本机部署向导或「远程访问」里重试。';
+
+  /// Tailscale 需要去浏览器授权时的提示前缀（后接授权 URL）。
+  String get installWizardTailscaleLoginHint => isEnglish
+      ? 'Complete Tailscale authorization in your browser: '
+      : '请在浏览器完成 Tailscale 授权：';
+
+  /// Tailscale 进行中的占位说明（状态流还没吐 detail 时）。
+  String get installWizardTailscaleWorking => isEnglish ? 'Working…' : '正在处理…';
+
+  // ---- 本机部署向导（桌面端）· 启动服务步：局域网可见性 / 凭据 / 服务状态 ----
+
+  /// 局域网访问行标题。
+  String get installWizardLanTitle => isEnglish
+      ? 'Allow access from LAN devices'
+      : '允许局域网设备访问';
+
+  /// 局域网访问行值（开启，含监听地址）。
+  String installWizardLanOn(String host, int port) =>
+      isEnglish ? 'On · $host:$port' : '已开启 · $host:$port';
+
+  /// 局域网访问行值（关闭）。
+  String get installWizardLanOff => isEnglish
+      ? 'This machine only (127.0.0.1)'
+      : '仅本机（127.0.0.1）';
+
+  /// 凭据行标题。
+  String get installWizardCredentialTitle =>
+      isEnglish ? 'Access Credential' : '访问凭据';
+
+  /// 凭据行值。
+  String get installWizardCredentialValue => isEnglish
+      ? 'Handed over via pairing code · no plaintext password'
+      : '配对码交接 · 不使用明文密码';
+
+  /// 服务状态行值（运行中）。
+  String installWizardServiceRunning(String host, int port) =>
+      isEnglish ? '● Running $host:$port' : '● 运行中 $host:$port';
+
+  /// 启动服务步尾部主按钮（进入配对）。
+  String get installWizardNextPairing => isEnglish ? 'Next: Pair' : '下一步：配对';
+
+  // ---- 本机部署向导（桌面端）· 手机配对步 ----
+
+  /// 等待手机接入。
+  String get installWizardPairingWaiting =>
+      isEnglish ? 'Waiting for your phone…' : '等待手机接入…';
+
+  /// 配对引导句。
+  String get installWizardPairingHint => isEnglish
+      ? 'Open Hermes on your phone → Connect Server; this computer is found automatically'
+      : '打开手机上的 Hermes → 连接服务器，会自动发现这台电脑';
+
+  /// 配对码有效期微文案。
+  String get installWizardPairingTtl => isEnglish
+      ? 'The code is valid for 10 minutes and expires as soon as pairing succeeds'
+      : '配对码 10 分钟内有效，配对成功后立即失效';
+
+  /// 配对地址前缀（后接 http://host:port）。
+  String get installWizardPairingAddressPrefix =>
+      isEnglish ? 'Pairing address: ' : '配对地址：';
+
+  /// 配对服务未注入时的标题。
+  String get installWizardPairingUnavailable =>
+      isEnglish ? 'Pairing service unavailable' : '配对服务不可用';
+
+  /// 配对服务未注入时的说明（允许跳过，不崩）。
+  String get installWizardPairingUnavailableHint => isEnglish
+      ? 'This build did not inject a pairing service. You can skip this step and pair later from Settings → Connections with a pairing code.'
+      : '当前构建没有注入配对服务。可以跳过这一步，稍后在「设置 → 连接」里用配对码接入。';
+
+  /// 生成配对码失败前缀。
+  String get installWizardPairingErrorPrefix =>
+      isEnglish ? 'Failed to generate the pairing code: ' : '配对码生成失败：';
+
+  /// 跳过配对的次级按钮。
+  String get installWizardPairingSkip => isEnglish
+      ? 'Skip pairing and enter the app'
+      : '跳过配对，先进入应用';
+
+  /// 验收态标题（对端已连上才算向导成功）。
+  String get installWizardPairedTitle => isEnglish ? 'Phone connected' : '手机已连上';
+
+  /// 验收态副行。
+  String get installWizardPairedSub => isEnglish
+      ? 'Pairing complete. The app connects to this computer automatically from now on.'
+      : '配对完成。以后打开 App 会自动连接这台电脑。';
+
+  /// 验收态设备行的值。
+  String get installWizardPairedJustNow =>
+      isEnglish ? 'Paired just now' : '刚刚配对';
+
+  /// 验收态本机行的值前缀（后接 host:port）。
+  String installWizardPairedService(String host, int port) =>
+      isEnglish ? 'Built-in service · $host:$port' : '内置服务 · $host:$port';
+}
