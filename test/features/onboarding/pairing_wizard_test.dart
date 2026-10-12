@@ -350,6 +350,43 @@ void main() {
       expect(find.byKey(const ValueKey('onboarding-connect')), findsOneWidget);
     });
   });
+    testWidgets('兜底旧表单给返回箭头：M1 底部链接进入 → 返回回首问页', (tester) async {
+      await pumpWizard(tester);
+      await openLegacyForm(tester);
+
+      // 表单本体仍逐像素保留，但导航栏现在有返回箭头（主人 2026-10-12 拍板：不再做死胡同）
+      expect(find.byKey(const ValueKey('onboarding-url')), findsOneWidget);
+      expect(find.byKey(const ValueKey('pairing-nav-back')), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('pairing-nav-back')));
+      await settle(tester);
+
+      expect(find.text('Hermes 跑在哪台电脑上？'), findsOneWidget);
+      // 回首问页即根，不该再有返回箭头
+      expect(find.byKey(const ValueKey('pairing-nav-back')), findsNothing);
+    });
+
+    testWidgets('兜底旧表单的返回回到「来路」：发现页手动入口进入 → 回发现页', (tester) async {
+      await pumpWizard(tester);
+
+      await tester.tap(find.byKey(const ValueKey('pairing-start-same-wifi')));
+      await settle(tester);
+      await tester.tap(
+        find.byKey(const ValueKey('pairing-discover-manual-address')),
+      );
+      await settle(tester);
+      expect(find.byKey(const ValueKey('onboarding-url')), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('pairing-nav-back')));
+      await settle(tester);
+
+      // 回到发现页（同 Wi-Fi 连接），而不是首问页
+      expect(find.text('同一 Wi-Fi 连接'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('pairing-discover-manual-address')),
+        findsOneWidget,
+      );
+    });
 
   // ─────────────────────────────────────────────────────────────────────────
   group('M3 · 配对码兑换', () {

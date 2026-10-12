@@ -68,6 +68,10 @@ class _PairingWizardState extends ConsumerState<PairingWizard> {
 
   PairingWizardStep _step = PairingWizardStep.start;
 
+  /// 进入兜底旧表单前的步骤 —— 返回时回到「它来的地方」
+  /// （M1 底部链接 → 首问页；M2「手动输入地址」→ 发现页），而不是一律回首问页。
+  PairingWizardStep _legacyReturn = PairingWizardStep.start;
+
   /// 从发现页带进配对码页的候选（跨网入口为空 → 提交时先发现一次）。
   PairingCandidate? _candidate;
 
@@ -120,7 +124,11 @@ class _PairingWizardState extends ConsumerState<PairingWizard> {
 
   void _onNotInstalled() => _goTo(PairingWizardStep.download);
 
-  void _onManualAddress() => _goTo(PairingWizardStep.legacyForm);
+  void _onManualAddress() {
+    // 记住来路，供兜底表单的返回箭头使用（主人 2026-10-12 拍板：兜底不再做死胡同）。
+    if (_step != PairingWizardStep.legacyForm) _legacyReturn = _step;
+    _goTo(PairingWizardStep.legacyForm);
+  }
 
   void _onPairCandidate(PairingCandidate candidate) {
     _candidate = candidate;
@@ -128,13 +136,16 @@ class _PairingWizardState extends ConsumerState<PairingWizard> {
     _goTo(PairingWizardStep.code);
   }
 
-  /// 配对码页的返回目标；null = 本步无返回（M1 / 兜底表单）。
+  /// 本步的返回目标；null = 本步无返回（只有首问页 M1 是根）。
   ///
-  /// 兜底表单不给返回箭头：设计目标是「旧远程表单逐像素不变」，加箭头即改动像素。
+  /// 兜底旧表单**给返回**（主人 2026-10-12 拍板）：原实现是死胡同 —— 用户点了
+  /// 「我有服务器地址」后回不去。代价仅导航栏多一个 chevron；表单本体
+  /// （字段 / placeholder / 按钮 / 提交逻辑）仍逐像素不变。
   PairingWizardStep? get _backTarget => switch (_step) {
     PairingWizardStep.discover || PairingWizardStep.download => PairingWizardStep.start,
     PairingWizardStep.code => _codeBackTarget,
-    PairingWizardStep.start || PairingWizardStep.legacyForm => null,
+    PairingWizardStep.legacyForm => _legacyReturn,
+    PairingWizardStep.start => null,
   };
 
   void _goBack() {
