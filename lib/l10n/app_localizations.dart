@@ -2241,9 +2241,12 @@ extension AppLocalizationsPairingWizard on AppLocalizations {
       isEnglish ? 'Which computer runs Hermes?' : 'Hermes 跑在哪台电脑上？';
 
   /// M1 副文。
+  ///
+  /// 2026-10-12 定稿：去掉「本机」歧义（下面这几步在**电脑上**做，不是在手机上），
+  /// 改成「剩下的几步会引导你完成」。
   String get pairingStartSubtitle => isEnglish
-      ? 'Hermes needs a computer that stays on as its backend. Pick your case — the steps below run on this phone automatically.'
-      : 'Hermes 需要一个常驻的后端电脑。选一种情况，下面这几步本机会自动做完。';
+      ? 'Hermes needs a computer running in the background. Pick one and the app walks you through the rest.'
+      : 'Hermes 需要一个常驻的后端电脑。选一种情况，剩下的几步会引导你完成。';
 
   /// M1 卡片①标题（同一 Wi-Fi）。
   String get pairingStartSameWifiTitle =>
@@ -2304,8 +2307,9 @@ extension AppLocalizationsPairingWizard on AppLocalizations {
       ? 'Built-in service · 8787 · Same network'
       : '内置服务 · 8787 · 同一网络';
 
-  /// M2 自检小标题。
-  String get pairingDiscoverChecklistTitle => isEnglish ? 'Not finding it?' : '没找到？';
+  /// M2 自检小标题（英文 2026-10-12 定稿：'Can't find it?' 比 'Not finding it?' 更口语）。
+  String get pairingDiscoverChecklistTitle =>
+      isEnglish ? "Can't find it?" : '没找到？';
 
   /// M2 自检第 1 条。
   String get pairingDiscoverCheck1 => isEnglish
@@ -2419,10 +2423,6 @@ extension AppLocalizationsPairingWizard on AppLocalizations {
   String get pairingDownloadLinkCopied =>
       isEnglish ? 'Download link copied' : '下载链接已复制';
 
-  /// M4 界面展示的短链（地址本身无语言差异，仍走 l10n 统一出口）。
-  String get pairingDownloadLinkLabel =>
-      'github.com/silent-reader-cn/hermes-keep/releases/latest';
-
   /// M4 底部微文案。
   String get pairingDownloadFootnote => isEnglish
       ? 'Send it to WeChat / QQ on your computer, then open it to download'
@@ -2478,8 +2478,10 @@ extension AppLocalizationsInstallWizard on AppLocalizations {
   String get installWizardCheckAgent => 'Hermes Agent';
 
   /// Agent 行值（未安装）。
+  ///
+  /// 2026-10-12 定稿：英文去掉多余的 'uses the'（'·' 与前后空格保留）。
   String get installWizardCheckAgentPending => isEnglish
-      ? 'Not installed · uses the official install.ps1'
+      ? 'Not installed · official install.ps1'
       : '待安装 · 使用官方 install.ps1';
 
   /// Agent 行值（已装完）。
@@ -2494,14 +2496,21 @@ extension AppLocalizationsInstallWizard on AppLocalizations {
   /// 网络环境行标题。
   String get installWizardCheckNetwork => isEnglish ? 'Network' : '网络环境';
 
-  /// 网络环境行值（正常）。
-  String get installWizardNetworkNormal => isEnglish ? 'Normal' : '正常';
+  /// 网络环境行值（正常）。英文用状态行惯例 'OK'（与 'Check failed' 成对），中文不变。
+  String get installWizardNetworkNormal => isEnglish ? 'OK' : '正常';
 
   /// 网络环境行值（检测中）。
   String get installWizardNetworkChecking => isEnglish ? 'Checking…' : '检测中…';
 
   /// 网络环境行值（探测过程本身出错）。
   String get installWizardNetworkFailed => isEnglish ? 'Check failed' : '检测失败';
+
+  /// 受限提示卡里的「重新检测」按钮。
+  ///
+  /// 2026-10-12 定稿：**不复用** [agentGateRecheck]（那是代理闸门重检、
+  /// 英文 'Recheck' 在本处生硬），本向导自有 'Check Again'。
+  String get installWizardNetworkRecheck =>
+      isEnglish ? 'Check Again' : '重新检测';
 
   /// 「仍然继续」按钮。
   String get installWizardNetworkContinue =>
@@ -2608,8 +2617,9 @@ extension AppLocalizationsInstallWizard on AppLocalizations {
   String installWizardServiceRunning(String host, int port) =>
       isEnglish ? '● Running $host:$port' : '● 运行中 $host:$port';
 
-  /// 启动服务步尾部主按钮（进入配对）。
-  String get installWizardNextPairing => isEnglish ? 'Next: Pair' : '下一步：配对';
+  /// 启动服务步尾部主按钮（进入配对）。英文与同屏步骤名 'Phone Pairing' 同口径。
+  String get installWizardNextPairing =>
+      isEnglish ? 'Next: Pair Phone' : '下一步：配对';
 
   // ---- 本机部署向导（桌面端）· 手机配对步 ----
 
@@ -2644,6 +2654,13 @@ extension AppLocalizationsInstallWizard on AppLocalizations {
   String get installWizardPairingErrorPrefix =>
       isEnglish ? 'Failed to generate the pairing code: ' : '配对码生成失败：';
 
+  /// 配对步的「重新生成」按钮。
+  ///
+  /// 2026-10-12 定稿：**不复用** [agentGateRegeneratePassword]（那个键名语义是
+  /// 「重新生成密码」，在本处文不对题），本向导自有键。
+  String get installWizardPairingRegenerate =>
+      isEnglish ? 'Regenerate' : '重新生成';
+
   /// 跳过配对的次级按钮。
   String get installWizardPairingSkip => isEnglish
       ? 'Skip pairing and enter the app'
@@ -2664,4 +2681,137 @@ extension AppLocalizationsInstallWizard on AppLocalizations {
   /// 验收态本机行的值前缀（后接 host:port）。
   String installWizardPairedService(String host, int port) =>
       isEnglish ? 'Built-in service · $host:$port' : '内置服务 · $host:$port';
+
+  // ---- 部署向导 · 服务状态与日志台 ----
+  //
+  // 本段收编 `install_guide_page.dart` 里最后一批硬编码中文：服务状态行的兜底值、
+  // 失败原因兜底值、以及诊断日志台（`_appendLog`）的全部文案。日志台对用户可见
+  // （「展开日志」按钮 + 「复制日志」会把全文写进剪贴板），故与界面文案同等对待。
+  //
+  // 中文侧必须与原硬编码**逐字相同**（install_guide 系列金照按中文渲染）；
+  // 英文侧按口语化重写，不是逐字直译。
+
+  /// 服务状态行值（等不到内置服务就绪的兜底口径）。
+  String get installWizardServiceTimeout => isEnglish
+      ? 'Startup timed out (not ready in 30s)'
+      : '启动超时（30s 未就绪）';
+
+  /// 失败卡片标题（后接失败步的步名）。
+  String installWizardStepFailed(String step) =>
+      isEnglish ? 'Step failed: $step' : '步骤失败: $step';
+
+  /// 日志台空态占位。
+  String get installWizardLogWaiting =>
+      isEnglish ? 'Waiting for the install to start...' : '等待安装启动...';
+
+  /// 日志台：[1/5] 前置检查。
+  String get installWizardLogPrereqs => isEnglish
+      ? '===> [1/5] Checking the environment and downloading the official install.ps1 ...'
+      : '===> [1/5] 检查安装环境与下载官方 install.ps1 ...';
+
+  /// 日志台：[2/5] 拉取 Agent。
+  String get installWizardLogAgent => isEnglish
+      ? '===> [2/5] Fetching and installing the Hermes Agent source ...'
+      : '===> [2/5] 拉取与安装 Hermes Agent 源码 ...';
+
+  /// 日志台：[3/5] 装 Agent 依赖。
+  String get installWizardLogDeps => isEnglish
+      ? '===> [3/5] Setting up the Agent Python virtualenv and dependencies ...'
+      : '===> [3/5] 安装 Agent Python 虚拟环境及依赖 ...';
+
+  /// 日志台：[4/5] 拉起内置服务。
+  String get installWizardLogService => isEnglish
+      ? '===> [4/5] Starting the built-in WebUI service and enabling LAN access ...'
+      : '===> [4/5] 拉起内置 WebUI 服务并开启局域网访问 ...';
+
+  /// 日志台：[4/5] 顺手一起装 Tailscale。
+  String get installWizardLogTailscale => isEnglish
+      ? '===> [4/5] Installing Tailscale along the way: silent install + open the sign-in page ...'
+      : '===> [4/5] 一起安装 Tailscale：静默安装 + 打开登录页 ...';
+
+  /// 日志台：监听地址从本机切到 0.0.0.0（后接原监听地址）。
+  String installWizardLogHostSwitch(String host) => isEnglish
+      ? 'Listening address $host → 0.0.0.0 (only then can a phone on the same Wi-Fi connect)'
+      : '监听地址 $host → 0.0.0.0（同一 Wi-Fi 的手机才能连上）';
+
+  /// 日志台：内置服务已就绪（后接 host:port）。
+  String installWizardLogServiceReady(String address) =>
+      isEnglish ? 'Built-in service ready: $address' : '内置服务已就绪：$address';
+
+  /// 日志台：内置服务启动失败（后接失败原因）。
+  String installWizardLogServiceFailed(String reason) => isEnglish
+      ? 'Built-in service failed to start: $reason'
+      : '内置服务启动失败：$reason';
+
+  /// 日志台：拉起服务的过程本身抛异常（后接异常文本）。
+  String installWizardLogServiceError(String error) =>
+      isEnglish ? 'Start service error: $error' : '启动服务异常: $error';
+
+  /// 日志台：执行安装步骤的过程本身抛异常（后接异常文本）。
+  String installWizardLogStepError(String error) =>
+      isEnglish ? 'Step error: $error' : '执行步骤异常: $error';
+
+  /// 日志台：未勾选 Tailscale，跳过组网。
+  String get installWizardLogTailscaleSkipped => isEnglish
+      ? 'Tailscale not selected: skipping the mesh VPN (a phone on the same Wi-Fi can still connect directly)'
+      : '未勾选 Tailscale：跳过内网穿透（同一 Wi-Fi 下手机仍可直接连）';
+
+  /// 日志台：Tailscale 已就绪（后接 tailnet 地址）。
+  String installWizardLogTailscaleReady(String ipv4) =>
+      isEnglish ? 'Tailscale ready: $ipv4' : 'Tailscale 已就绪：$ipv4';
+
+  /// 日志台：装 Tailscale 抛异常（后接异常文本）。
+  String installWizardLogTailscaleError(String error) => isEnglish
+      ? 'Tailscale install error: $error'
+      : 'Tailscale 安装异常：$error';
+
+  /// 日志台：没有注入配对服务（指向 App 内既有的「设置 → 连接」入口）。
+  String get installWizardLogPairingUnavailable => isEnglish
+      ? 'Pairing service unavailable: pair later from Settings → Connections with a pairing code'
+      : '配对服务不可用：请稍后在「设置 → 连接」里用配对码接入';
+
+  /// 日志台：配对码已生成，等待对端接入。
+  String get installWizardLogPairingReady => isEnglish
+      ? 'Pairing code generated; waiting for your phone (valid for 10 minutes)'
+      : '配对码已生成，等待手机接入（10 分钟内有效）';
+
+  /// 日志台：对端已接入（后接设备名）。
+  String installWizardLogPhoneConnected(String device) =>
+      isEnglish ? 'Phone connected: $device' : '手机已连上：$device';
+
+  /// 日志台：正在把模型配置写进 WebUI。
+  String get installWizardLogSavingModel => isEnglish
+      ? 'Saving the model configuration to the WebUI...'
+      : '正在保存大模型配置到 WebUI...';
+
+  /// 日志台：模型配置已写入。
+  String get installWizardLogModelSaved =>
+      isEnglish ? 'Model configuration saved' : '模型配置已保存';
+
+  /// 模型配置表单错误 + 日志台：保存失败（后接异常文本）。
+  String installWizardModelSaveFailed(String error) => isEnglish
+      ? 'Failed to save the configuration: $error'
+      : '保存配置失败: $error';
+
+  /// 日志台：写入本机连接失败（后接异常文本）。
+  String installWizardLogConnectionFailed(String error) => isEnglish
+      ? 'Failed to save the local connection: $error'
+      : '写入本机连接失败: $error';
+
+  /// 失败原因兜底：前置检查。
+  String get installWizardFailPrereqs =>
+      isEnglish ? 'Environment check failed' : '环境检查失败';
+
+  /// 失败原因兜底：拉取 Agent。
+  String get installWizardFailAgent =>
+      isEnglish ? 'Failed to fetch the Agent' : '拉取 Agent 失败';
+
+  /// 失败原因兜底：装 Agent 依赖。
+  String get installWizardFailAgentDeps => isEnglish
+      ? 'Failed to install the Agent dependencies'
+      : '安装 Agent 依赖失败';
+
+  /// 失败原因兜底：拉起内置服务。
+  String get installWizardFailService =>
+      isEnglish ? 'The built-in service failed to start' : '内置服务启动失败';
 }
