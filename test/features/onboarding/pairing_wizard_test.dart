@@ -13,7 +13,7 @@ import 'package:hermes_ui/core/utils/safe_clipboard.dart';
 import 'package:hermes_ui/features/onboarding/onboarding_providers.dart';
 import 'package:hermes_ui/features/projects/project_providers.dart';
 import 'package:hermes_ui/features/webui_sidecar/webui_sidecar_providers.dart';
-import 'package:hermes_ui/features/onboarding/pairing/pairing_strings.dart';
+import 'package:hermes_ui/features/onboarding/pairing/pairing_constants.dart';
 import 'package:hermes_ui/features/session_list/session_list_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -155,20 +155,20 @@ void main() {
       await pumpWizard(tester);
 
       // 导航标题
-      expect(find.text(PairingStrings.navStart), findsOneWidget);
+      expect(find.text('开始使用'), findsOneWidget);
       // 页大标题 + 副文
-      expect(find.text(PairingStrings.m1Title), findsOneWidget);
-      expect(find.text(PairingStrings.m1Subtitle), findsOneWidget);
+      expect(find.text('Hermes 跑在哪台电脑上？'), findsOneWidget);
+      expect(find.text('Hermes 需要一个常驻的后端电脑。选一种情况，下面这几步本机会自动做完。'), findsOneWidget);
       // 三张卡（标题 + 副行）
-      expect(find.text(PairingStrings.m1CardSameWifiTitle), findsOneWidget);
-      expect(find.text(PairingStrings.m1CardSameWifiDesc), findsOneWidget);
-      expect(find.text(PairingStrings.m1CardElsewhereTitle), findsOneWidget);
-      expect(find.text(PairingStrings.m1CardElsewhereDesc), findsOneWidget);
-      expect(find.text(PairingStrings.m1CardNotInstalledTitle), findsOneWidget);
-      expect(find.text(PairingStrings.m1CardNotInstalledDesc), findsOneWidget);
+      expect(find.text('电脑就在同一个 Wi-Fi'), findsOneWidget);
+      expect(find.text('自动发现，配对后即可连接'), findsOneWidget);
+      expect(find.text('电脑在别处'), findsOneWidget);
+      expect(find.text('4G／公司／外地：用配对码连接，需先开启远程访问'), findsOneWidget);
+      expect(find.text('我还没在电脑上装 Hermes'), findsOneWidget);
+      expect(find.text('先下载桌面版，装好再回到这里'), findsOneWidget);
       // 兜底链接 + 底部微文案
-      expect(find.text(PairingStrings.m1ManualEntryLink), findsOneWidget);
-      expect(find.text(PairingStrings.m1FooterNote), findsOneWidget);
+      expect(find.text('我有服务器地址'), findsOneWidget);
+      expect(find.text('多台电脑可以稍后在「设置 → 连接」里添加'), findsOneWidget);
 
       // 旧远程表单**不再是首屏**（字段/提交按钮都不在）
       expect(find.byKey(const ValueKey('onboarding-url')), findsNothing);
@@ -184,7 +184,7 @@ void main() {
       await pumpWizard(tester);
       await openLegacyForm(tester);
 
-      expect(find.text(PairingStrings.m1Title), findsNothing);
+      expect(find.text('Hermes 跑在哪台电脑上？'), findsNothing);
       expect(find.byKey(const ValueKey('onboarding-url')), findsOneWidget);
       expect(
         find.byKey(const ValueKey('onboarding-connect')),
@@ -203,10 +203,10 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('pairing-start-same-wifi')));
       await settle(tester);
 
-      expect(find.text(PairingStrings.navSameWifi), findsOneWidget);
+      expect(find.text('同一 Wi-Fi 连接'), findsOneWidget);
       // 搜索结束后落到「没找到」态
-      expect(find.text(PairingStrings.m2TitleEmpty), findsOneWidget);
-      expect(find.text(PairingStrings.m2TitleSearching), findsNothing);
+      expect(find.text('没找到你的电脑'), findsOneWidget);
+      expect(find.text('正在找你的电脑'), findsNothing);
       // 三条自检（同一段文本内的三行）
       expect(find.textContaining('1. 确认电脑上的 Hermes 正在运行'), findsOneWidget);
       expect(find.textContaining('2. 确认两台设备连的是同一个 Wi-Fi'), findsOneWidget);
@@ -233,7 +233,7 @@ void main() {
       expect(client.discoverCalls, 1);
       // 发现超时按任务口径 4s
       expect(client.lastDiscoverTimeout, const Duration(seconds: 4));
-      expect(find.text(PairingStrings.m2TitleEmpty), findsOneWidget);
+      expect(find.text('没找到你的电脑'), findsOneWidget);
     });
 
     testWidgets('发现实现抛错（网络/权限）→ 归到「没找到」态，不崩', (tester) async {
@@ -246,7 +246,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('pairing-start-same-wifi')));
       await settle(tester);
 
-      expect(find.text(PairingStrings.m2TitleEmpty), findsOneWidget);
+      expect(find.text('没找到你的电脑'), findsOneWidget);
     });
 
     testWidgets('扫到 DESKTOP-7F3A → 发现卡（机名 / 内置服务 · 8787 · 同一网络 / 配对按钮）', (
@@ -261,17 +261,17 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('pairing-start-same-wifi')));
       await settle(tester);
 
-      expect(find.text(PairingStrings.m2TitleSearching), findsOneWidget);
+      expect(find.text('正在找你的电脑'), findsOneWidget);
       expect(find.text('DESKTOP-7F3A'), findsOneWidget);
       expect(
-        find.text(PairingStrings.m2CandidateMetaDefault),
+        find.text('内置服务 · 8787 · 同一网络'),
         findsOneWidget,
       );
       expect(
         find.byKey(const ValueKey('pairing-candidate-install-1')),
         findsOneWidget,
       );
-      expect(find.text(PairingStrings.m2PairAction), findsOneWidget);
+      expect(find.text('配对'), findsOneWidget);
     });
 
     testWidgets('候选自带 WebUI 端口 → 发现卡副行按实端口写', (tester) async {
@@ -286,7 +286,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('pairing-start-same-wifi')));
       await settle(tester);
 
-      expect(find.text(PairingStrings.m2CandidateMetaOnPort(9090)), findsOneWidget);
+      expect(find.text('内置服务 · 9090 · 同一网络'), findsOneWidget);
     });
 
     testWidgets('发现卡「配对」→ 配对码页（nav 配对 + 六格 + 主按钮 + 扫一扫禁用占位）', (
@@ -300,21 +300,21 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('pairing-start-same-wifi')));
       await settle(tester);
-      await tester.tap(find.text(PairingStrings.m2PairAction));
+      await tester.tap(find.text('配对'));
       await settle(tester);
 
-      expect(find.text(PairingStrings.navPair), findsOneWidget);
-      expect(find.text(PairingStrings.m3Title), findsOneWidget);
+      expect(find.text('配对'), findsOneWidget);
+      expect(find.text('输入电脑上的配对码'), findsOneWidget);
       expect(find.byKey(const ValueKey('pairing-code-cell-0')), findsOneWidget);
       expect(find.byKey(const ValueKey('pairing-code-cell-5')), findsOneWidget);
-      expect(find.text(PairingStrings.m3Submit), findsOneWidget);
-      expect(find.text(PairingStrings.m3ScanAction), findsOneWidget);
-      expect(find.text(PairingStrings.m3Footnote), findsOneWidget);
+      expect(find.text('配对并连接'), findsOneWidget);
+      expect(find.text('改用扫一扫'), findsOneWidget);
+      expect(find.text('配对码 10 分钟内有效，配对成功后立即失效。'), findsOneWidget);
 
       // v1 扫码按钮是禁用占位（不引新依赖）
       final scan = tester.widget<CupertinoButton>(
         find.ancestor(
-          of: find.text(PairingStrings.m3ScanAction),
+          of: find.text('改用扫一扫'),
           matching: find.byType(CupertinoButton),
         ),
       );
@@ -333,7 +333,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('pairing-nav-back')));
       await settle(tester);
 
-      expect(find.text(PairingStrings.m1Title), findsOneWidget);
+      expect(find.text('Hermes 跑在哪台电脑上？'), findsOneWidget);
     });
 
     testWidgets('发现页「手动输入地址」→ 兜底旧远程表单', (tester) async {
@@ -362,7 +362,7 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('pairing-start-same-wifi')));
       await settle(tester);
-      await tester.tap(find.text(PairingStrings.m2PairAction));
+      await tester.tap(find.text('配对'));
       await settle(tester);
       await fillCode(tester, '348126');
 
@@ -383,13 +383,13 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('pairing-start-same-wifi')));
       await settle(tester);
-      await tester.tap(find.text(PairingStrings.m2PairAction));
+      await tester.tap(find.text('配对'));
       await settle(tester);
       await fillCode(tester, '348');
 
       final submit = tester.widget<CupertinoButton>(
         find.ancestor(
-          of: find.text(PairingStrings.m3Submit),
+          of: find.text('配对并连接'),
           matching: find.byType(CupertinoButton),
         ),
       );
@@ -399,14 +399,14 @@ void main() {
       await settle(tester);
 
       expect(client.redeemCalls, 0);
-      expect(find.text(PairingStrings.m3ErrorWrongCode), findsOneWidget);
+      expect(find.text('配对码不对，请核对电脑上显示的 6 位码'), findsOneWidget);
     });
 
     for (final tier in <PairingFailure, String>{
-      PairingFailure.expired: PairingStrings.m3ErrorExpired,
-      PairingFailure.wrongCode: PairingStrings.m3ErrorWrongCode,
-      PairingFailure.unavailable: PairingStrings.m3ErrorUnavailable,
-      PairingFailure.network: PairingStrings.m3ErrorNetwork,
+      PairingFailure.expired: '配对码已过期，请在电脑上重新生成',
+      PairingFailure.wrongCode: '配对码不对，请核对电脑上显示的 6 位码',
+      PairingFailure.unavailable: '没有找到配对服务，确认电脑上的 Hermes 正在运行',
+      PairingFailure.network: '网络不可达，确认两台设备在同一个 Wi-Fi',
     }.entries) {
       testWidgets('失败分档 ${tier.key.name} → 「${tier.value}」', (tester) async {
         final client = _FakePairingClient(
@@ -420,7 +420,7 @@ void main() {
 
         await tester.tap(find.byKey(const ValueKey('pairing-start-same-wifi')));
         await settle(tester);
-        await tester.tap(find.text(PairingStrings.m2PairAction));
+        await tester.tap(find.text('配对'));
         await settle(tester);
         await fillCode(tester);
         await tester.tap(find.byKey(const ValueKey('pairing-code-submit')));
@@ -444,17 +444,17 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('pairing-start-same-wifi')));
       await settle(tester);
-      await tester.tap(find.text(PairingStrings.m2PairAction));
+      await tester.tap(find.text('配对'));
       await settle(tester);
       await fillCode(tester);
       await tester.tap(find.byKey(const ValueKey('pairing-code-submit')));
       await settle(tester);
 
       for (final message in [
-        PairingStrings.m3ErrorExpired,
-        PairingStrings.m3ErrorWrongCode,
-        PairingStrings.m3ErrorUnavailable,
-        PairingStrings.m3ErrorNetwork,
+        '配对码已过期，请在电脑上重新生成',
+        '配对码不对，请核对电脑上显示的 6 位码',
+        '没有找到配对服务，确认电脑上的 Hermes 正在运行',
+        '网络不可达，确认两台设备在同一个 Wi-Fi',
       ]) {
         expect(find.text(message), findsNothing);
       }
@@ -470,7 +470,7 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('pairing-start-elsewhere')));
       await settle(tester);
-      expect(find.text(PairingStrings.m3Title), findsOneWidget);
+      expect(find.text('输入电脑上的配对码'), findsOneWidget);
 
       await fillCode(tester);
       await tester.tap(find.byKey(const ValueKey('pairing-code-submit')));
@@ -478,7 +478,7 @@ void main() {
 
       expect(client.discoverCalls, 1);
       expect(client.redeemCalls, 0);
-      expect(find.text(PairingStrings.m3ErrorUnavailable), findsOneWidget);
+      expect(find.text('没有找到配对服务，确认电脑上的 Hermes 正在运行'), findsOneWidget);
     });
 
     testWidgets('跨网入口：就地发现到一台 → 用它的配对服务地址 redeem', (tester) async {
@@ -507,7 +507,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('pairing-code-submit')));
       await settle(tester);
 
-      expect(find.text(PairingStrings.m3ErrorUnavailable), findsOneWidget);
+      expect(find.text('没有找到配对服务，确认电脑上的 Hermes 正在运行'), findsOneWidget);
     });
 
     testWidgets('兑换成功 → 落一条连接 + 置为 active + 进会话列表', (tester) async {
@@ -526,7 +526,7 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('pairing-start-same-wifi')));
       await settle(tester);
-      await tester.tap(find.text(PairingStrings.m2PairAction));
+      await tester.tap(find.text('配对'));
       await settle(tester);
       await fillCode(tester);
       await tester.tap(find.byKey(const ValueKey('pairing-code-submit')));
@@ -565,18 +565,18 @@ void main() {
       );
       await settle(tester);
 
-      expect(find.text(PairingStrings.navDownload), findsOneWidget);
-      expect(find.text(PairingStrings.m4Title), findsOneWidget);
-      expect(find.text(PairingStrings.m4Subtitle), findsOneWidget);
-      expect(find.text(PairingStrings.m4Step1Title), findsOneWidget);
-      expect(find.text(PairingStrings.m4Step1Desc), findsOneWidget);
-      expect(find.text(PairingStrings.m4Step2Title), findsOneWidget);
-      expect(find.text(PairingStrings.m4Step2Desc), findsOneWidget);
-      expect(find.text(PairingStrings.m4Step3Title), findsOneWidget);
-      expect(find.text(PairingStrings.m4Step3Desc), findsOneWidget);
-      expect(find.text(PairingStrings.m4LinkLabel), findsOneWidget);
-      expect(find.text(PairingStrings.m4Footnote), findsOneWidget);
-      expect(find.text(PairingStrings.m4CopyLink), findsOneWidget);
+      expect(find.text('下载桌面版'), findsOneWidget);
+      expect(find.text('先在电脑上装 Hermes'), findsOneWidget);
+      expect(find.text('桌面版装好后会自动启动后端，不需要配置任何东西。'), findsOneWidget);
+      expect(find.text('下载 Windows / macOS 桌面版'), findsOneWidget);
+      expect(find.text('安装包已内置后端，无需装 Python'), findsOneWidget);
+      expect(find.text('安装并打开，点「让手机连上」'), findsOneWidget);
+      expect(find.text('桌面版会显示 6 位配对码'), findsOneWidget);
+      expect(find.text('回到手机输入配对码'), findsOneWidget);
+      expect(find.text('完成，之后打开 App 自动连接'), findsOneWidget);
+      expect(find.text('github.com/silent-reader-cn/hermes-keep/releases/latest'), findsOneWidget);
+      expect(find.text('复制后发到电脑上的微信 / QQ，打开就能下载'), findsOneWidget);
+      expect(find.text('复制下载链接'), findsOneWidget);
     });
 
     testWidgets('「复制下载链接」把完整下载 URL 写进剪贴板（走既有 SafeClipboard）', (tester) async {
@@ -595,8 +595,8 @@ void main() {
       );
       await settle(tester);
 
-      expect(copied, PairingStrings.downloadUrl);
-      expect(find.text(PairingStrings.m4Copied), findsOneWidget);
+      expect(copied, hermesDownloadUrl);
+      expect(find.text('下载链接已复制'), findsOneWidget);
     });
   });
 

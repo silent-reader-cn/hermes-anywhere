@@ -1,6 +1,6 @@
 import 'package:flutter/cupertino.dart';
 
-import 'pairing_strings.dart';
+import '../../../l10n/app_localizations.dart';
 import 'pairing_style.dart';
 
 /// M1 · 第一问「Hermes 跑在哪台电脑上？」（设计稿 §1 第一屏）。
@@ -30,15 +30,16 @@ class WizardStartPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       children: [
         Expanded(
           child: ListView(
             padding: EdgeInsets.zero,
             children: [
-              const PairingPageIntro(
-                title: PairingStrings.m1Title,
-                subtitle: PairingStrings.m1Subtitle,
+              PairingPageIntro(
+                title: l10n.pairingStartTitle,
+                subtitle: l10n.pairingStartSubtitle,
               ),
               const SizedBox(height: PairingMetrics.titleToContent),
               Padding(
@@ -50,24 +51,24 @@ class WizardStartPage extends StatelessWidget {
                     PairingOptionRow(
                       key: const ValueKey('pairing-start-same-wifi'),
                       icon: CupertinoIcons.wifi,
-                      title: PairingStrings.m1CardSameWifiTitle,
-                      description: PairingStrings.m1CardSameWifiDesc,
+                      title: l10n.pairingStartSameWifiTitle,
+                      description: l10n.pairingStartSameWifiDesc,
                       trailing: const PairingChevron(),
                       onTap: onSameWifi,
                     ),
                     PairingOptionRow(
                       key: const ValueKey('pairing-start-elsewhere'),
                       icon: CupertinoIcons.qrcode,
-                      title: PairingStrings.m1CardElsewhereTitle,
-                      description: PairingStrings.m1CardElsewhereDesc,
+                      title: l10n.pairingStartElsewhereTitle,
+                      description: l10n.pairingStartElsewhereDesc,
                       trailing: const PairingChevron(),
                       onTap: onElsewhere,
                     ),
                     PairingOptionRow(
                       key: const ValueKey('pairing-start-not-installed'),
                       icon: CupertinoIcons.device_desktop,
-                      title: PairingStrings.m1CardNotInstalledTitle,
-                      description: PairingStrings.m1CardNotInstalledDesc,
+                      title: l10n.pairingStartNotInstalledTitle,
+                      description: l10n.pairingStartNotInstalledDesc,
                       trailing: const PairingChevron(),
                       onTap: onNotInstalled,
                     ),
@@ -81,22 +82,22 @@ class WizardStartPage extends StatelessWidget {
                 ),
                 child: PairingTextLink(
                   key: const ValueKey('pairing-start-manual-address'),
-                  label: PairingStrings.m1ManualEntryLink,
+                  label: l10n.pairingStartManualEntryLink,
                   onTap: onManualAddress,
                 ),
               ),
             ],
           ),
         ),
-        const Padding(
-          padding: EdgeInsets.fromLTRB(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
             PairingMetrics.pagePadding,
             8,
             PairingMetrics.pagePadding,
             26,
           ),
           child: PairingMicroText(
-            PairingStrings.m1FooterNote,
+            l10n.pairingStartFooterNote,
             align: TextAlign.center,
           ),
         ),

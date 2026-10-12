@@ -19,7 +19,6 @@ import '../../core/tailscale/tailscale_contract.dart';
 import '../../core/utils/uuid.dart';
 import '../../l10n/app_localizations.dart';
 import '../webui_sidecar/webui_sidecar_providers.dart';
-import 'install_wizard_strings.dart';
 import 'widgets/horizontal_step_rail.dart';
 import 'widgets/network_probe.dart';
 import 'widgets/onboarding_field_style.dart';
@@ -189,38 +188,38 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     return InstallStageKey.values.indexOf(stage);
   }
 
-  String _stepTitle(InstallStageKey stage) {
+  String _stepTitle(AppLocalizations l10n, InstallStageKey stage) {
     switch (stage) {
       case InstallStageKey.prereqs:
-        return WizardStrings.stepPrereqs;
+        return l10n.installGuideStagePrereqs;
       case InstallStageKey.agent:
-        return WizardStrings.stepAgent;
+        return l10n.installGuideStageAgent;
       case InstallStageKey.agentDeps:
-        return WizardStrings.stepDeps;
+        return l10n.installGuideStageDeps;
       case InstallStageKey.service:
-        return WizardStrings.stepService;
+        return l10n.installWizardStepService;
       case InstallStageKey.pairing:
         // 对端已连上后，这一步的名字改成验收态标题（设计稿 D5）。
         return _accepted != null
-            ? WizardStrings.pairedTitle
-            : WizardStrings.stepPairing;
+            ? l10n.installWizardPairedTitle
+            : l10n.installWizardStepPairing;
     }
   }
 
-  String _stepDesc(InstallStageKey stage) {
+  String _stepDesc(AppLocalizations l10n, InstallStageKey stage) {
     switch (stage) {
       case InstallStageKey.prereqs:
-        return WizardStrings.descPrereqs;
+        return l10n.installGuideStagePrereqsDesc;
       case InstallStageKey.agent:
-        return WizardStrings.descAgent;
+        return l10n.installGuideStageAgentDesc;
       case InstallStageKey.agentDeps:
-        return WizardStrings.descDeps;
+        return l10n.installGuideStageDepsDesc;
       case InstallStageKey.service:
-        return WizardStrings.descService;
+        return l10n.installWizardDescService;
       case InstallStageKey.pairing:
         return _accepted != null
-            ? WizardStrings.pairedSub
-            : WizardStrings.descPairing;
+            ? l10n.installWizardPairedSub
+            : l10n.installWizardDescPairing;
     }
   }
 
@@ -239,16 +238,16 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     }
   }
 
-  String _stepStatusText(StageStatus status) {
+  String _stepStatusText(AppLocalizations l10n, StageStatus status) {
     switch (status) {
       case StageStatus.pending:
-        return WizardStrings.stagePending;
+        return l10n.installGuideStatusPending;
       case StageStatus.running:
-        return WizardStrings.stageRunning;
+        return l10n.installWizardStageRunning;
       case StageStatus.success:
-        return WizardStrings.stageSuccess;
+        return l10n.installGuideStatusSuccess;
       case StageStatus.failed:
-        return WizardStrings.stageFailed;
+        return l10n.failedStatus;
     }
   }
 
@@ -281,7 +280,8 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
         setState(() {
           _networkChecking = false;
           _networkReachable = false;
-          _networkDetail = WizardStrings.networkFailed;
+          _networkDetail =
+              AppLocalizations.of(context).installWizardNetworkFailed;
         });
       }
       return;
@@ -301,7 +301,8 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
       setState(() {
         _networkChecking = false;
         _networkReachable = false;
-        _networkDetail = WizardStrings.networkFailed;
+        _networkDetail =
+            AppLocalizations.of(context).installWizardNetworkFailed;
       });
     }
   }
@@ -513,14 +514,15 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
 
   /// Tailscale 一键安装（勾选时）：过程整体走横向轨，失败不阻断向导。
   Future<void> _runTailscaleInstall() async {
+    final l10n = AppLocalizations.of(context);
     final TailscaleService service;
     try {
       service = ref.read(tailscaleServiceProvider);
     } catch (_) {
       if (mounted) {
         setState(() => _tailscaleUnavailable = true);
+        _appendLog(l10n.installWizardTailscaleUnavailable);
       }
-      _appendLog(WizardStrings.tailscaleUnavailable);
       return;
     }
     _tailscaleService = service;
@@ -537,7 +539,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
           return;
         }
         if (status.state == TailscaleState.failed) {
-          _appendLog(WizardStrings.tailscaleFailedHint);
+          _appendLog(l10n.installWizardTailscaleFailedHint);
           return;
         }
       }
@@ -547,12 +549,12 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
   }
 
   /// Tailscale 三态轨的当前步（0 下载 / 1 静默安装 / 2 登录生成地址）。
-  int _tailscaleStepIndex(TailscaleStatus status) {
+  int _tailscaleStepIndex(AppLocalizations l10n, TailscaleStatus status) {
     final progress = status.progress;
     switch (status.state) {
       case TailscaleState.ready:
       case TailscaleState.needsLogin:
-        return WizardStrings.tailscaleSteps.length - 1;
+        return l10n.installWizardTailscaleSteps.length - 1;
       case TailscaleState.unknown:
       case TailscaleState.notInstalled:
       case TailscaleState.installing:
@@ -610,7 +612,10 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
       _appendLog('配对码已生成，等待手机接入（10 分钟内有效）');
     } catch (e) {
       if (!mounted) return;
-      setState(() => _pairingError = '${WizardStrings.pairingErrorPrefix}$e');
+      setState(() {
+        _pairingError =
+            '${AppLocalizations.of(context).installWizardPairingErrorPrefix}$e';
+      });
     }
   }
 
@@ -884,9 +889,9 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     return [
       _buildHeader(l10n),
       const SizedBox(height: 16),
-      _buildProgressRow(),
+      _buildProgressRow(l10n),
       const SizedBox(height: 14),
-      _buildStepRail(),
+      _buildStepRail(l10n),
       const SizedBox(height: 14),
       _buildCurrentStepCard(l10n),
       ..._buildCurrentStepBody(l10n),
@@ -951,7 +956,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     );
   }
 
-  Widget _buildProgressRow() {
+  Widget _buildProgressRow(AppLocalizations l10n) {
     final completed = _completedCount;
     final total = InstallStageKey.values.length;
     final progress = (completed / total).clamp(0.0, 1.0);
@@ -962,7 +967,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              WizardStrings.progressText(completed, total),
+              l10n.installWizardProgressText(completed, total),
               key: const ValueKey('wizard-progress-label'),
               style: TextStyle(
                 fontSize: kFontCaption,
@@ -1019,7 +1024,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     );
   }
 
-  Widget _buildStepRail() {
+  Widget _buildStepRail(AppLocalizations l10n) {
     // 当前步不该显示成「已完成」：模型配置还挂在「启动服务」步里等用户操作时，
     // 该步的状态已是 success（4 步完成），若把 4 直接交给轨，第 4 个点会变绿、
     // 整条轨没有蓝点 —— 违背「当前步必须明显高亮」。故未整体完成前，完成数最多
@@ -1028,12 +1033,12 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
         ? _completedCount
         : _completedCount.clamp(0, _currentStepIndex);
     return HorizontalStepRail(
-      labels: const [
-        WizardStrings.stepPrereqs,
-        WizardStrings.stepAgent,
-        WizardStrings.stepDeps,
-        WizardStrings.stepService,
-        WizardStrings.stepPairing,
+      labels: [
+        l10n.installGuideStagePrereqs,
+        l10n.installGuideStageAgent,
+        l10n.installGuideStageDeps,
+        l10n.installWizardStepService,
+        l10n.installWizardStepPairing,
       ],
       currentIndex: _currentStepIndex,
       doneCount: doneCount,
@@ -1084,7 +1089,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _stepTitle(stage),
+                  _stepTitle(l10n, stage),
                   key: const ValueKey('wizard-current-step-title'),
                   style: const TextStyle(
                     fontSize: kFontItemTitle,
@@ -1093,7 +1098,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _stepDesc(stage),
+                  _stepDesc(l10n, stage),
                   style: TextStyle(
                     // TODO(type): 设计稿 11.5，梯子无此档；本批按 kFontCaption(12)
                     fontSize: kFontCaption,
@@ -1106,7 +1111,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
           ),
           const SizedBox(width: 8),
           Text(
-            _stepStatusText(status),
+            _stepStatusText(l10n, status),
             key: const ValueKey('wizard-current-step-status'),
             style: TextStyle(fontSize: kFontCaption, color: statusColor),
           ),
@@ -1119,11 +1124,11 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
   List<Widget> _buildCurrentStepBody(AppLocalizations l10n) {
     switch (InstallStageKey.values[_currentStepIndex]) {
       case InstallStageKey.prereqs:
-        return _buildPrereqCheckBody();
+        return _buildPrereqCheckBody(l10n);
       case InstallStageKey.service:
         return _buildServiceBody(l10n);
       case InstallStageKey.pairing:
-        return _buildPairingBody();
+        return _buildPairingBody(l10n);
       case InstallStageKey.agent:
       case InstallStageKey.agentDeps:
         return const [];
@@ -1134,7 +1139,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
   // 首屏检查卡 + 网络受限提示（规格 C）
   // ---------------------------------------------------------------------------
 
-  List<Widget> _buildPrereqCheckBody() {
+  List<Widget> _buildPrereqCheckBody(AppLocalizations l10n) {
     return [
       const SizedBox(height: 12),
       _card(
@@ -1145,29 +1150,29 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
               titleKey: 'wizard-check-windows',
               icon: CupertinoIcons.checkmark_circle_fill,
               iconColor: statusGreenText.resolveFrom(context),
-              title: WizardStrings.checkWindows,
-              value: WizardStrings.checkWindowsValue,
+              title: l10n.installWizardCheckWindows,
+              value: l10n.installWizardCheckWindowsValue,
             ),
             _rowDivider(),
             _statRow(
               titleKey: 'wizard-check-agent',
               icon: CupertinoIcons.hourglass,
               iconColor: _secondary,
-              title: WizardStrings.checkAgent,
+              title: l10n.installWizardCheckAgent,
               value:
                   _stageStatuses[InstallStageKey.agent] == StageStatus.success
-                  ? WizardStrings.checkAgentInstalled
-                  : WizardStrings.checkAgentPending,
+                  ? l10n.installWizardCheckAgentInstalled
+                  : l10n.installWizardCheckAgentPending,
             ),
             _rowDivider(),
             _statRow(
               titleKey: 'wizard-check-service',
               icon: CupertinoIcons.lock,
               iconColor: _secondary,
-              title: WizardStrings.checkService,
+              title: l10n.onboardingTabBuiltin,
               value: _serviceAddress.isEmpty
-                  ? WizardStrings.checkServicePending
-                  : WizardStrings.serviceRunning(
+                  ? l10n.installWizardCheckServicePending
+                  : l10n.installWizardServiceRunning(
                       _serviceAddress.split(':').first,
                       int.tryParse(_serviceAddress.split(':').last) ?? 0,
                     ),
@@ -1185,13 +1190,13 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
               iconColor: _networkReachable
                   ? _secondary
                   : statusOrangeText.resolveFrom(context),
-              title: WizardStrings.checkNetwork,
+              title: l10n.installWizardCheckNetwork,
               value: _networkChecking
-                  ? WizardStrings.networkChecking
+                  ? l10n.installWizardNetworkChecking
                   : (_networkReachable
-                        ? WizardStrings.networkNormal
+                        ? l10n.installWizardNetworkNormal
                         : (_networkDetail.isEmpty
-                              ? WizardStrings.networkFailed
+                              ? l10n.installWizardNetworkFailed
                               : _networkDetail)),
               valueColor: (_networkChecking || _networkReachable)
                   ? null
@@ -1202,12 +1207,12 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
       ),
       if (_showNetworkWarning) ...[
         const SizedBox(height: 12),
-        _buildNetworkWarningCard(),
+        _buildNetworkWarningCard(l10n),
       ],
     ];
   }
 
-  Widget _buildNetworkWarningCard() {
+  Widget _buildNetworkWarningCard(AppLocalizations l10n) {
     // 设计稿 §5 N1 真值：底 #FFF4E8 / 边 #F0D6B8 / 文字 #5B3A16。
     final bg = LightSurfaces.resolve(
       context,
@@ -1246,7 +1251,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
               const SizedBox(width: 9),
               Expanded(
                 child: Text(
-                  WizardStrings.networkWarning,
+                  l10n.installWizardNetworkWarning,
                   style: TextStyle(
                     fontSize: kFontCaption,
                     height: 1.5,
@@ -1263,7 +1268,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
             Expanded(
               child: _ghostButton(
                 key: const ValueKey('wizard-network-recheck-btn'),
-                label: WizardStrings.networkRecheck,
+                label: l10n.agentGateRecheck,
                 icon: CupertinoIcons.arrow_clockwise,
                 onPressed: _recheckNetwork,
               ),
@@ -1272,7 +1277,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
             Expanded(
               child: _filledButton(
                 key: const ValueKey('wizard-network-continue-btn'),
-                label: WizardStrings.networkContinue,
+                label: l10n.installWizardNetworkContinue,
                 onPressed: _continueDespiteNetwork,
               ),
             ),
@@ -1280,7 +1285,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
         ),
         const SizedBox(height: 10),
         Text(
-          WizardStrings.networkSkipHint,
+          l10n.installWizardNetworkSkipHint,
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: kFontMicro, color: _secondary),
         ),
@@ -1302,7 +1307,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     final Color? serviceValueColor;
     if (_serviceAddress.isNotEmpty) {
       // 服务本身真的在跑 —— 无论步骤是否已 close，这一行都据实报「运行中」。
-      serviceValue = WizardStrings.serviceRunning(
+      serviceValue = l10n.installWizardServiceRunning(
         _serviceAddress.split(':').first,
         int.tryParse(_serviceAddress.split(':').last) ?? port,
       );
@@ -1310,18 +1315,18 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     } else {
       switch (status) {
         case StageStatus.running:
-          serviceValue = WizardStrings.serviceStarting;
+          serviceValue = l10n.webuiStatusStarting;
           serviceValueColor = null;
           break;
         case StageStatus.failed:
           serviceValue = _serviceFailureReason.isEmpty
-              ? WizardStrings.serviceStopped
+              ? l10n.onboardingBuiltinNotStarted
               : _serviceFailureReason;
           serviceValueColor = statusRedText.resolveFrom(context);
           break;
         case StageStatus.pending:
         case StageStatus.success:
-          serviceValue = WizardStrings.serviceStopped;
+          serviceValue = l10n.onboardingBuiltinNotStarted;
           serviceValueColor = null;
           break;
       }
@@ -1336,10 +1341,10 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
               titleKey: 'wizard-lan-row',
               icon: CupertinoIcons.antenna_radiowaves_left_right,
               iconColor: _secondary,
-              title: WizardStrings.lanTitle,
+              title: l10n.installWizardLanTitle,
               value: _lanEnabled && host.isNotEmpty
-                  ? WizardStrings.lanOn(host, port)
-                  : WizardStrings.lanOff,
+                  ? l10n.installWizardLanOn(host, port)
+                  : l10n.installWizardLanOff,
               valueColor: _lanEnabled
                   ? statusGreenText.resolveFrom(context)
                   : null,
@@ -1349,11 +1354,11 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
               titleKey: 'wizard-credential-row',
               icon: CupertinoIcons.lock,
               iconColor: _secondary,
-              title: WizardStrings.credentialTitle,
-              value: WizardStrings.credentialValue,
+              title: l10n.installWizardCredentialTitle,
+              value: l10n.installWizardCredentialValue,
             ),
             _rowDivider(),
-            _tailscaleRow(),
+            _tailscaleRow(l10n),
             _rowDivider(),
             _statRow(
               titleKey: 'wizard-service-status-row',
@@ -1364,7 +1369,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
               iconColor: _serviceAddress.isNotEmpty
                   ? statusGreenText.resolveFrom(context)
                   : _secondary,
-              title: WizardStrings.serviceStatusTitle,
+              title: l10n.webuiStatusTitle,
               value: serviceValue,
               valueColor: serviceValueColor,
             ),
@@ -1373,10 +1378,10 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
       ),
       if (_tailscaleStatus != null) ...[
         const SizedBox(height: 12),
-        _buildTailscaleProgressCard(_tailscaleStatus!),
+        _buildTailscaleProgressCard(l10n, _tailscaleStatus!),
       ],
       const SizedBox(height: 12),
-      _noteCard(WizardStrings.tailscaleExempt),
+      _noteCard(l10n.installWizardTailscaleExempt),
       if (_phase == GuidePhase.configuringModel) ...[
         const SizedBox(height: 12),
         _buildModelConfigForm(l10n),
@@ -1394,7 +1399,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
   }
 
   /// Tailscale 勾选行（规格 B：默认勾选；未注入服务时降级为提示，不崩）。
-  Widget _tailscaleRow() {
+  Widget _tailscaleRow(AppLocalizations l10n) {
     if (_tailscaleUnavailable) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
@@ -1407,14 +1412,14 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    WizardStrings.tailscaleTitle,
-                    key: ValueKey('wizard-tailscale-unavailable'),
-                    style: TextStyle(fontSize: kFontItemTitle),
+                  Text(
+                    l10n.installWizardTailscaleTitle,
+                    key: const ValueKey('wizard-tailscale-unavailable'),
+                    style: const TextStyle(fontSize: kFontItemTitle),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    WizardStrings.tailscaleUnavailable,
+                    l10n.installWizardTailscaleUnavailable,
                     style: TextStyle(
                       fontSize: kFontCaption,
                       height: 1.45,
@@ -1446,19 +1451,19 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
                 children: [
                   Row(
                     children: [
-                      const Flexible(
+                      Flexible(
                         child: Text(
-                          WizardStrings.tailscaleTitle,
-                          style: TextStyle(fontSize: kFontItemTitle),
+                          l10n.installWizardTailscaleTitle,
+                          style: const TextStyle(fontSize: kFontItemTitle),
                         ),
                       ),
                       const SizedBox(width: 6),
-                      _badge(WizardStrings.tailscaleBadge),
+                      _badge(l10n.installWizardTailscaleBadge),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    WizardStrings.tailscaleSub1,
+                    l10n.installWizardTailscaleSub1,
                     style: TextStyle(
                       // TODO(type): 设计稿 11.5，梯子无此档；本批按 kFontCaption(12)
                       fontSize: kFontCaption,
@@ -1468,7 +1473,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    WizardStrings.tailscaleSub2,
+                    l10n.installWizardTailscaleSub2,
                     style: TextStyle(
                       fontSize: kFontCaption,
                       height: 1.45,
@@ -1540,16 +1545,21 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
   }
 
   /// Tailscale 安装过程卡（同一条横向轨，不另起垂直列表 —— 主人追加要求）。
-  Widget _buildTailscaleProgressCard(TailscaleStatus status) {
-    final index = _tailscaleStepIndex(status);
-    final done = status.isReady ? WizardStrings.tailscaleSteps.length : index;
+  Widget _buildTailscaleProgressCard(
+    AppLocalizations l10n,
+    TailscaleStatus status,
+  ) {
+    final index = _tailscaleStepIndex(l10n, status);
+    final done = status.isReady
+        ? l10n.installWizardTailscaleSteps.length
+        : index;
     final String summary;
     if (status.isReady) {
-      summary = '${WizardStrings.tailscaleReadyPrefix}${status.ipv4}';
+      summary = '${l10n.installWizardTailscaleReadyPrefix}${status.ipv4}';
     } else if (status.detail.isNotEmpty) {
       summary = status.detail;
     } else {
-      summary = WizardStrings.tailscaleWorking;
+      summary = l10n.installWizardTailscaleWorking;
     }
     return _card(
       key: const ValueKey('wizard-tailscale-progress-card'),
@@ -1558,7 +1568,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           HorizontalStepRail(
-            labels: WizardStrings.tailscaleSteps,
+            labels: l10n.installWizardTailscaleSteps,
             currentIndex: index,
             doneCount: done,
             failedIndex: status.state == TailscaleState.failed ? index : null,
@@ -1597,7 +1607,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
                     if (status.loginUrl.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
-                        '${WizardStrings.tailscaleLoginHint}${status.loginUrl}',
+                        '${l10n.installWizardTailscaleLoginHint}${status.loginUrl}',
                         style: TextStyle(
                           fontSize: kFontCaption,
                           color: _secondary,
@@ -1619,10 +1629,10 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
   // 「手机配对」步
   // ---------------------------------------------------------------------------
 
-  List<Widget> _buildPairingBody() {
+  List<Widget> _buildPairingBody(AppLocalizations l10n) {
     final accepted = _accepted;
     if (accepted != null) {
-      return _buildPairedAcceptance(accepted);
+      return _buildPairedAcceptance(l10n, accepted);
     }
     return [
       const SizedBox(height: 12),
@@ -1630,13 +1640,13 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
         key: const ValueKey('wizard-pairing-card'),
         padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
         child: _pairingUnavailable
-            ? _buildPairingUnavailable()
-            : _buildPairingCode(),
+            ? _buildPairingUnavailable(l10n)
+            : _buildPairingCode(l10n),
       ),
     ];
   }
 
-  Widget _buildPairingUnavailable() {
+  Widget _buildPairingUnavailable(AppLocalizations l10n) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1650,17 +1660,17 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                WizardStrings.pairingUnavailable,
-                key: ValueKey('wizard-pairing-unavailable'),
-                style: TextStyle(
+              Text(
+                l10n.installWizardPairingUnavailable,
+                key: const ValueKey('wizard-pairing-unavailable'),
+                style: const TextStyle(
                   fontSize: kFontItemTitle,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
-                WizardStrings.pairingUnavailableHint,
+                l10n.installWizardPairingUnavailableHint,
                 style: TextStyle(
                   fontSize: kFontCaption,
                   height: 1.45,
@@ -1674,7 +1684,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     );
   }
 
-  Widget _buildPairingCode() {
+  Widget _buildPairingCode(AppLocalizations l10n) {
     final session = _pairingSession;
     final code = session?.code ?? '';
     final digits = List<String>.generate(
@@ -1721,7 +1731,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
             const CupertinoActivityIndicator(radius: 7),
             const SizedBox(width: 8),
             Text(
-              WizardStrings.pairingWaiting,
+              l10n.installWizardPairingWaiting,
               key: const ValueKey('wizard-pairing-waiting'),
               style: TextStyle(fontSize: kFontCaption, color: _secondary),
             ),
@@ -1729,7 +1739,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
         ),
         const SizedBox(height: 10),
         Text(
-          WizardStrings.pairingHint,
+          l10n.installWizardPairingHint,
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: kFontCaption,
@@ -1740,14 +1750,14 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
         if (_pairingAddress.isNotEmpty) ...[
           const SizedBox(height: 8),
           Text(
-            '${WizardStrings.pairingAddressPrefix}$_pairingAddress',
+            '${l10n.installWizardPairingAddressPrefix}$_pairingAddress',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: kFontMicro, color: _secondary),
           ),
         ],
         const SizedBox(height: 6),
         Text(
-          WizardStrings.pairingTtl,
+          l10n.installWizardPairingTtl,
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: kFontMicro, color: _secondary),
         ),
@@ -1766,7 +1776,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
         Center(
           child: _ghostButton(
             key: const ValueKey('wizard-pairing-regenerate-btn'),
-            label: WizardStrings.pairingRegenerate,
+            label: l10n.agentGateRegeneratePassword,
             icon: CupertinoIcons.arrow_clockwise,
             onPressed: _regeneratePairingCode,
           ),
@@ -1776,7 +1786,10 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
   }
 
   /// 验收态：对端已连上（设计稿 D5）。
-  List<Widget> _buildPairedAcceptance(PairingAccepted accepted) {
+  List<Widget> _buildPairedAcceptance(
+    AppLocalizations l10n,
+    PairingAccepted accepted,
+  ) {
     final config = _serviceConfigOrNull();
     final parts = _serviceAddress.split(':');
     final host = parts.first.isNotEmpty ? parts.first : (config?.host ?? '');
@@ -1795,7 +1808,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
               icon: CupertinoIcons.checkmark_circle_fill,
               iconColor: statusGreenText.resolveFrom(context),
               title: accepted.deviceLabel,
-              value: WizardStrings.pairedJustNow,
+              value: l10n.installWizardPairedJustNow,
               valueColor: statusGreenText.resolveFrom(context),
             ),
             _rowDivider(),
@@ -1804,9 +1817,9 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
               icon: CupertinoIcons.desktopcomputer,
               iconColor: _secondary,
               title: deviceName.isEmpty
-                  ? WizardStrings.checkWindows
+                  ? l10n.installWizardCheckWindows
                   : deviceName,
-              value: WizardStrings.pairedService(host, port),
+              value: l10n.installWizardPairedService(host, port),
             ),
           ],
         ),
@@ -2048,7 +2061,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
               ),
               const SizedBox(width: 8),
               Text(
-                '步骤失败: ${_failedStage != null ? _stepTitle(_failedStage!) : ""}',
+                '步骤失败: ${_failedStage != null ? _stepTitle(l10n, _failedStage!) : ""}',
                 style: TextStyle(
                   fontSize: kFontItemTitle,
                   fontWeight: FontWeight.bold,
@@ -2461,7 +2474,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
             padding: EdgeInsets.zero,
             onPressed: _finishWizard,
             child: Text(
-              WizardStrings.pairingSkip,
+              l10n.installWizardPairingSkip,
               style: TextStyle(fontSize: kFontButton, color: _secondary),
             ),
           ),
@@ -2479,7 +2492,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
                 : null,
             key: const ValueKey('wizard-pairing-finish-btn'),
             onPressed: _finishWizard,
-            child: const Text(WizardStrings.pairedFinish),
+            child: Text(l10n.finish),
           ),
         ),
       );

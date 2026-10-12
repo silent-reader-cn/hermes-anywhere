@@ -17,7 +17,6 @@ import 'package:hermes_ui/core/install/powershell_installer.dart';
 import 'package:hermes_ui/core/pairing/pairing_contract.dart';
 import 'package:hermes_ui/core/tailscale/tailscale_contract.dart';
 import 'package:hermes_ui/features/onboarding/install_guide_page.dart';
-import 'package:hermes_ui/features/onboarding/install_wizard_strings.dart';
 import 'package:hermes_ui/features/onboarding/onboarding_page.dart';
 import 'package:hermes_ui/features/onboarding/widgets/horizontal_step_rail.dart';
 import 'package:hermes_ui/features/onboarding/widgets/network_probe.dart';
@@ -442,18 +441,18 @@ void main() {
         findsOneWidget,
       );
     }
-    expect(find.text(WizardStrings.stepAgent), findsOneWidget);
-    expect(find.text(WizardStrings.stepDeps), findsOneWidget);
-    expect(find.text(WizardStrings.stepService), findsOneWidget);
-    expect(find.text(WizardStrings.stepPairing), findsOneWidget);
+    expect(find.text('拉取 Agent'), findsOneWidget);
+    expect(find.text('安装依赖'), findsOneWidget);
+    expect(find.text('启动服务'), findsOneWidget);
+    expect(find.text('手机配对'), findsOneWidget);
     // 标签行逐个按 key 取值（首屏详情卡标题也会出现「环境检查」等同名字样，
     // 用 find.text 会撞两个，故钉在 rail 标签自己的 key 上）。
     const expectedLabels = [
-      WizardStrings.stepPrereqs,
-      WizardStrings.stepAgent,
-      WizardStrings.stepDeps,
-      WizardStrings.stepService,
-      WizardStrings.stepPairing,
+      '环境检查',
+      '拉取 Agent',
+      '安装依赖',
+      '启动服务',
+      '手机配对',
     ];
     for (var i = 0; i < expectedLabels.length; i++) {
       expect(
@@ -492,7 +491,7 @@ void main() {
       tester
           .widget<Text>(find.byKey(const ValueKey('wizard-progress-label')))
           .data,
-      WizardStrings.progressText(0, 5),
+      '进度: 0 / 5 步骤',
     );
   });
 
@@ -504,7 +503,7 @@ void main() {
       tester
           .widget<Text>(find.byKey(const ValueKey('wizard-current-step-title')))
           .data,
-      WizardStrings.stepPrereqs,
+      '环境检查',
     );
     expect(find.byKey(const ValueKey('wizard-prereq-check-card')), findsOneWidget);
     expect(find.byKey(const ValueKey('wizard-check-windows')), findsOneWidget);
@@ -543,7 +542,7 @@ void main() {
       tester
           .widget<Text>(find.byKey(const ValueKey('wizard-current-step-status')))
           .data,
-      WizardStrings.stageRunning,
+      '执行中…',
     );
     // 第 5 步未达。
     expect(dotDecoration(tester, 4).color, isNull);
@@ -554,7 +553,7 @@ void main() {
       tester
           .widget<Text>(find.byKey(const ValueKey('wizard-progress-label')))
           .data,
-      WizardStrings.progressText(3, 5),
+      '进度: 3 / 5 步骤',
       reason: '第 4 步未 close 前不能报 4/5（与轨上蓝点、执行中自洽）',
     );
     // 服务本体确实在跑，由服务状态行独立表达（与步骤状态解耦）。
@@ -562,9 +561,9 @@ void main() {
       tester
           .widget<Text>(find.byKey(const ValueKey('wizard-service-status-row')))
           .data,
-      WizardStrings.serviceStatusTitle,
+      '服务状态',
     );
-    expect(find.text(WizardStrings.serviceRunning('0.0.0.0', 8787)), findsOneWidget);
+    expect(find.text('● 运行中 0.0.0.0:8787'), findsOneWidget);
     // 该行图标也须据实为绿勾（与「运行中」文一致），不能停在等待态沙漏。
     expect(
       tester
@@ -616,7 +615,7 @@ void main() {
     final value = tester.widget<Text>(
       find.byKey(const ValueKey('wizard-check-network-value')),
     );
-    expect(value.data, WizardStrings.networkNormal);
+    expect(value.data, '正常');
     expect(value.style!.color, LightSurfaces.textSecondary);
     expect(
       find.byKey(const ValueKey('wizard-network-warning-card')),
@@ -645,13 +644,20 @@ void main() {
       find.byKey(const ValueKey('wizard-network-warning-card')),
       findsOneWidget,
     );
-    expect(find.text(WizardStrings.networkWarning), findsOneWidget);
-    expect(find.text(WizardStrings.networkRecheck), findsOneWidget);
-    expect(find.text(WizardStrings.networkContinue), findsOneWidget);
-    expect(find.text(WizardStrings.networkSkipHint), findsOneWidget);
-    // 文案铁律：不出现 VPN 字样，统一写「网络加速（代理）」。
-    expect(WizardStrings.networkWarning.contains('VPN'), isFalse);
-    expect(WizardStrings.networkWarning.contains('网络加速（代理）'), isTrue);
+    // 文案铁律：**渲染出来的**提示卡正文里不出现 VPN 字样，统一写「网络加速（代理）」。
+    final warningFinder = find.descendant(
+      of: find.byKey(const ValueKey('wizard-network-warning-card')),
+      matching: find.byType(Text),
+    );
+    expect(warningFinder, findsOneWidget);
+    final warning = tester.widget<Text>(warningFinder).data!;
+    expect(
+      warning,
+      '在中国大陆等网络受限地区部署时，建议先开启网络加速（代理）再安装，'
+      '否则「拉取 Agent」与「安装依赖」两步容易超时失败。已开启加速就点重新检测。',
+    );
+    expect(warning.contains('VPN'), isFalse);
+    expect(warning.contains('网络加速（代理）'), isTrue);
   });
 
   testWidgets('受限提示：「重新检测」会再探一次并随结果收起提示卡', (tester) async {
@@ -733,11 +739,11 @@ void main() {
       find.byKey(const ValueKey('wizard-tailscale-checkbox-mark')),
       findsOneWidget,
     );
-    expect(find.text(WizardStrings.tailscaleTitle), findsOneWidget);
-    expect(find.text(WizardStrings.tailscaleBadge), findsOneWidget);
-    expect(find.text(WizardStrings.tailscaleSub1), findsOneWidget);
-    expect(find.text(WizardStrings.tailscaleSub2), findsOneWidget);
-    expect(find.text(WizardStrings.tailscaleExempt), findsOneWidget);
+    expect(find.text('一起安装 Tailscale（内网穿透）'), findsOneWidget);
+    expect(find.text('推荐'), findsOneWidget);
+    expect(find.text('装好后手机在任何网络都能连（4G / 公司 / 外地），不需要同一个 Wi-Fi。'), findsOneWidget);
+    expect(find.text('勾选后这一步会替你下载安装并打开登录页；需要 Tailscale 账号（Google / 微软 / GitHub / Apple），官方不支持邮箱注册。'), findsOneWidget);
+    expect(find.text('不勾选也能用：同一 Wi-Fi 下手机可以直接连；跨网再走「远程访问」。Tailscale 只做组网，流量端到端加密，不经过我们的服务器。'), findsOneWidget);
   });
 
   testWidgets('点 Tailscale 行 → 取消勾选（空底 + 1.5px 灰边），再点恢复', (tester) async {
@@ -797,7 +803,7 @@ void main() {
       tester
           .widget<Text>(find.byKey(const ValueKey('wizard-tailscale-summary')))
           .data,
-      '${WizardStrings.tailscaleReadyPrefix}100.101.87.11',
+      '已就绪 · 100.101.87.11',
     );
     // Tailscale 失败/就绪都不阻断向导：仍停在模型配置子阶段。
     expect(find.text('选择模型服务商'), findsOneWidget);
@@ -813,7 +819,7 @@ void main() {
       findsOneWidget,
     );
     // 行内提示 + 日志台里同一句话（日志是可复制的安装记录，不去重）。
-    expect(find.text(WizardStrings.tailscaleUnavailable), findsWidgets);
+    expect(find.text('Tailscale 服务不可用，已跳过内网穿透安装。'), findsWidgets);
     expect(find.byKey(const ValueKey('wizard-tailscale-checkbox')), findsNothing);
     // 不崩：服务步照常算完成。
     expect(dotDecoration(tester, 3).color, LightSurfaces.userDetail);
@@ -851,9 +857,9 @@ void main() {
         findsOneWidget,
       );
     }
-    expect(find.text(WizardStrings.pairingWaiting), findsOneWidget);
-    expect(find.text(WizardStrings.pairingHint), findsOneWidget);
-    expect(find.text(WizardStrings.pairingTtl), findsOneWidget);
+    expect(find.text('等待手机接入…'), findsOneWidget);
+    expect(find.text('打开手机上的 Hermes → 连接服务器，会自动发现这台电脑'), findsOneWidget);
+    expect(find.text('配对码 10 分钟内有效，配对成功后立即失效'), findsOneWidget);
 
     // 口径自洽：第 4 步已 close（绿勾）、第 5 步为当前（蓝）、进度 4/5、
     // 详情卡是「手机配对 / 等待中」。
@@ -863,19 +869,19 @@ void main() {
       tester
           .widget<Text>(find.byKey(const ValueKey('wizard-current-step-title')))
           .data,
-      WizardStrings.stepPairing,
+      '手机配对',
     );
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('wizard-current-step-status')))
           .data,
-      WizardStrings.stagePending,
+      '等待中',
     );
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('wizard-progress-label')))
           .data,
-      WizardStrings.progressText(4, 5),
+      '进度: 4 / 5 步骤',
     );
 
     // 重新生成 → 再要一次码，码面跟着变。
@@ -902,14 +908,14 @@ void main() {
     await reachPairing(tester);
 
     // 手机还没接入 → 仍是等待态。
-    expect(find.text(WizardStrings.pairingWaiting), findsOneWidget);
+    expect(find.text('等待手机接入…'), findsOneWidget);
 
     pairing.emitAccepted('iPhone 15 Pro');
     await tester.pumpAndSettle();
 
-    expect(find.text(WizardStrings.pairedTitle), findsOneWidget);
+    expect(find.text('手机已连上'), findsOneWidget);
     expect(find.text('iPhone 15 Pro'), findsOneWidget);
-    expect(find.text(WizardStrings.pairedJustNow), findsOneWidget);
+    expect(find.text('刚刚配对'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('wizard-pairing-finish-btn')),
       findsOneWidget,
@@ -922,13 +928,13 @@ void main() {
       tester
           .widget<Text>(find.byKey(const ValueKey('wizard-progress-label')))
           .data,
-      WizardStrings.progressText(5, 5),
+      '进度: 5 / 5 步骤',
     );
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('wizard-current-step-status')))
           .data,
-      WizardStrings.stageSuccess,
+      '已完成',
     );
 
     await tester.tap(find.byKey(const ValueKey('wizard-pairing-finish-btn')));
@@ -948,7 +954,7 @@ void main() {
       find.byKey(const ValueKey('wizard-pairing-unavailable')),
       findsOneWidget,
     );
-    expect(find.text(WizardStrings.pairingUnavailableHint), findsOneWidget);
+    expect(find.text('当前构建没有注入配对服务。可以跳过这一步，稍后在「设置 → 连接」里用配对码接入。'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('wizard-pairing-skip-btn')),
       findsOneWidget,
@@ -994,7 +1000,7 @@ void main() {
     expect(llmApi.lastConfig?.apiKey, 'sk-or-v1-my-key');
     // 新契约：保存后不再直接进会话列表，而是进入配对步。
     expect(pairing.startCalls, 1);
-    expect(find.text(WizardStrings.pairingWaiting), findsOneWidget);
+    expect(find.text('等待手机接入…'), findsOneWidget);
     expect(storage.data[ConnectionStore.activeConnectionKey], isNull);
   });
 
@@ -1008,7 +1014,7 @@ void main() {
 
     expect(llmApi.lastConfig, isNull);
     expect(pairing.startCalls, 1);
-    expect(find.text(WizardStrings.pairingWaiting), findsOneWidget);
+    expect(find.text('等待手机接入…'), findsOneWidget);
   });
 
   // -------------------------------------------------------------------------

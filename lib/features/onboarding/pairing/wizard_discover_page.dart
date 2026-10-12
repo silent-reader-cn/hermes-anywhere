@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 
 import '../../../core/pairing/pairing_contract.dart';
-import 'pairing_strings.dart';
+import '../../../l10n/app_localizations.dart';
 import 'pairing_style.dart';
 
 /// M2 · 同一 Wi-Fi 自动发现（设计稿 §1 第二屏）。
@@ -53,25 +53,26 @@ class _WizardDiscoverPageState extends State<WizardDiscoverPage> {
   }
 
   /// 发现卡副行：候选带了 WebUI 地址就按其实端口写，否则用设计稿默认口径。
-  String _metaOf(PairingCandidate candidate) {
+  String _metaOf(AppLocalizations l10n, PairingCandidate candidate) {
     final uri = Uri.tryParse(candidate.webuiBaseUrl);
     if (uri != null && uri.hasPort) {
-      return PairingStrings.m2CandidateMetaOnPort(uri.port);
+      return l10n.pairingDiscoverCandidateMetaOnPort(uri.port);
     }
-    return PairingStrings.m2CandidateMetaDefault;
+    return l10n.pairingDiscoverCandidateMetaDefault;
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final nothingFound = !_searching && _candidates.isEmpty;
     return ListView(
       padding: EdgeInsets.zero,
       children: [
         PairingPageIntro(
           title: nothingFound
-              ? PairingStrings.m2TitleEmpty
-              : PairingStrings.m2TitleSearching,
-          subtitle: PairingStrings.m2Subtitle,
+              ? l10n.pairingDiscoverTitleEmpty
+              : l10n.pairingDiscoverTitleSearching,
+          subtitle: l10n.pairingDiscoverSubtitle,
         ),
         const _DiscoveryRadar(),
         Padding(
@@ -92,29 +93,26 @@ class _WizardDiscoverPageState extends State<WizardDiscoverPage> {
                         ),
                         icon: CupertinoIcons.device_desktop,
                         title: candidate.deviceName,
-                        description: _metaOf(candidate),
+                        description: _metaOf(l10n, candidate),
                         trailing: PairingSmallButton(
-                          label: PairingStrings.m2PairAction,
+                          label: l10n.pairingDiscoverPairAction,
                           onPressed: () => widget.onPair(candidate),
                         ),
                       ),
                   ],
                 ),
               const SizedBox(height: 20),
-              const PairingMicroText(
-                PairingStrings.m2ChecklistTitle,
-                bold: true,
-              ),
+              PairingMicroText(l10n.pairingDiscoverChecklistTitle, bold: true),
               const SizedBox(height: 6),
-              const PairingMicroText(
-                '${PairingStrings.m2Check1}\n'
-                '${PairingStrings.m2Check2}\n'
-                '${PairingStrings.m2Check3}',
+              PairingMicroText(
+                '${l10n.pairingDiscoverCheck1}\n'
+                '${l10n.pairingDiscoverCheck2}\n'
+                '${l10n.pairingDiscoverCheck3}',
               ),
               const SizedBox(height: 16),
               PairingTextLink(
                 key: const ValueKey('pairing-discover-manual-address'),
-                label: PairingStrings.m2ManualEntryLink,
+                label: l10n.pairingDiscoverManualEntryLink,
                 onTap: widget.onManualAddress,
               ),
               const SizedBox(height: 24),

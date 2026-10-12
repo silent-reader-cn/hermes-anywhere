@@ -12,7 +12,7 @@ import '../../../core/pairing/pairing_contract.dart';
 import '../../../core/utils/uuid.dart';
 import '../../../l10n/app_localizations.dart';
 import '../widgets/wide_dual_pane.dart';
-import 'pairing_strings.dart';
+import 'pairing_constants.dart';
 import 'pairing_style.dart';
 import 'wizard_code_page.dart';
 import 'wizard_discover_page.dart';
@@ -161,10 +161,11 @@ class _PairingWizardState extends ConsumerState<PairingWizard> {
 
   /// 提交配对码；返回错误文案（null = 成功或 cancelled 静默）。
   Future<String?> _submitCode(String code) async {
+    final l10n = AppLocalizations.of(context);
     final client = _client;
-    if (client == null) return PairingStrings.m3ErrorUnavailable;
+    if (client == null) return l10n.pairingCodeErrorUnavailable;
     final baseUrl = await _resolvePairingBaseUrl();
-    if (baseUrl == null) return PairingStrings.m3ErrorUnavailable;
+    if (baseUrl == null) return l10n.pairingCodeErrorUnavailable;
     if (!mounted) return null;
     try {
       final credentials = await client.redeem(
@@ -176,9 +177,9 @@ class _PairingWizardState extends ConsumerState<PairingWizard> {
       return null;
     } on PairingException catch (error) {
       // cancelled：用户主动取消 / 对端关闭 —— 静默（空串 = 无文案）。
-      return PairingStrings.pairingFailureMessage(error.reason);
+      return pairingFailureText(l10n, error.reason);
     } catch (_) {
-      return PairingStrings.m3ErrorNetwork;
+      return l10n.pairingCodeErrorNetwork;
     }
   }
 
@@ -207,10 +208,10 @@ class _PairingWizardState extends ConsumerState<PairingWizard> {
   // ───────────────────────────────────────────────────────────────────────────
 
   String _navTitle(AppLocalizations l10n) => switch (_step) {
-    PairingWizardStep.start => PairingStrings.navStart,
-    PairingWizardStep.discover => PairingStrings.navSameWifi,
-    PairingWizardStep.code => PairingStrings.navPair,
-    PairingWizardStep.download => PairingStrings.navDownload,
+    PairingWizardStep.start => l10n.pairingNavStart,
+    PairingWizardStep.discover => l10n.pairingNavSameWifi,
+    PairingWizardStep.code => l10n.pairingNavPair,
+    PairingWizardStep.download => l10n.pairingNavDownload,
     // 兜底表单沿用改造前的导航标题（逐像素不变的口径之一）。
     PairingWizardStep.legacyForm => l10n.connectServer,
   };
