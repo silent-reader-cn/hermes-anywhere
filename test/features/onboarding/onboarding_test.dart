@@ -69,10 +69,21 @@ void main() {
     await tester.pump();
   }
 
+  /// 进入兜底入口：首屏决策树（M1）→ 底部「我有服务器地址」→ 旧远程表单。
+  ///
+  /// 首启改版后旧远程表单不再是首屏，但表单本身（字段 / placeholder / health
+  /// 检查 / 密码校验与提交逻辑）一行未改，故本文件其余断言仍原样考察那张表单。
+  Future<void> openLegacyRemoteForm(WidgetTester tester) async {
+    expect(find.text('Hermes 跑在哪台电脑上？'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('pairing-start-manual-address')));
+    await tester.pump();
+  }
+
   testWidgets('输入 URL 后不点提交：不触发任何健康检查（无失焦隐式事件）', (tester) async {
     await pumpApp(tester);
+    await openLegacyRemoteForm(tester);
 
-    // 路由守卫：无连接 → onboarding 单页
+    // 路由守卫：无连接 → onboarding（首启为决策树 M1）
     expect(find.text('连接你的 Hermes 服务器'), findsOneWidget);
 
     await fillUrl(tester);
@@ -91,6 +102,7 @@ void main() {
 
   testWidgets('提交：非法 URL → 弹窗提示格式错误 + 就地红字，不触发健康检查', (tester) async {
     await pumpApp(tester);
+    await openLegacyRemoteForm(tester);
 
     await fillUrl(tester, 'not-a-url');
     await tapConnect(tester);
@@ -119,6 +131,7 @@ void main() {
   testWidgets('提交：网络异常 → 弹窗「无法连接到服务器」', (tester) async {
     api.throwNetworkError = true;
     await pumpApp(tester);
+    await openLegacyRemoteForm(tester);
 
     await fillUrl(tester);
     await tapConnect(tester);
@@ -132,6 +145,7 @@ void main() {
   testWidgets('提交：health 非 ok（非 Hermes）→ 弹窗「服务器返回异常状态」', (tester) async {
     api.healthOk = false;
     await pumpApp(tester);
+    await openLegacyRemoteForm(tester);
 
     await fillUrl(tester);
     await tapConnect(tester);
@@ -148,6 +162,7 @@ void main() {
   ) async {
     api.authEnabled = false;
     await pumpApp(tester);
+    await openLegacyRemoteForm(tester);
 
     await fillUrl(tester);
     await tapConnect(tester);
@@ -179,6 +194,7 @@ void main() {
   testWidgets('提交阶段一：需密码 → 密码框就地出现并自动聚焦，不强校验', (tester) async {
     api.authEnabled = true;
     await pumpApp(tester);
+    await openLegacyRemoteForm(tester);
 
     await fillUrl(tester);
     await tapConnect(tester);
@@ -202,6 +218,7 @@ void main() {
   ) async {
     api.authEnabled = true;
     await pumpApp(tester);
+    await openLegacyRemoteForm(tester);
 
     await fillUrl(tester);
     await tapConnect(tester);
@@ -238,6 +255,7 @@ void main() {
     api.authEnabled = true;
     api.loginOk = false;
     await pumpApp(tester);
+    await openLegacyRemoteForm(tester);
 
     await fillUrl(tester);
     await tapConnect(tester);
@@ -262,6 +280,7 @@ void main() {
 
   testWidgets('引导页不展示自定义 Headers 高级设置区块', (tester) async {
     await pumpApp(tester);
+    await openLegacyRemoteForm(tester);
 
     expect(find.byKey(const ValueKey('onboarding-add-header')), findsNothing);
     expect(

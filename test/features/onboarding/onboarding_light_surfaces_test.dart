@@ -80,6 +80,12 @@ void main() {
             ),
           );
           await tester.pumpAndSettle();
+          // 首启已改版为决策树（M1）：进兜底入口「我有服务器地址」才回到这张
+          // 旧远程表单（表单本身与改造前逐像素一致 —— 见本批交付报告的取证）。
+          await tester.tap(
+            find.byKey(const ValueKey('pairing-start-manual-address')),
+          );
+          await tester.pumpAndSettle();
           final context = tester.element(find.byType(OnboardingPage));
           final l10n = AppLocalizations.of(context);
           final description = tester.widget<Text>(

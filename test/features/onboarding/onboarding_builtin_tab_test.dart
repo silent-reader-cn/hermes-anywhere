@@ -281,7 +281,7 @@ void main() {
   }
 
   group('TASK U2 — 形态 A/B 判定', () {
-    testWidgets('bundledWebuiAvailable=false → 形态 B（分段控件不渲染，渲染远程表单）', (
+    testWidgets('bundledWebuiAvailable=false → 形态 B（分段控件不渲染，渲染决策树首问；兜底可进旧远程表单）', (
       tester,
     ) async {
       await tester.pumpWidget(buildTestApp(bundledAvailable: false));
@@ -292,7 +292,14 @@ void main() {
         find.byKey(const ValueKey('onboarding-segmented-control')),
         findsNothing,
       );
-      // 远程 URL 输入框与提交按钮存在
+      // 首启是决策树 M1（三卡 + 兜底链接），不再是那张地址表单
+      expect(find.text('Hermes 跑在哪台电脑上？'), findsOneWidget);
+      expect(find.byKey(const ValueKey('onboarding-url')), findsNothing);
+      // 兜底入口仍能回到旧远程表单（URL 输入框与提交按钮）
+      await tester.tap(
+        find.byKey(const ValueKey('pairing-start-manual-address')),
+      );
+      await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('onboarding-url')), findsOneWidget);
       expect(find.byKey(const ValueKey('onboarding-connect')), findsOneWidget);
       // 内置 Tab 的按钮不存在
@@ -315,6 +322,12 @@ void main() {
         find.byKey(const ValueKey('onboarding-segmented-control')),
         findsNothing,
       );
+      // 形态 B → 决策树首问
+      expect(find.text('Hermes 跑在哪台电脑上？'), findsOneWidget);
+      await tester.tap(
+        find.byKey(const ValueKey('pairing-start-manual-address')),
+      );
+      await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('onboarding-url')), findsOneWidget);
       expect(find.byKey(const ValueKey('onboarding-connect')), findsOneWidget);
     });
