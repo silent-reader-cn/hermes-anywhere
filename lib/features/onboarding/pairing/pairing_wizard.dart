@@ -205,6 +205,9 @@ class _PairingWizardState extends ConsumerState<PairingWizard> {
       password: credentials.password.isEmpty ? null : credentials.password,
       customHeaders: const {},
       createdAt: DateTime.now().toUtc(),
+      // 配对契约的 installId 落到连接上：设置页据此把「同一台后端的不同地址」
+      // 折叠成一条主行（局域网 IP / 内网域名 / 公网地址各一条时不再刷屏）。
+      installId: credentials.installId,
     );
     final saved = await ref
         .read(connectionsProvider.notifier)
