@@ -581,7 +581,7 @@ void main() {
           .icon,
       CupertinoIcons.checkmark_circle_fill,
     );
-  });
+  }, skip: !Platform.isWindows);
 
   testWidgets('步骤失败：轨上失败步为红底白叉 + 错误卡片可重试', (tester) async {
     psInstaller.stageFailures = {'agent': 'Git clone failed'};
@@ -608,7 +608,7 @@ void main() {
 
     // 重试后继续推进：服务步完成 → 停在模型配置子阶段。
     expect(find.text('选择模型服务商'), findsOneWidget);
-  });
+  }, skip: !Platform.isWindows);
 
   // -------------------------------------------------------------------------
   // 网络环境（规格 C）
@@ -718,7 +718,7 @@ void main() {
     );
     expect(psInstaller.stagesExecuted, ['prereqs', 'agent', 'deps']);
     expect(find.text('选择模型服务商'), findsOneWidget);
-  });
+  }, skip: !Platform.isWindows);
 
   // -------------------------------------------------------------------------
   // Tailscale 勾选（规格 B）
@@ -815,7 +815,7 @@ void main() {
     );
     // Tailscale 失败/就绪都不阻断向导：仍停在模型配置子阶段。
     expect(find.text('选择模型服务商'), findsOneWidget);
-  });
+  }, skip: !Platform.isWindows);
 
   testWidgets('未注入 Tailscale 服务：该行降级为「服务不可用」提示，启动服务步仍成功', (tester) async {
     await tester.pumpWidget(buildTestApp(tester));
@@ -832,7 +832,7 @@ void main() {
     // 不崩：服务步照常算完成。
     expect(dotDecoration(tester, 3).color, LightSurfaces.userDetail);
     expect(find.text('选择模型服务商'), findsOneWidget);
-  });
+  }, skip: !Platform.isWindows);
 
   // -------------------------------------------------------------------------
   // 手机配对（规格 D）
@@ -905,7 +905,7 @@ void main() {
       ),
       findsOneWidget,
     );
-  });
+  }, skip: !Platform.isWindows);
 
   testWidgets('成功判据 = 对端已连上：收到 PairingAccepted → 验收态 + 完成写入连接', (tester) async {
     final pairing = _FakePairingService();
@@ -951,7 +951,7 @@ void main() {
     final activeId = storage.data[ConnectionStore.activeConnectionKey];
     expect(activeId, isNotNull);
     expect(find.text('暂无会话'), findsOneWidget);
-  });
+  }, skip: !Platform.isWindows);
 
   testWidgets('未注入配对服务：显示「配对服务不可用」并可跳过（不崩）', (tester) async {
     await tester.pumpWidget(buildTestApp(tester));
@@ -974,7 +974,7 @@ void main() {
     final activeId = storage.data[ConnectionStore.activeConnectionKey];
     expect(activeId, isNotNull);
     expect(find.text('暂无会话'), findsOneWidget);
-  });
+  }, skip: !Platform.isWindows);
 
   // -------------------------------------------------------------------------
   // 模型配置子阶段（原「配置模型一步」的用例同步改造）
@@ -1010,7 +1010,7 @@ void main() {
     expect(pairing.startCalls, 1);
     expect(find.text('等待手机接入…'), findsOneWidget);
     expect(storage.data[ConnectionStore.activeConnectionKey], isNull);
-  });
+  }, skip: !Platform.isWindows);
 
   testWidgets('模型配置：点「暂不配置，稍后设置」→ 不提交配置，进入手机配对步', (tester) async {
     final pairing = _FakePairingService();
@@ -1023,7 +1023,7 @@ void main() {
     expect(llmApi.lastConfig, isNull);
     expect(pairing.startCalls, 1);
     expect(find.text('等待手机接入…'), findsOneWidget);
-  });
+  }, skip: !Platform.isWindows);
 
   // -------------------------------------------------------------------------
   // 组件级判据（不需要整页）
@@ -1228,7 +1228,7 @@ void main() {
     );
     expect(find.textContaining('10.20.30.40'), findsOneWidget);
     expect(find.textContaining('192.168.1.7'), findsNothing);
-  });
+  }, skip: !Platform.isWindows);
 
   testWidgets('没有可用局域网地址 → 明确告警卡 + 不显示地址行（不再静默 / 死地址）', (tester) async {
     final pairing = _FakePairingService()..advertisedHost = '';
@@ -1255,5 +1255,5 @@ void main() {
         findsOneWidget,
       );
     }
-  });
+  }, skip: !Platform.isWindows);
 }
