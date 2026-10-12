@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -340,6 +342,101 @@ void main() {
       expect(api.createCount, 1);
       expect(api.lastCreatedWorkspace, isNull);
       expect(find.text('chat-fallback-1'), findsOneWidget);
+    });
+
+    // ── #185：离线 / 弱网时长按 FAB 必须**立刻**出环（旧实现先 await 注册表，
+    //    离线要等 dio 自身超时、失败即不弹环）────────────────────────────────
+    testWidgets('离线（注册表拉取失败）：用会话里出现过的工作区立刻出环', (tester) async {
+      final api = FakeSessionListApi(
+        sessions: [_buildSession('s1', 'A', workspace: '/ws/offline')],
+      );
+      api.workspacesError = NetworkException(
+        NetworkExceptionKind.cannotConnect,
+      );
+
+      await pumpSessionListPage(tester, api);
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const ValueKey('session-list-new'))),
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+
+      // 不干等、也不吞掉：环照样弹出，且给的是会话内那个真实路径。
+      expect(find.byKey(const ValueKey('fab-workspace-menu')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('fab-workspace-item-/ws/offline')),
+        findsOneWidget,
+      );
+
+      await gesture.cancel();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('弱网（注册表请求迟迟不返回）：不干等，立刻出环', (tester) async {
+      final api = FakeSessionListApi(
+        sessions: [_buildSession('s1', 'A', workspace: '/ws/slow')],
+      );
+      api.workspacesGate = Completer<void>(); // 挂住，模拟弱网/超时前
+
+      await pumpSessionListPage(tester, api);
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const ValueKey('session-list-new'))),
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+
+      expect(find.byKey(const ValueKey('fab-workspace-menu')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('fab-workspace-item-/ws/slow')),
+        findsOneWidget,
+      );
+
+      // 收尾：放行请求，避免残留 pending timer 干扰后续用例。
+      api.workspacesGate!.complete();
+      await gesture.cancel();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('注册表随后到货：已开着的环原地补全（不重弹、不闪掉）', (tester) async {
+      final api = FakeSessionListApi(
+        sessions: [_buildSession('s1', 'A', workspace: '/ws/slow')],
+      );
+      api.workspaces = [
+        const WorkspaceRoot(path: '/ws/registered', name: 'Registered'),
+      ];
+      api.workspacesGate = Completer<void>();
+
+      await pumpSessionListPage(tester, api);
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const ValueKey('session-list-new'))),
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('fab-workspace-item-/ws/registered')),
+        findsNothing,
+      );
+
+      api.workspacesGate!.complete();
+      await tester.pump();
+      await tester.pump();
+
+      // 注册表项到位，会话派生项仍在（两者按 path 并集）。
+      expect(
+        find.byKey(const ValueKey('fab-workspace-item-/ws/registered')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('fab-workspace-item-/ws/slow')),
+        findsOneWidget,
+      );
+
+      await gesture.cancel();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('长按滑选创建会话失败：显示错误弹窗，不跳页', (tester) async {

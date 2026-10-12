@@ -7,6 +7,7 @@ import 'package:hermes_ui/app/widgets/adaptive_action_menu.dart';
 import 'package:hermes_ui/core/api/api_client.dart';
 import 'package:hermes_ui/core/connections/connection_providers.dart';
 import 'package:hermes_ui/core/models/session.dart';
+import 'package:hermes_ui/core/utils/safe_clipboard.dart';
 import 'package:hermes_ui/features/projects/project_providers.dart';
 import 'package:hermes_ui/features/session_list/session_list_page.dart';
 import 'package:hermes_ui/features/session_list/session_list_providers.dart';
@@ -123,6 +124,38 @@ void main() {
       expect(find.byKey(const ValueKey('session-action-delete')), findsOneWidget);
     });
 
+    testWidgets('行菜单「复制会话 ID」→ 写入剪贴板 + 底部轻提示（2s 自动消失）', (tester) async {
+      final api = FakeSessionListApi(
+        sessions: [_buildSession('sess-777', '待复制会话')],
+      );
+      String? copied;
+      SafeClipboard.clipboardSetterOverride = (text) async => copied = text;
+      addTearDown(SafeClipboard.resetOverridesForTesting);
+
+      await pumpSessionList(tester, api);
+
+      await tester.tap(find.byKey(const ValueKey('session-actions-sess-777')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('session-action-copy-id')),
+        findsOneWidget,
+      );
+      expect(find.text('复制会话 ID'), findsAtLeastNWidgets(1));
+
+      await tester.tap(find.byKey(const ValueKey('session-action-copy-id')));
+      await tester.pumpAndSettle();
+
+      expect(copied, 'sess-777');
+      expect(find.byKey(const ValueKey('session-notice')), findsOneWidget);
+      expect(find.text('已复制会话 ID'), findsOneWidget);
+
+      // 2s 后自动消失。
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('session-notice')), findsNothing);
+    });
+
     testWidgets('点击「工作区」→ 跳转到 /workspace/:sessionId 页面', (tester) async {
       final api = FakeSessionListApi(
         sessions: [_buildSession('sess-101', '代码工作区会话')],
@@ -235,24 +268,27 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('session-actions-s1')));
       await tester.pumpAndSettle();
 
-      // 设计稿 §6 规格图标族：置顶/归档/移动到项目/导出/分支/工作区/Git/删除。
+      // 设计稿 §6 规格图标族：置顶/归档/移动到项目/导出/分支/复制会话 ID/
+      // 工作区/Git/删除（#185 新增「复制会话 ID」）。
       for (final icon in const [
         CupertinoIcons.pin,
         CupertinoIcons.archivebox,
         CupertinoIcons.square_stack,
         CupertinoIcons.square_arrow_up,
         CupertinoIcons.arrow_branch,
+        CupertinoIcons.doc_on_doc,
         CupertinoIcons.folder,
         CupertinoIcons.trash,
       ]) {
         expect(find.byIcon(icon), findsWidgets, reason: '$icon 应出现在菜单行');
       }
 
-      // 非归档会话：8 行、四族（第二/三/四族各一条分组线）。
+      // 非归档会话：9 行（#185 起含「复制会话 ID」）、四族
+      // （第二/三/四族各一条分组线）。
       final rows = tester
           .widgetList<ActionMenuRow>(find.byType(ActionMenuRow))
           .toList();
-      expect(rows.length, 8);
+      expect(rows.length, 9);
       expect(
         rows.every((row) => row.icon != null),
         isTrue,
@@ -321,7 +357,8 @@ void main() {
         isTrue,
       );
       expect(find.byType(ActionMenuDivider), findsNWidgets(3));
-      expect(find.byType(ActionMenuRow), findsNWidgets(9));
+      // #185：非归档 9 行 + 归档会话多出的「取消归档」= 10 行。
+      expect(find.byType(ActionMenuRow), findsNWidgets(10));
     });
 
     testWidgets('窄屏（< 900）仍走系统 ActionSheet：无图标行、无分组线（保持原样）', (tester) async {

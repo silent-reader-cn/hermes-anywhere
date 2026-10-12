@@ -51,6 +51,9 @@ class FakeSessionListApi implements SessionListApi {
   /// `fetchWorkspaces` 抛出的异常。
   Object? workspacesError;
 
+  /// 非 null 时 `fetchWorkspaces` 挂起等待该 gate（#185：测「弱网不干等」）。
+  Completer<void>? workspacesGate;
+
   int fetchWorkspacesCount = 0;
 
   /// `branchSession` 返回的结果（sessionId 为空 → 模拟失败）。
@@ -165,6 +168,8 @@ class FakeSessionListApi implements SessionListApi {
   @override
   Future<List<WorkspaceRoot>> fetchWorkspaces() async {
     fetchWorkspacesCount++;
+    final gate = workspacesGate;
+    if (gate != null) await gate.future;
     final error = workspacesError;
     if (error != null) throw error;
     return workspaces;

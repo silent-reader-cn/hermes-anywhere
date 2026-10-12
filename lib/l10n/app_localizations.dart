@@ -155,6 +155,13 @@ class AppLocalizations {
   String get unpin => isEnglish ? 'Unpin' : '取消置顶';
   String get unarchive => isEnglish ? 'Unarchive' : '恢复归档';
   String get branch => isEnglish ? 'Branch' : '分支';
+  String get copySessionId => isEnglish ? 'Copy Session ID' : '复制会话 ID';
+  String get sessionIdCopiedNotice =>
+      isEnglish ? 'Session ID copied' : '已复制会话 ID';
+  /// 剪贴板不可用（PlatformException）时的诚实兜底：ID 已落盘为文件。
+  String clipboardUnavailableSavedToFile(String path) => isEnglish
+      ? 'Clipboard unavailable — saved to file: $path'
+      : '剪贴板不可用，已保存到文件：$path';
   String get exportSession => isEnglish ? 'Export Session' : '导出会话';
   String get markdownFormat => isEnglish ? 'Markdown' : 'Markdown';
   String get jsonFormat => isEnglish ? 'JSON' : 'JSON';

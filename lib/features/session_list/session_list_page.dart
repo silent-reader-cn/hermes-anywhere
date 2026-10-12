@@ -161,12 +161,24 @@ class _SessionListPageState extends ConsumerState<SessionListPage> {
   int? _hoveredWorkspaceIndex;
   List<WorkspaceRoot> _fabRankedWorkspaces = const [];
   bool _fabMenuOpen = false;
+
+  /// #185：FAB 是否正被按住 —— 种子为空时，注册表到货后仍要能补弹环
+  /// （旧契约：工作区真值回来才弹；松手后到货则不再弹，避免事后突然冒环）。
+  bool _fabPointerDown = false;
   bool _suppressNextTap = false;
   final GlobalKey _fabKey = GlobalKey();
 
   /// #174：批量操作完成后的轻量结果提示（仅全成功时出现），2 秒后自动消失。
   String? _batchResultNotice;
   Timer? _batchResultTimer;
+
+  /// #185：通用轻提示（复制会话 ID 等），与批量结果提示共用胶囊形态、2 秒消失。
+  String? _sessionNotice;
+  Timer? _sessionNoticeTimer;
+
+  /// #185：上次成功取到的工作区注册表 —— 离线/弱网时长按 FAB 也能**立刻**出环
+  /// （见 [_fabWorkspaceSeed]）。只做展示用种子，不参与任何写入。
+  List<WorkspaceRoot> _fabWorkspaceCache = const [];
 
   @override
   void initState() {
@@ -178,6 +190,7 @@ class _SessionListPageState extends ConsumerState<SessionListPage> {
   void dispose() {
     _fabLongPressTimer?.cancel();
     _batchResultTimer?.cancel();
+    _sessionNoticeTimer?.cancel();
     _hideFabWorkspaceOverlay();
     _searchDebounce?.cancel();
     _searchController.dispose();
@@ -342,41 +355,16 @@ class _SessionListPageState extends ConsumerState<SessionListPage> {
                   // [SessionListHeaderDelegate.actions]）。
                   // #174：批量操作完成后的结果提示（仅全成功；2s 自动消失）。
                   if (_batchResultNotice != null)
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 96,
-                      child: IgnorePointer(
-                        child: Center(
-                          child: Container(
-                            key: const ValueKey('batch-result-notice'),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 9,
-                            ),
-                            decoration: BoxDecoration(
-                              color: CupertinoColors.black.withValues(alpha: 0.82),
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: CupertinoColors.black.withValues(alpha: 0.2),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Text(
-                              _batchResultNotice!,
-                              style: const TextStyle(
-                                color: CupertinoColors.white,
-                                fontSize: kFontSidebarTitle,
-                                fontWeight: FontWeight.w500,
-                                decoration: TextDecoration.none,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
+                    _buildNoticeCapsule(
+                      _batchResultNotice!,
+                      key: const ValueKey('batch-result-notice'),
+                    ),
+                  // #185：复制会话 ID 等轻提示（同款胶囊；与批量结果提示互斥显示，
+                  // 两者同时挂起时以批量结果为准）。
+                  if (_sessionNotice != null && _batchResultNotice == null)
+                    _buildNoticeCapsule(
+                      _sessionNotice!,
+                      key: const ValueKey('session-notice'),
                     ),
                   // #184：多选态**不渲染** FAB —— 批量栏本身就是底部操作区，
                   // 悬浮加号会压在它上面（主人 2026-10-12 反馈）。
@@ -1843,39 +1831,103 @@ class _SessionListPageState extends ConsumerState<SessionListPage> {
     return pos + Offset(renderBox.size.width / 2, renderBox.size.height / 2);
   }
 
+  /// #185：长按 FAB 扇出环的**同步**种子 —— 不等网络：
+  /// ① 上次成功取到的注册表（[_fabWorkspaceCache]）；② 会话列表里出现过的工作区
+  /// （离线也拿得到，且正是主人真在用过的路径）。按 path 去重，注册表优先。
+  List<WorkspaceRoot> _fabWorkspaceSeed(List<SessionSummary> sessions) {
+    final seen = <String>{};
+    final out = <WorkspaceRoot>[];
+    void add(WorkspaceRoot w) {
+      final path = w.path?.trim();
+      if (path == null || path.isEmpty || !seen.add(path)) return;
+      out.add(w);
+    }
+
+    for (final w in _fabWorkspaceCache) {
+      add(w);
+    }
+    for (final s in sessions) {
+      final path = s.workspace?.trim();
+      if (path == null || path.isEmpty) continue;
+      add(WorkspaceRoot(path: path));
+    }
+    return out;
+  }
+
   Future<void> _openFabWorkspaceMenu() async {
     if (!mounted) return;
     final state = ref.read(sessionListControllerProvider).valueOrNull;
     if (state?.isSelectionMode == true) return;
+    final sessions = state?.sessions ?? const <SessionSummary>[];
 
-    List<WorkspaceRoot> available = const [];
+    // #185：先用「已知工作区」**同步出环**（离线/弱网零等待）。
+    // 旧实现先 `await api.fetchWorkspaces()` 再判空 —— 离线要等 dio 自身超时才
+    // 走完，且失败即 `ranked.isEmpty` 直接不弹环（主人实测：等很久 / 干脆不弹）。
+    // 取消数量限制：全部工作区参与排序，扇出时逐层向外堆叠。
+    final seed = rankWorkspaces(
+      registered: _fabWorkspaceSeed(sessions),
+      sessions: sessions,
+    );
+    if (seed.isNotEmpty) _openFabWorkspaceRing(seed);
+    // 已知工作区全空（既无缓存、会话也没带工作区）→ 与旧契约一致：不弹环，
+    // 松开直接走 createSession()。
+
+    // 真值随后到：注册表结果有界等待，到货就原地重排（环开着也会刷新）。
+    await _refreshFabWorkspaceRegistry(sessions);
+  }
+
+  /// 弹出扇出环并复位命中态（种子路径与「注册表到货」路径共用）。
+  void _openFabWorkspaceRing(List<WorkspaceRoot> ranked) {
+    _fabRankedWorkspaces = ranked;
+    _fabMenuOpen = true;
+    _hoveredWorkspaceIndex = null;
+    unawaited(HapticFeedback.mediumImpact());
+    _showFabWorkspaceOverlay();
+  }
+
+  /// #185：拉工作区注册表并刷新**已开着**的环。
+  ///
+  /// 三条铁律：超时/失败**只返回不清空**（离线保留种子环）；空结果不覆盖缓存；
+  /// 重排后校准命中下标（长度变了不能留下越界索引，否则松手选中错项）。
+  Future<void> _refreshFabWorkspaceRegistry(
+    List<SessionSummary> sessions,
+  ) async {
+    List<WorkspaceRoot> available;
     try {
       final api = ref.read(sessionListApiFactoryProvider)(
         ref.read(apiClientProvider),
       );
-      available = await api.fetchWorkspaces();
+      available = await api
+          .fetchWorkspaces()
+          .timeout(kFabWorkspaceRegistryTimeout);
     } catch (_) {
-      available = const [];
+      return;
     }
-
     if (!mounted) return;
-    final sessions = state?.sessions ?? const [];
-    // 取消数量限制：全部工作区参与排序，扇出时逐层向外堆叠。
-    final ranked = rankWorkspaces(registered: available, sessions: sessions);
+    if (available.isNotEmpty) _fabWorkspaceCache = available;
 
-    // 空态：GET /api/workspaces 空/失败 → 不弹菜单，松开直接走原 createSession()
-    if (ranked.isEmpty) {
-      _fabRankedWorkspaces = const [];
-      _fabMenuOpen = false;
+    final ranked = rankWorkspaces(
+      registered: _fabWorkspaceSeed(sessions),
+      sessions: sessions,
+    );
+    if (ranked.isEmpty) return;
+
+    // 环已开着 → 原地重排（长度变了要校准命中下标，否则松手会选中错项）。
+    if (_fabMenuOpen) {
+      _fabRankedWorkspaces = ranked;
+      final hovered = _hoveredWorkspaceIndex;
+      if (hovered != null && hovered >= ranked.length) {
+        _hoveredWorkspaceIndex = null;
+      }
+      _fabWorkspaceOverlayEntry?.markNeedsBuild();
       return;
     }
 
-    _fabRankedWorkspaces = ranked;
-    _fabMenuOpen = true;
-    _hoveredWorkspaceIndex = null;
-
-    unawaited(HapticFeedback.mediumImpact());
-    _showFabWorkspaceOverlay();
+    // 种子为空（会话没带工作区、也没有缓存）→ 真值到货时补弹，
+    // 这条保住旧契约「注册表回来才弹环」；松手后才到货则不再弹。
+    if (_fabPointerDown) {
+      _openFabWorkspaceRing(ranked);
+    }
   }
 
   void _showFabWorkspaceOverlay() {
@@ -1910,6 +1962,7 @@ class _SessionListPageState extends ConsumerState<SessionListPage> {
 
   void _onFabPointerDown(PointerDownEvent event, SessionListState? state) {
     if (state?.isSelectionMode == true) return;
+    _fabPointerDown = true;
     _hoveredWorkspaceIndex = null;
     _fabMenuOpen = false;
     _suppressNextTap = false;
@@ -1941,6 +1994,7 @@ class _SessionListPageState extends ConsumerState<SessionListPage> {
   }
 
   void _onFabPointerUp(PointerUpEvent event) {
+    _fabPointerDown = false;
     _fabLongPressTimer?.cancel();
     _fabLongPressTimer = null;
 
@@ -1962,6 +2016,7 @@ class _SessionListPageState extends ConsumerState<SessionListPage> {
   }
 
   void _onFabPointerCancel(PointerCancelEvent event) {
+    _fabPointerDown = false;
     _fabLongPressTimer?.cancel();
     _fabLongPressTimer = null;
     if (_fabMenuOpen) {
@@ -2080,6 +2135,14 @@ class _SessionListPageState extends ConsumerState<SessionListPage> {
         icon: CupertinoIcons.arrow_branch,
         onPressed: () => unawaited(_onBranch(context, controller, session)),
       ),
+      // #185：把会话 ID 交给外部（提工单 / 贴日志排查常要）。ID 为空则不给入口。
+      if ((session.sessionId ?? session.id).trim().isNotEmpty)
+        AdaptiveMenuItem(
+          key: const ValueKey('session-action-copy-id'),
+          label: l10n.copySessionId,
+          icon: CupertinoIcons.doc_on_doc,
+          onPressed: () => unawaited(_copySessionId(session)),
+        ),
       // ── 第三族：打开外部视图 ────────────────────────────────────────────
       AdaptiveMenuItem(
         key: const ValueKey('session-action-workspace'),
@@ -2380,6 +2443,71 @@ class _SessionListPageState extends ConsumerState<SessionListPage> {
   ///
   /// 只在**全成功**时提示：有失败项时既有的 actionError 弹窗已给出原因与条数，
   /// 再叠一层等于重复噪音。停留 2 秒后自动消失（对齐 App 既有的退出提示口径）。
+  /// 底部轻提示胶囊（#174 批量结果 / #185 复制会话 ID 共用）：浮在页面底部 96pt。
+  Widget _buildNoticeCapsule(String text, {required Key key}) {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 96,
+      child: IgnorePointer(
+        child: Center(
+          child: Container(
+            key: key,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+            decoration: BoxDecoration(
+              color: CupertinoColors.black.withValues(alpha: 0.82),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: CupertinoColors.black.withValues(alpha: 0.2),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: CupertinoColors.white,
+                fontSize: kFontSidebarTitle,
+                fontWeight: FontWeight.w500,
+                decoration: TextDecoration.none,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// #185：通用轻提示（2 秒自动消失，重入即刷新计时）。
+  void _showSessionNotice(String message) {
+    _sessionNoticeTimer?.cancel();
+    setState(() => _sessionNotice = message);
+    _sessionNoticeTimer = Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      setState(() => _sessionNotice = null);
+    });
+  }
+
+  /// #185：复制会话 ID（会话项「⋯」/ 长按菜单项）。走 [SafeClipboard]：
+  /// Android 剪贴板事务超限/异常会降级落盘，此时按落盘结果如实提示，不谎报「已复制」。
+  Future<void> _copySessionId(SessionSummary session) async {
+    final id = (session.sessionId ?? session.id).trim();
+    if (id.isEmpty) return;
+    final l10n = AppLocalizations.of(context);
+    final result = await SafeClipboard.copyOrSave(
+      id,
+      fileNamePrefix: 'hermes_session_id',
+    );
+    if (!mounted) return;
+    _showSessionNotice(
+      result.isFileSaved
+          ? l10n.clipboardUnavailableSavedToFile(result.filePath!)
+          : l10n.sessionIdCopiedNotice,
+    );
+  }
+
   void _reportBatchResult(BatchMutationResult result, BatchOperationKind kind) {
     if (result.failed > 0 || result.succeeded == 0) return;
     final l10n = AppLocalizations.of(context);
@@ -3679,6 +3807,10 @@ const double kFabWorkspaceEdgeMargin = 40.0;
 @visibleForTesting
 const double kFabWorkspaceMaxRadius = 560.0;
 @visibleForTesting
+/// #185：长按 FAB 时等「工作区注册表」真值回来的上限。环已用同步种子弹出，
+/// 这里只给后台刷新一个有界窗口（离线时不必干等到 dio 自身超时才收手）。
+const Duration kFabWorkspaceRegistryTimeout = Duration(seconds: 6);
+
 const double kFabWorkspaceArcStart = -178.0;
 @visibleForTesting
 const double kFabWorkspaceArcEnd = -92.0;
