@@ -596,7 +596,9 @@ void main() {
       expect(client.requestedUrls, hasLength(1));
     });
 
-    testWidgets('相对 api 路径 → 拼接 baseUrl 后走 urlBytes', (tester) async {
+    testWidgets('工作区相对路径 → 拼接 baseUrl 后走 urlBytes（且走 /api/file/raw）', (
+      tester,
+    ) async {
       final client = _StubApiClient(bytes: [9, 9]);
       final ref = await captureRef(tester, client: client);
       final source = FilePreviewSource.resolved(
@@ -606,9 +608,28 @@ void main() {
 
       expect(await loadResolvedBytes(tester, ref, source), hasLength(2));
       expect(client.requestedUrls, hasLength(1));
-      expect(client.requestedUrls.single, startsWith('$kBaseUrl/api/media?path='));
+      // ⚠️ 含分隔符但**非绝对**的路径必须走 `/api/file/raw`：`/api/media` 只认绝对
+      // 路径，相对路径会被服务端按 cwd 解析 ⇒ 403 Path not in allowed location
+      // （2026-10-13 实测；`file/raw` 才按「会话工作区 → 上传收件箱」两级解析）。
+      expect(client.requestedUrls.single, startsWith('$kBaseUrl/api/file/raw?'));
       expect(client.requestedUrls.single, contains('session_id=s7'));
       expect(client.requestedUrls.single, contains(Uri.encodeComponent('images/a.png')));
+    });
+
+    testWidgets('绝对路径 → 仍走 /api/media（不被相对路径分支抢走）', (tester) async {
+      final client = _StubApiClient(bytes: [9, 9]);
+      final ref = await captureRef(tester, client: client);
+      final source = FilePreviewSource.resolved(
+        r'D:/projects/sloth/docs/a.png',
+        sessionId: 's7',
+      );
+
+      expect(await loadResolvedBytes(tester, ref, source), hasLength(2));
+      expect(client.requestedUrls.single, startsWith('$kBaseUrl/api/media?path='));
+      expect(
+        client.requestedUrls.single,
+        contains(Uri.encodeComponent('D:/projects/sloth/docs/a.png')),
+      );
     });
 
     testWidgets('相对路径 + baseUrl 为空 → 无法拼 URL，返回空字节', (tester) async {
