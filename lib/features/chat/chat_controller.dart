@@ -246,6 +246,9 @@ class ChatController extends FamilyNotifier<ChatState, String> {
   /// #142 死区兜底：冷却截止时刻，避免连续触发重复拉取。
   DateTime? _deadZoneCooldownUntil;
 
+  /// 孤儿显示态守卫冷却（#196）。
+  DateTime? _orphanDisplayCooldownUntil;
+
   /// #127 静默兜底：是否「已发出请求/作答但尚未收到任何服务端进展」。
   /// 由 `_markUserAction`（发送/作答）置 true、`_markProgress`（收到进展）
   /// 置 false —— 兜底巡检只在这个未决期待存在时动手，避免回合正常收尾后
@@ -325,6 +328,7 @@ class ChatController extends FamilyNotifier<ChatState, String> {
     _lastUserActionAt = null;
     _stallGuardCooldownUntil = null;
     _deadZoneCooldownUntil = null;
+    _orphanDisplayCooldownUntil = null;
     _awaitingServerContent = false;
     _maxSeenSeq = 0;
     _maxSeenSeqStreamId = null;
@@ -1064,6 +1068,59 @@ class ChatController extends FamilyNotifier<ChatState, String> {
     } on Object {
       // 同步失败静默容错（不弹全局错误）
     }
+  }
+
+  /// 强制刷新（#197）：把该会话的本地显示状态与服务端对齐。
+  ///
+  /// 给「界面卡在生成中 / 落后于服务端」这类显示态死锁一个用户级出口（此前只能杀
+  /// App）。纯读操作：不修改服务端任何内容。返回是否执行到位。
+  Future<bool> forceRefresh() async {
+    if (_disposed) return false;
+    final sessionId = state.sessionId;
+    if (sessionId.isEmpty) return false;
+    DiagnosticsService.instance.log(
+      level: DiagnosticsLogLevel.info,
+      tag: 'chat_refresh',
+      message:
+          'Force refresh requested (session: $sessionId, '
+          'activeStreamId: ${state.stream.activeStreamId}, '
+          'phase: ${state.phase.name}, '
+          'hasStreamingBubble: ${state.stream.streamingAssistantMessageId != null})',
+    );
+    // ① 有活跃流：交给既有状态链（active → 重拉 + 续传 / 可重放 → 重放 /
+    //    都没有 → 按 transcript 收尾）。**不硬清显示态**，避免打断真回合。
+    if (state.stream.activeStreamId != null) {
+      await _checkStatusAndReconnect();
+      return !_disposed;
+    }
+    // ② 无活跃流：清显示残渣 + 丢弃待落账缓冲 + 拆掉恢复闩锁（预算/退避/冷却），
+    //    再拉权威 transcript 并按需退掉本地残留的流式临时行。
+    _discardPendingStreamBuffers();
+    _clearStaleDisplayResidue();
+    if (!state.pendingAction.hasPendingPrompt &&
+        (state.phase == ChatPhase.streaming ||
+            state.phase == ChatPhase.steered ||
+            state.phase == ChatPhase.recovering)) {
+      // 死区（相位说在跑、流标识已空）：相位归位，免得状态行继续显示进行中文案。
+      state = state.copyWith(phase: ChatPhase.idle);
+    }
+    _reconnectAttempts = 0;
+    _cancelReconnectTimer();
+    _cancelResumeProbeRetry();
+    _resetFullReconnectThrottle();
+    _statusCheckCooldownUntil = null;
+    _orphanDisplayCooldownUntil = null;
+    await _syncAndRetireStaleLiveRows();
+    if (_disposed) return false;
+    _markProgress();
+    DiagnosticsService.instance.log(
+      level: DiagnosticsLogLevel.info,
+      tag: 'chat_refresh',
+      message:
+          'Force refresh completed (session: $sessionId, '
+          'messages: ${state.messages.length}, phase: ${state.phase.name})',
+    );
+    return true;
   }
 
   /// 加载会话 transcript（冷启动 / 重载 / 分页）。
@@ -1994,10 +2051,26 @@ class ChatController extends FamilyNotifier<ChatState, String> {
   // token 三段式缓冲（合并 → 词级 reveal）
   // -------------------------------------------------------------------------
 
+  /// #196：回合已收尾（无活跃流 + 已收完成响应 + 相位已离场 + 无未决卡片）。
+  ///
+  /// 此状态下到达的 token / interim 内容帧一律属**迟到或重放**（服务端回合早已
+  /// 结束、权威正文已在 transcript 里），写入只会污染显示态。
+  bool get _isSettledForContentFrames =>
+      state.stream.activeStreamId == null &&
+      state.stream.hasCompletedResponse &&
+      !_phaseIndicatesOngoingTurn &&
+      !state.pendingAction.hasPendingPrompt;
+
   /// 去重（replay 连接）→ 入 pendingAssistantTokenChunks → 调度 16ms 合并。
   /// 返回是否有真实新增（看门狗进度信号）。
   bool _appendAssistantToken(String text) {
     if (text.isEmpty) return false;
+    // #196 owner-alive 守卫：收尾后到达的内容帧不得再进显示态 —— 否则 flush/merge
+    // 会经 `_appendToStreamingMessage` → `_ensureStreamingAssistantMessage` 新建流式
+    // 子气泡（并新增一条消息行），把「已收尾」的回合重新显示成「生成中」；该状态
+    // 下既有自愈链全体被闸门挡住（F1 守卫是兜底，本闸是防成形）。interim 路径在
+    // 无子气泡时委派到本方法，故一并处覆盖。
+    if (_isSettledForContentFrames) return false;
     var remainder = text;
     final stream = state.stream;
     if (stream.isReplayConnection) {
@@ -3544,6 +3617,15 @@ class ChatController extends FamilyNotifier<ChatState, String> {
     _stopOwnedStream();
     _syncSessionStreaming(state.sessionId, false);
     _prefillSince = null;
+    // #196 修复：本路径是 done / stream_end 的「正常完成」出口，必须先丢弃残留
+    // 缓冲并取消 merge/reveal 定时器 —— 否则残留的合并 tick 会在下方状态清理
+    // **之后**再跑一次，经 `_appendToStreamingMessage` →
+    // `_ensureStreamingAssistantMessage` 把流式子气泡重新建出来（子气泡身份 + 回合
+    // 计时残留 + 服务端已收尾）⇒ 状态行永久卡「生成中 · 已工作 MM:SS」，而所有
+    // 自愈链都被闸门挡在外面（无活跃流 / 相位已离场），只有杀 App 才好。
+    // 刻意不 flush：done 快照此刻已由 `_applyCompletedStreamSession` 铺入权威行，
+    // flush 只会把尾巴重复落到新建气泡上（渲染成重复残行）。
+    _discardPendingStreamBuffers();
     // 幽灵行退役（先于归档/重锚）：live 身份随收尾失效，客户端临时行若正文已被
     // 权威行覆盖即退场。否则 ① 它作为独立一行重复渲染整轮正文；② 工具组锚点留在
     // 「临时锚空间」（raw:N），下一次刷新即漂到末条 assistant（位置错误）。
@@ -3577,6 +3659,7 @@ class ChatController extends FamilyNotifier<ChatState, String> {
       clearSteerHints: true,
       clearPrefillStatus: true,
       clearPrefillLabel: true,
+      clearTurnStartedMillis: true,
       stream: state.stream.copyWith(
         clearActiveStreamId: true,
         clearLastEventId: true,
@@ -3960,6 +4043,99 @@ class ChatController extends FamilyNotifier<ChatState, String> {
     if (state.queuedSlashMessages.isNotEmpty) {
       unawaited(_drainQueuedSlashMessage());
     }
+  }
+
+  /// 丢弃「待落账」的流式缓冲（#196）。
+  ///
+  /// 只取消 merge/reveal 定时器 + 清空缓冲，**不 flush**：收尾路径上权威正文已由
+  /// transcript 行承载，flush 只会把尾巴重复落到即将失效的气泡上（重复残行）。
+  void _discardPendingStreamBuffers() {
+    _mergeTimer?.cancel();
+    _mergeTimer = null;
+    _revealTimer?.cancel();
+    _revealTimer = null;
+    _revealQueue.clear();
+    _revealQueueStart = null;
+    if (state.pendingAssistantTokenChunks.isEmpty &&
+        state.pendingReasoningChunks.isEmpty &&
+        state.isRevealQueueEmpty) {
+      return;
+    }
+    state = state.copyWith(
+      pendingAssistantTokenChunks: const [],
+      pendingReasoningChunks: const [],
+      isRevealQueueEmpty: true,
+    );
+  }
+
+  /// 清「显示残渣」：流式子气泡身份 + 回合耗时计时 + live 行 + 恢复态（#196）。
+  ///
+  /// 只动**显示身份**：不碰服务端、不删消息行、不动澄清/审批卡片。真回合仍在跑时，
+  /// 下一个 token 帧会经 `_appendToStreamingMessage` 的防御重锚自动重建气泡，内容不丢。
+  /// 清理点收敛到这一处，供自动守卫（F1）与手动「强制刷新」共用。
+  void _clearStaleDisplayResidue() {
+    state = state.copyWith(
+      clearTurnStartedMillis: true,
+      liveToolCalls: const [],
+      liveReasoningText: '',
+      liveTimelinePoints: const [],
+      stream: state.stream.copyWith(
+        clearStreamingAssistantMessageId: true,
+        clearToolCallAnchorMessageId: true,
+        clearReasoningAnchorMessageId: true,
+        clearLiveTokensPerSecond: true,
+        recovery: ActiveStreamRecoveryState.idle,
+      ),
+    );
+  }
+
+  /// 拉权威 transcript 并退掉本地残留的流式临时行（#196：孤儿守卫与强制刷新共用）。
+  Future<void> _syncAndRetireStaleLiveRows() async {
+    await syncMissingMessages();
+    if (_disposed) return;
+    final settled = _retireStaleLiveRows(state.messages);
+    if (!identical(settled, state.messages)) {
+      state = state.copyWith(messages: settled);
+    }
+  }
+
+  /// F1 孤儿显示态守卫（#196）。
+  ///
+  /// 治「服务端早已收尾、界面却永久卡生成中」：收尾路径若漏清 `turnStartedMillis`
+  /// 或残留缓冲在收尾后又把流式子气泡重建出来，就留下「无活跃流 + 相位已离场 +
+  /// 气泡/计时仍在」的组合 —— 既有自愈链**全体**被闸门挡在外面（transport-stale
+  /// 要 activeStreamId、死区兜底要进行中相位、G5 要 streaming + streamId、stall guard
+  /// 要刚有用户动作），无人能清，只有杀 App。本守卫只判「显示残渣」，
+  /// 不依赖任何传输活动或相位标志。
+  void _recoverOrphanedDisplayIfNeeded() {
+    if (_disposed || _appPaused) return;
+    if (state.sessionId.isEmpty) return;
+    if (state.stream.activeStreamId != null) return; // 有流 → 归既有链
+    if (state.stream.streamingAssistantMessageId == null) return; // 无残渣
+    if (_phaseIndicatesOngoingTurn) return; // 进行中相位 → 归死区兜底
+    if (state.pendingAction.hasPendingPrompt) return; // 等主人作答 → 不催
+    final lastProgress = _lastProgress;
+    final now = _now();
+    if (lastProgress != null &&
+        now.difference(lastProgress) <
+            _watchdogConfig.orphanDisplayStallThreshold) {
+      return; // 刚有进展，留给正常路径
+    }
+    final cooldown = _orphanDisplayCooldownUntil;
+    if (cooldown != null && now.isBefore(cooldown)) return;
+    _orphanDisplayCooldownUntil = now.add(_watchdogConfig.orphanDisplayCooldown);
+    DiagnosticsService.instance.log(
+      level: DiagnosticsLogLevel.warn,
+      tag: 'chat_apply',
+      message:
+          'F1 孤儿显示态守卫：无活跃流且相位已离场（phase: ${state.phase.name}, '
+          'lastProgressAge: ${lastProgress == null ? -1 : now.difference(lastProgress).inMilliseconds}ms）'
+          '但流式子气泡/回合计时残留 → 清显示残渣 + 兜底拉会话'
+          '（sessionId: ${state.sessionId}）',
+    );
+    _discardPendingStreamBuffers();
+    _clearStaleDisplayResidue();
+    unawaited(_syncAndRetireStaleLiveRows());
   }
 
   void _cancelStreamTimers() {
@@ -4633,6 +4809,7 @@ class ChatController extends FamilyNotifier<ChatState, String> {
       _pollContextWindowIfNeeded();
       unawaited(_runStallGuardIfNeeded());
       _recoverOrphanedStreamingPhaseIfNeeded();
+      _recoverOrphanedDisplayIfNeeded();
       // 应用层活性守卫族（chat_apply）：G4 管线再武装 → G5 视图活性看门狗。
       // 二者都不依赖传输活动（那正是「收帧但永不落账」能被既有看门狗漏掉的原因）。
       _rearmStreamingPipelineIfNeeded();

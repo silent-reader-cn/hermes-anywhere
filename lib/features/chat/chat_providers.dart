@@ -156,6 +156,8 @@ class ChatWatchdogConfig {
     this.resumeProbeRetryDelay = const Duration(seconds: 2),
     this.deadZoneStallThreshold = const Duration(seconds: 15),
     this.deadZoneCooldown = const Duration(seconds: 30),
+    this.orphanDisplayStallThreshold = const Duration(seconds: 20),
+    this.orphanDisplayCooldown = const Duration(seconds: 30),
     this.random,
     this.customJitter,
   });
@@ -215,6 +217,13 @@ class ChatWatchdogConfig {
 
   /// 死区兜底巡检触发后的冷却时长（防频繁触发向服务端拉取）。
   final Duration deadZoneCooldown;
+
+  /// 孤儿显示态守卫阈值（#196）：无活跃流 + 相位已离场 + 流式子气泡/回合耗时残留，
+  /// 且距上次进展 ≥ 该值 → 判为显示残渣并清理（测试可 override 缩短）。
+  final Duration orphanDisplayStallThreshold;
+
+  /// 孤儿显示态守卫触发后的冷却时长（防对同一残渣反复清理与拉取）。
+  final Duration orphanDisplayCooldown;
 
   /// 可选随机数发生器（测试可注入确定性 Random）。
   final Random? random;

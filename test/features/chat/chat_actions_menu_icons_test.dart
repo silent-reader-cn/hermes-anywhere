@@ -59,6 +59,11 @@ const List<_MenuSpec> _specs = <_MenuSpec>[
   ),
   _MenuSpec('chat-action-pin', CupertinoIcons.pin, _Group.session),
   _MenuSpec('chat-action-archive', CupertinoIcons.archivebox, _Group.session),
+  _MenuSpec(
+    'chat-action-force-refresh',
+    CupertinoIcons.arrow_counterclockwise_circle,
+    _Group.session,
+  ),
   // 族②上下文
   _MenuSpec(
     'chat-action-compress',

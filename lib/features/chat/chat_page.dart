@@ -582,6 +582,21 @@ Future<void> _showSessionActions(
           }
         },
       ),
+    ],
+    // 强制刷新：纯读操作（只重拉 transcript 并把本地显示态与服务端对齐）——
+    // 只读会话同样卡得住「生成中」，故刻意放在 `isReadOnly` 闸门之外。
+    AdaptiveMenuItem(
+      key: const ValueKey('chat-action-force-refresh'),
+      label: l10n.forceRefresh,
+      icon: CupertinoIcons.arrow_counterclockwise_circle,
+      onPressed: () async {
+        final ok = await controller.forceRefresh();
+        controller.setNotice(
+          ok ? l10n.forceRefreshDone : l10n.forceRefreshFailed,
+        );
+      },
+    ),
+    if (!isReadOnly) ...[
       // 族②「上下文」：改写这一轮的内容（压缩 / 回退 / 重跑 / 放权）。
       AdaptiveMenuItem(
         key: const ValueKey('chat-action-compress'),

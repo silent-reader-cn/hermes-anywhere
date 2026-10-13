@@ -156,6 +156,10 @@ class AppLocalizations {
   String get unarchive => isEnglish ? 'Unarchive' : '恢复归档';
   String get branch => isEnglish ? 'Branch' : '分支';
   String get copySessionId => isEnglish ? 'Copy Session ID' : '复制会话 ID';
+  /// 会话菜单：强制刷新（#187；重拉 transcript 并把本地显示态与服务端对齐）。
+  String get forceRefresh => isEnglish ? 'Force Refresh' : '强制刷新';
+  String get forceRefreshDone => isEnglish ? 'Refreshed' : '已强制刷新';
+  String get forceRefreshFailed => isEnglish ? 'Refresh failed' : '刷新失败';
   String get sessionIdCopiedNotice =>
       isEnglish ? 'Session ID copied' : '已复制会话 ID';
   /// 剪贴板不可用（PlatformException）时的诚实兜底：ID 已落盘为文件。
