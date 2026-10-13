@@ -61,4 +61,39 @@ their own builder (see `lib/features/chat/widgets/chat_text_selection.dart`).
 - test/features/chat/message_context_menu_native_toolbar_test.dart (#81;
   baseline without the fix renders the native toolbar with "Select all")
 
+## 5. `a` (link) builders: PREPEND instead of replace, and unwind the link recognizer stack
+
+Upstream `visitElementAfter()` replaced the link's text child with whatever a
+registered `a` builder returned (`current.children[0] = child`), so an `a`
+builder could only *take over* a link — it could not add something to it (e.g. a
+file-type icon) while keeping the link's own text, style and tap behaviour.
+Worse, that branch skipped `else if (tag == 'a') { _linkHandlers.removeLast(); }`,
+leaving the link's `TapGestureRecognizer` on the stack: `visitText()` then
+re-attached it to every following inline text span in the same block, and
+`_buildImage()` (`_linkHandlers.last`) wrapped later images in a link tap too.
+
+- `lib/src/builder.dart`: when a builder handles `a` and returns a widget, the
+  widget is now prepended as a leading inline span
+  (`TextSpan(children: <InlineSpan>[prefixSpan, linkSpan])`) instead of replacing
+  the link text. The returned widget must carry an inline span — i.e. return
+  `Text.rich(...)`, the same contract `InlineCodeElementBuilder` relies on;
+  if no span can be extracted the old replace semantics apply.
+- `lib/src/builder.dart`: `a` now pops `_linkHandlers` in the builder branch as
+  well, so every link unwinds exactly one handler (same count as the default
+  path) whether or not a builder handled it.
+
+Host side: `MediaLinkIconBuilder`
+(`lib/features/chat/widgets/markdown_styles.dart`) prepends a 13 px Cupertino
+glyph (audio/video/document/file) to `MEDIA:` and bare `file://` links, which
+carry the `title="hermes-media"` marker emitted by `ChatMediaParser`. Plain web
+links return `null` from the builder and keep the default rendering untouched.
+Icons live in `lib/features/chat/widgets/media_kind_icons.dart` (single source of
+truth, shared with the user-bubble attachment rows).
+
+### Regression tests
+- `test/features/chat/media_link_icon_test.dart` — one icon per media kind; plain
+  links get none; a media link is still tappable and its `linkText` is the bare
+  file name; text **after** a link carries no recognizer (stale-handler fix).
+
 Patch author: hermes-ui maintainers, 2026-09-07; section 4 added 2026-09-13.
+Section 5 added 2026-10-13.

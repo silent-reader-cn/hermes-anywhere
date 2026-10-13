@@ -16,6 +16,7 @@ import 'package:hermes_ui/core/models/upload_response.dart';
 import 'package:hermes_ui/features/chat/pending_attachments_provider.dart';
 import 'package:hermes_ui/features/chat/widgets/attachment_pending_bar.dart';
 import 'package:hermes_ui/features/chat/widgets/chat_media_view.dart';
+import 'package:hermes_ui/features/chat/widgets/media_kind_icons.dart';
 import 'package:hermes_ui/features/chat/widgets/message_bubble.dart';
 import 'package:hermes_ui/features/downloads/download_providers.dart';
 import 'package:hermes_ui/features/downloads/download_repository.dart';
@@ -232,8 +233,34 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.textContaining('🎵 audio.mp3'), findsOneWidget);
-      expect(find.textContaining('📎 spec.pdf'), findsOneWidget);
+      // 链接文案 = 纯文件名（emoji 前缀已换成矢量图标，见 media_link_icon_test）
+      expect(find.textContaining('audio.mp3'), findsOneWidget);
+      expect(find.textContaining('spec.pdf'), findsOneWidget);
+      expect(find.textContaining('🎵'), findsNothing);
+      expect(find.textContaining('📎'), findsNothing);
+
+      // 音频 / 文档各自的类型图标在场（pdf 归 document 档 → doc_text）
+      expect(find.byKey(kMediaLinkIconKey), findsNWidgets(2));
+      expect(find.byIcon(CupertinoIcons.music_note), findsOneWidget);
+      expect(find.byIcon(CupertinoIcons.doc_text), findsOneWidget);
+    });
+
+    testWidgets('普通网页链接不加类型图标（标记只给媒体引用）', (tester) async {
+      final rig = buildFakeMediaCache();
+      addTearDown(rig.dispose);
+      const message = ChatMessage(
+        role: 'assistant',
+        content: '参考 [官方文档](https://example.com/docs) 与 MEDIA:/tmp/spec.pdf',
+      );
+
+      await tester.pumpWidget(
+        _testApp(const ChatMessageBubble(message: message)),
+      );
+      await tester.pump();
+
+      // 只有媒体链接带图标
+      expect(find.byKey(kMediaLinkIconKey), findsOneWidget);
+      expect(find.textContaining('官方文档'), findsOneWidget);
     });
 
     testWidgets('用户消息附件：图片成瓦片、文件成行条（图标 + 文件名）', (tester) async {

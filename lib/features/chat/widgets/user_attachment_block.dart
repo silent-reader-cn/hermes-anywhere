@@ -7,6 +7,7 @@ import '../../../core/models/message_attachment.dart';
 import '../../../l10n/app_localizations.dart';
 import 'chat_media_parser.dart';
 import 'chat_media_view.dart';
+import 'media_kind_icons.dart';
 
 /// 用户气泡附件区（**主人 2026-10-07 定稿；2026-10-08 多图档 4 定稿**）。
 ///
@@ -529,20 +530,10 @@ class _UserAttachmentBlockState extends State<UserAttachmentBlock> {
     return parts.isEmpty || parts.last.isEmpty ? reference : parts.last;
   }
 
-  IconData _iconFor(MessageAttachment attachment) {
-    switch (MessageAttachment.mediaKindForName(_reference(attachment))) {
-      case MessageMediaKind.image:
-        return CupertinoIcons.photo;
-      case MessageMediaKind.audio:
-        return CupertinoIcons.music_note;
-      case MessageMediaKind.video:
-        return CupertinoIcons.film;
-      case MessageMediaKind.document:
-        return CupertinoIcons.doc_text;
-      case MessageMediaKind.file:
-        return CupertinoIcons.paperclip;
-    }
-  }
+  /// 类型图标：与正文媒体链接共用同一份映射（[mediaKindIcon]），
+  /// 避免两处各画一套（历史上正文那处用的是 emoji 字符）。
+  IconData _iconFor(MessageAttachment attachment) =>
+      mediaKindIconForReference(_reference(attachment));
 
   /// 大小标签（无 size 数据 → null，不占位）。
   String? _sizeLabel(int? bytes) {

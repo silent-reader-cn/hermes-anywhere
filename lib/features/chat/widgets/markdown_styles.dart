@@ -11,6 +11,8 @@ import '../../../app/shell/adaptive_shell.dart' show kAdaptiveBreakpoint;
 import '../../../app/theme/light_surfaces.dart';
 import '../../../app/theme/status_colors.dart';
 import '../../settings/settings_providers.dart';
+import 'chat_media_parser.dart';
+import 'media_kind_icons.dart';
 import 'mermaid_block.dart';
 
 /// 聊天气泡与正文 Markdown 样式（chat_spec.md §6.3 Markdown 渲染）。
@@ -454,6 +456,55 @@ class ImgBlockElementBuilder extends MarkdownElementBuilder {
   }
 }
 
+/// 正文媒体链接的类型图标构建器（**前置图标，不改链接文案**）。
+///
+/// `MEDIA:` / 裸 `file://` 引用经 [ChatMediaParser] 转成
+/// `[文件名](url "hermes-media")` 后，本构建器只为**带该标记**的链接前置一个
+/// 矢量图标（音频 / 视频 / 文档 / 文件），取代过去写进正文的 🎵 / 🎬 / 📎：
+/// - emoji 字形三端各不相同（Windows / Android / iOS），矢量图标一致；
+/// - emoji 属于"正文文案"，会一路漏进附件预览页标题与下载文件名。
+///
+/// 返回值是 [Text.rich] + [WidgetSpan]：`flutter_markdown` 的
+/// `_mergeInlineChildren` 把它的 span 并回段落富文本，图标因此与链接文字同行。
+/// vendored 侧配套补丁（`PATCH_NOTES.md` 第 5 节）把这个 widget **前置**到链接
+/// 的文字 span 之前，而不是替换它 —— 链接自身的点击识别器与换行行为完全不变，
+/// 且链接文案仍可自由折行（长文件名不会把气泡撑破）。
+class MediaLinkIconBuilder extends MarkdownElementBuilder {
+  @override
+  Widget? visitElementAfterWithContext(
+    BuildContext context,
+    md.Element element,
+    TextStyle? preferredStyle,
+    TextStyle? parentStyle,
+  ) {
+    if (element.tag != 'a') return null;
+    if (element.attributes['title'] != ChatMediaParser.mediaLinkTitle) {
+      return null;
+    }
+    // 类型从链接文案（= 真实文件名）判定：href 可能是
+    // `/api/media?path=…&session_id=…`，尾部被查询串污染，扩展名不可靠。
+    final name = element.textContent.trim();
+    if (name.isEmpty) return null;
+    final color =
+        preferredStyle?.color ??
+        CupertinoColors.systemBlue.resolveFrom(context);
+    return Text.rich(
+      WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: Padding(
+          padding: const EdgeInsets.only(right: kMediaLinkIconGap),
+          child: Icon(
+            mediaKindIconForReference(name),
+            key: kMediaLinkIconKey,
+            size: kMediaLinkIconSize,
+            color: color,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// 创建通用 Markdown 元素构建器映射表（注册 code 标签以支持行内 pill +
 /// img 标签块级化）。
 Map<String, MarkdownElementBuilder> createMarkdownElementBuilders(
@@ -481,6 +532,9 @@ Map<String, MarkdownElementBuilder> createMarkdownElementBuilders(
     // 只读场景未接媒体渲染链路，保持包默认 inline 渲染不回归。
     if (imageBuilder != null)
       'img': ImgBlockElementBuilder(imageBuilder: imageBuilder),
+    // 媒体链接（带 [ChatMediaParser.mediaLinkTitle] 标记）前置类型图标；
+    // 普通网页链接不带标记 → 构建器返回 null → 默认渲染完全不变。
+    'a': MediaLinkIconBuilder(),
   };
 }
 

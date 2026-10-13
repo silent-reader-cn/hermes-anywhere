@@ -601,9 +601,33 @@ class MarkdownBuilder implements md.NodeVisitor {
         if (child != null) {
           if (current.children.isEmpty) {
             current.children.add(child);
+          } else if (tag == 'a') {
+            // PATCH(hermes-ui): an `a` builder PREPENDS its widget (e.g. a
+            // file-type icon) as a leading inline span instead of replacing
+            // the link text, so the link keeps the recognizer created by
+            // createLink() and its normal line-wrapping behaviour.
+            // See PATCH_NOTES.md section 5.
+            final InlineSpan? linkSpan =
+                _getInlineSpanFromText(current.children[0]);
+            final InlineSpan? prefixSpan = _getInlineSpanFromText(child);
+            current.children[0] = (linkSpan == null || prefixSpan == null)
+                ? child
+                : _buildRichText(
+                    TextSpan(children: <InlineSpan>[prefixSpan, linkSpan]),
+                    textAlign: _textAlignForBlockTag(_currentBlockTag),
+                  );
           } else {
             current.children[0] = child;
           }
+        }
+        // PATCH(hermes-ui): a registered `a` builder must still unwind the
+        // link recognizer stack. The default `else if (tag == 'a')` branch
+        // below is skipped whenever a builder handles the tag, which left the
+        // stale handler on the stack and re-attached it to every later inline
+        // text span (and link-wrapped image) in the same block.
+        // See PATCH_NOTES.md section 5.
+        if (tag == 'a' && _linkHandlers.isNotEmpty) {
+          _linkHandlers.removeLast();
         }
       } else if (tag == 'img') {
         // create an image widget for this image

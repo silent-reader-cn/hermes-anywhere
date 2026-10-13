@@ -11,7 +11,8 @@ import 'chat_media_bubble_test.dart' show buildDownloadOverrides;
 
 /// #57：聊天正文 markdown 链接（MEDIA 文件链接 / 网页链接）点击行为。
 ///
-/// 根因回归：`MEDIA:` 转成的 `[📎 name](url)` 链接此前无任何 onTapLink 接线，
+/// 根因回归：`MEDIA:` 转成的 `[name](url "hermes-media")` 链接此前无任何
+/// onTapLink 接线，
 /// 渲染可看但点击无反应。本文件锁死：
 /// 1. 非图片 MEDIA 链接点击 → 打开附件预览页（内含下载入口）；
 /// 2. 图片 MEDIA 链接点击 → 打开 Lightbox；
@@ -61,7 +62,7 @@ void main() {
       await _pumpBubble(tester, message);
 
       // 链接文本渲染
-      final linkFinder = find.textContaining('📎 app-release.apk');
+      final linkFinder = find.textContaining('app-release.apk');
       expect(linkFinder, findsOneWidget);
 
       // 点击前无预览页

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hermes_ui/core/models/message_attachment.dart';
 import 'package:hermes_ui/features/chat/widgets/chat_media_parser.dart';
+import 'package:hermes_ui/features/downloads/download_save_service.dart';
 
 void main() {
   group('ChatMediaParser 媒体标记解析单元测试', () {
@@ -31,22 +32,52 @@ void main() {
       expect(output, '![image](data:image/png;base64,iVBORw0KGgo=)');
     });
 
-    test('音频 MEDIA: 标记转换为音频芯片链接', () {
+    test('音频 MEDIA: 标记转换为音频链接（带 hermes-media 标记）', () {
       const input = '生成的录音：MEDIA:/music/voice_note.mp3';
       final output = ChatMediaParser.parseMediaMarkers(input);
-      expect(output, '生成的录音：[🎵 voice_note.mp3](/music/voice_note.mp3)');
+      expect(
+        output,
+        '生成的录音：[voice_note.mp3](/music/voice_note.mp3 "hermes-media")',
+      );
     });
 
-    test('视频 MEDIA: 标记转换为视频芯片链接', () {
+    test('视频 MEDIA: 标记转换为视频链接（带 hermes-media 标记）', () {
       const input = '生成的视频：MEDIA:/videos/render.mp4';
       final output = ChatMediaParser.parseMediaMarkers(input);
-      expect(output, '生成的视频：[🎬 render.mp4](/videos/render.mp4)');
+      expect(
+        output,
+        '生成的视频：[render.mp4](/videos/render.mp4 "hermes-media")',
+      );
     });
 
-    test('文档/文件 MEDIA: 标记转换为附件链接', () {
+    test('文档/文件 MEDIA: 标记转换为附件链接（带 hermes-media 标记）', () {
       const input = '报告已生成：MEDIA:/docs/annual_report.pdf';
       final output = ChatMediaParser.parseMediaMarkers(input);
-      expect(output, '报告已生成：[📎 annual_report.pdf](/docs/annual_report.pdf)');
+      expect(
+        output,
+        '报告已生成：[annual_report.pdf](/docs/annual_report.pdf "hermes-media")',
+      );
+    });
+
+    test('链接文案恒等于真实文件名：类型不再写进文案，改由链接图标表达', () {
+      for (final ref in <String>[
+        '/tmp/spec.pdf',
+        '/music/voice_note.mp3',
+        '/videos/render.mp4',
+      ]) {
+        final output = ChatMediaParser.parseMediaMarkers('MEDIA:$ref');
+        expect(output, isNot(contains('📎')));
+        expect(output, isNot(contains('🎵')));
+        expect(output, isNot(contains('🎬')));
+        expect(output, contains(ChatMediaParser.mediaLinkTitle));
+      }
+    });
+
+    test('端到端：链接文案 → 下载文件名，装饰字符不再漏进文件名', () {
+      final md = ChatMediaParser.parseMediaMarkers(r'MEDIA:C:\tmp\spec.pdf');
+      final linkText = RegExp(r'\[([^\]]+)\]\(').firstMatch(md)!.group(1)!;
+      expect(linkText, 'spec.pdf');
+      expect(DownloadSaveService.sanitizeFileName(linkText), 'spec.pdf');
     });
 
     test('多行代码块内部的 MEDIA: 标记受保护不被转换', () {
@@ -75,10 +106,13 @@ void main() {
       expect(output, '查看本地文件 ![figure.png](file:///tmp/figure.png) 进行确认');
     });
 
-    test('裸 file:// 非图片链接解析为附件芯片', () {
+    test('裸 file:// 非图片链接解析为附件链接', () {
       const input = '附带日志：file:///var/log/app.log';
       final output = ChatMediaParser.parseMediaMarkers(input);
-      expect(output, '附带日志：[📎 app.log](file:///var/log/app.log)');
+      expect(
+        output,
+        '附带日志：[app.log](file:///var/log/app.log "hermes-media")',
+      );
     });
 
     test('末尾句号标点不被误作为扩展名一部分', () {

@@ -10,6 +10,17 @@ import '../../../core/models/message_attachment.dart';
 class ChatMediaParser {
   const ChatMediaParser._();
 
+  /// 媒体链接的 `title` 标记：`[文件名](url "hermes-media")`。
+  ///
+  /// [MediaLinkIconBuilder] 只给带这个标记的链接前置类型图标，普通网页链接
+  /// 不带标记、走默认链接渲染（点击与换行行为一概不变）。
+  ///
+  /// 标记写在 `title` 而不是链接文案里，是为了让链接文案恒等于真实文件名：
+  /// 下载文件名、附件预览页标题、`onTapLink` 的 linkText 都不再夹带装饰字符
+  /// （历史上把类型写成 🎵/🎬/📎 emoji 前缀，一路漏到了
+  /// `Downloads/📎 spec.pdf`）。
+  static const String mediaLinkTitle = 'hermes-media';
+
   /// 匹配 `MEDIA:<ref>` 标记（非空白、非右括号或右中括号）。
   static final RegExp _mediaTokenRegex = RegExp(r'MEDIA:([^\s\)\]]+)');
 
@@ -93,17 +104,18 @@ class ChatMediaParser {
     final safeUrl = _safeMarkdownUrl(ref);
     final kind = MessageAttachment.mediaKindForName(ref);
 
-    String md;
-    switch (kind) {
-      case MessageMediaKind.image:
-        md = '![$displayName]($safeUrl)';
-      case MessageMediaKind.audio:
-        md = '[🎵 $displayName]($safeUrl)';
-      case MessageMediaKind.video:
-        md = '[🎬 $displayName]($safeUrl)';
-      case MessageMediaKind.document:
-      case MessageMediaKind.file:
-        md = '[📎 $displayName]($safeUrl)';
+    // 图片走 Markdown 图片语法（由 img 块级构建器渲染成媒体卡）；其余类型
+    // 一律渲染成**纯文件名链接**，类型改由链接前的矢量图标表达
+    // （见 [mediaLinkTitle] 与 MediaLinkIconBuilder）。
+    //
+    // 这里过去把类型写成 🎵 / 🎬 / 📎 emoji 前缀，两个问题：字形随平台不同
+    // （Windows / Android / iOS 三套），且前缀属于"正文文案"，会一路漏进
+    // 附件预览页标题与下载文件名（Downloads/📎 spec.pdf）。
+    final String md;
+    if (kind == MessageMediaKind.image) {
+      md = '![$displayName]($safeUrl)';
+    } else {
+      md = '[$displayName]($safeUrl "$mediaLinkTitle")';
     }
     return '$md$trailing';
   }

@@ -564,7 +564,8 @@ class _ChatInlineMediaWidgetState extends ConsumerState<ChatInlineMediaWidget> {
 
 /// 聊天正文 markdown 链接点击统一处理（#57）。
 ///
-/// `MEDIA:` 标记会被 [ChatMediaParser] 转成 `[📎 name](url)` 形式的链接，
+/// `MEDIA:` 标记会被 [ChatMediaParser] 转成 `[name](url "hermes-media")` 形式的
+/// 链接（类型由链接前的矢量图标表达，见 MediaLinkIconBuilder），
 /// 但 flutter_markdown 默认 `onTapLink` 是 no-op——本函数接到三处
 /// MarkdownBody（用户气泡 / 助手气泡 / live 文本段）：
 /// - 图片 → 直接开 Lightbox 大图预览；

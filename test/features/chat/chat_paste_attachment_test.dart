@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hermes_ui/features/chat/widgets/media_kind_icons.dart';
 import 'package:hermes_ui/app/theme/status_colors.dart';
 import 'package:hermes_ui/core/api/api_client.dart';
 import 'package:hermes_ui/core/connections/connection_providers.dart';
@@ -144,7 +145,7 @@ void main() {
 
       // 不直接发送：无 startChat、无本地消息、无成功弹窗
       expect(chatApi.startChatCalls, 0);
-      expect(find.text('📎 screenshot.png'), findsNothing);
+      expect(find.byKey(kMediaLinkIconKey), findsNothing);
       expect(find.text('上传成功'), findsNothing);
 
       // 待发附件条出现（缩略图 + 文件名）

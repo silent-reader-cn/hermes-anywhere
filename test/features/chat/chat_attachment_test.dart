@@ -13,6 +13,7 @@ import 'package:hermes_ui/core/utils/accessibility.dart';
 import 'package:hermes_ui/core/utils/file_picker.dart';
 import 'package:hermes_ui/features/chat/chat_page.dart';
 import 'package:hermes_ui/features/chat/chat_providers.dart';
+import 'package:hermes_ui/features/chat/widgets/media_kind_icons.dart';
 import 'package:hermes_ui/features/settings/perf_monitor_settings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -61,7 +62,8 @@ void main() {
 
       // 不直接发送：无 startChat、无本地消息、无成功弹窗
       expect(chatApi.startChatCalls, 0);
-      expect(find.text('📎 report.pdf'), findsNothing);
+      // 正文里没有任何媒体链接图标（历史上这里断言的是带 📎 前缀的链接文案）
+      expect(find.byKey(kMediaLinkIconKey), findsNothing);
       expect(find.text('上传成功'), findsNothing);
 
       // 待发附件条出现（文档项）
