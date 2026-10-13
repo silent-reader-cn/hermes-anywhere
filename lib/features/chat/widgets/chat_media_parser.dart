@@ -150,12 +150,19 @@ class ChatMediaResolver {
   const ChatMediaResolver._();
 
   /// 将各种形式的媒体引用（http/https/data:image/file:///相对路径/绝对路径）解析为可访问的完整 URL。
+  ///
+  /// ⚠️ 入口先做一次**链接目标解码**：`package:markdown` 会把链接目标里的非 ASCII 字符
+  /// 规范化成百分号转义（`树懒.xlsx` → `%E6%A0%91…xlsx`），而本函数随后要
+  /// `Uri.encodeComponent` 拼 query——直接拼会把 `%E6` 编成 `%25E6`（**二次编码**），
+  /// 服务端解一次码后拿到字面量 `%E6%A0%91…xlsx`，找不到文件 ⇒ **404 not found**。
+  /// 实测：带中文名的引用（聊天 `onTapLink` 的 href、markdown 图片 URI）走这条链路必 404，
+  /// 纯 ASCII 名则正常——这正是「只有那几份中文名文件打不开」的原因。
   static String resolveMediaUrl(
     String rawUrl, {
     String? baseUrl,
     String? sessionId,
   }) {
-    final trimmed = rawUrl.trim();
+    final trimmed = _decodeLinkDestination(rawUrl.trim());
     if (trimmed.isEmpty) return '';
 
     // data:image/* 直接使用
@@ -181,7 +188,11 @@ class ChatMediaResolver {
           path = Uri.decodeFull(path);
         } catch (_) {}
       }
+      path = _normalizeDriveForm(path);
     }
+    // 裸 MSYS 风格盘符路径（`/d/projects/...`，agent 在 bash 里常这么写）：
+    // 不规整会被服务端按 cwd 解析成 `D:\d\projects\...` ⇒ 403。
+    path = _normalizeDriveForm(path);
 
     final normalizedBase = _normalizeBaseUrl(baseUrl);
     if (normalizedBase.isEmpty) return path;
@@ -200,6 +211,23 @@ class ChatMediaResolver {
     // 收到裸文件名必然 404。历史消息里 `[Attached files:]` 常只留文件名
     // （或服务端只回 name），此时只有 file/raw 能取到字节。
     final hasSeparator = path.contains('/') || path.contains(r'\');
+    // 绝对路径判定：`D:/…`、`D:\…`、UNC `//server/share`。
+    final isAbsolute =
+        RegExp(r'^[A-Za-z]:[\\/]').hasMatch(path) ||
+        path.startsWith('/') ||
+        path.startsWith(r'\');
+    // 含分隔符但**不是绝对路径** ⇒ 工作区/会话相对路径。`/api/media` 只认绝对
+    // 路径（相对路径会被服务端按 cwd 解析 → 403 Path not in allowed location），
+    // 只有 `/api/file/raw` 会按「会话工作区 → 会话上传收件箱」两级解析。
+    if (hasSeparator && !isAbsolute) {
+      if (sessionId != null && sessionId.isNotEmpty) {
+        return '$normalizedBase/api/file/raw'
+            '?session_id=${Uri.encodeComponent(sessionId)}'
+            '&path=${Uri.encodeComponent(path)}';
+      }
+      // 无会话 id 时退回旧行为（绝对根路径下的同名文件仍可能命中）。
+      return '$normalizedBase/api/media?path=${Uri.encodeComponent(path)}';
+    }
     if (!hasSeparator) {
       if (sessionId != null && sessionId.isNotEmpty) {
         return '$normalizedBase/api/file/raw'
@@ -217,6 +245,46 @@ class ChatMediaResolver {
       apiUrl += '&session_id=${Uri.encodeComponent(sessionId)}';
     }
     return apiUrl;
+  }
+
+  /// 把 MSYS / Windows 两种非原生盘符形态规整成 `D:/...`。
+  ///
+  /// 处理三形态（都实测会导致 `/api/media` 403 —— 服务端会把它按 cwd 解析）：
+  /// - `Uri.toFilePath()` 在 Windows 上把 `file:///d/projects/x` 变成 `\d\projects\x`；
+  /// - 裸 `file:///d/…` 解包后的 `/d/projects/x`（MSYS 风格，agent 在 bash 里常写）；
+  /// - 前导分隔符 + 单字母盘符的 `\d\projects\x`。
+  /// 仅在这些形态命中时改写，其余原样返回。
+  static String _normalizeDriveForm(String value) {
+    final msys = RegExp(r'^/([A-Za-z])/(.*)$').firstMatch(value);
+    if (msys != null) {
+      return '${msys.group(1)!.toUpperCase()}:/${msys.group(2)!}';
+    }
+    final win = RegExp(r'^[\\/]([A-Za-z])[\\/](.*)$')
+        .firstMatch(value);
+    if (win != null) {
+      final rest = win.group(2)!.replaceAll(r'\', '/');
+      return '${win.group(1)!.toUpperCase()}:/$rest';
+    }
+    return value;
+  }
+
+  /// 安全解码 markdown 链接目标里的百分号转义。
+  ///
+  /// 只处理含 `%` 的串；完整 URL / data URI 原样透传（不动别人的 query）；
+  /// 解码失败（文件名里真有非法转义的 `%`）时原样返回，**绝不抛异常**——
+  /// 本函数直接接在点击、预览与下载链路上。
+  static String _decodeLinkDestination(String value) {
+    if (!value.contains('%')) return value;
+    if (value.startsWith('http://') ||
+        value.startsWith('https://') ||
+        value.startsWith('data:')) {
+      return value;
+    }
+    try {
+      return Uri.decodeFull(value);
+    } catch (_) {
+      return value;
+    }
   }
 
   static String _normalizeBaseUrl(String? baseUrl) {
