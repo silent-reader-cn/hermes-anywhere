@@ -33,6 +33,31 @@ void main() {
       );
     });
 
+    test('sanitizeFileName 剥离装饰性 emoji（曾随链接文案漏进文件名）', () {
+      expect(DownloadSaveService.sanitizeFileName('📎 spec.pdf'), 'spec.pdf');
+      expect(
+        DownloadSaveService.sanitizeFileName('🎵 voice_note.mp3'),
+        'voice_note.mp3',
+      );
+      expect(
+        DownloadSaveService.sanitizeFileName('🎬 render.mp4'),
+        'render.mp4',
+      );
+      expect(
+        DownloadSaveService.sanitizeFileName('📄 报告 📎 终稿.docx'),
+        '报告 终稿.docx',
+      );
+      // 中文、日文、全角标点与常规符号不受影响
+      expect(
+        DownloadSaveService.sanitizeFileName('测试-报告（终稿）.pdf'),
+        '测试-报告（终稿）.pdf',
+      );
+      expect(
+        DownloadSaveService.sanitizeFileName('図面_ver2.xlsx'),
+        '図面_ver2.xlsx',
+      );
+    });
+
     test('sanitizeFileName 空文件名兜底', () {
       final emptyResult = DownloadSaveService.sanitizeFileName('   ');
       expect(emptyResult, startsWith('download_'));

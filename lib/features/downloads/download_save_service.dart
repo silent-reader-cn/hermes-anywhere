@@ -191,6 +191,17 @@ class DownloadSaveService {
     }
   }
 
+  /// 装饰性符号 / emoji 码点（不含中日韩文字、假名与全角标点）。
+  ///
+  /// 覆盖：符号与象形符号补充区（U+2600–U+27BF，含 ⚠ ✅）、杂项符号与箭头
+  /// （U+2B00–U+2BFF）、emoji 主体区（U+1F000–U+1FAFF，含 📎🎵🎬📄）、
+  /// 变体选择符（U+FE00–U+FE0F）与零宽连接符（U+200D）。
+  static final RegExp _decorativeSymbols = RegExp(
+    '[\\u{1F000}-\\u{1FAFF}\\u{2600}-\\u{27BF}\\u{2B00}-\\u{2BFF}'
+    '\\u{FE00}-\\u{FE0F}\\u{200D}]',
+    unicode: true,
+  );
+
   /// 清理文件名，移除非法字符与路径分隔符。
   static String sanitizeFileName(String rawName, {String? mimeType}) {
     var name = rawName.trim();
@@ -219,6 +230,13 @@ class DownloadSaveService {
 
     // 移除 Windows / 常见文件系统非法字符: < > : " / \ | ? * 以及控制字符
     name = name.replaceAll(RegExp(r'[\x00-\x1F\x7F<>:"/\\|?*]'), '_');
+
+    // 剥离装饰性符号 / emoji（📎🎵🎬 一类）：它们只该出现在界面上，不该进
+    // 文件名——界面文案一旦把它们带进来（历史上链接文案就是 "📎 spec.pdf"），
+    // 存到 Downloads 的就是这个带符号的名字。
+    name = name.replaceAll(_decorativeSymbols, '');
+    // 剥离后可能留下连续空格（"📎  报告.pdf"），合并成单个空格。
+    name = name.replaceAll(RegExp(r'[ \t]{2,}'), ' ');
 
     // 移除前导与尾随的点号与空白
     name = name.replaceAll(RegExp(r'^[.\s]+|[.\s]+$'), '');
