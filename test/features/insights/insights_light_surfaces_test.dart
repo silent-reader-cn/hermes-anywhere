@@ -103,13 +103,22 @@ void main() {
           );
           final context = tester.element(find.byType(CupertinoPageScaffold));
           final theme = CupertinoTheme.of(context);
+          // 暗色页底色令牌 = [LightSurfaces.darkPage]（2026-10-14 #199：此前主题层
+          // 把它硬编码成 #000000，导致用户在设置里选的深色页底色对宽屏外壳 /
+          // 聊天顶栏 / 正文不生效 —— 同一窗口两套底色）。未覆盖时该令牌是原生
+          // `systemGroupedBackground`，保留动态色语义（高对比度档专属变体），
+          // 故断言取同源的 resolve 值，而不是再钉一个普通 Color 常量。
+          final darkPageToken = CupertinoDynamicColor.resolve(
+            LightSurfaces.darkPage,
+            context,
+          );
           expect(
             theme.scaffoldBackgroundColor,
-            isLight ? LightSurfaces.page : const Color(0xFF000000),
+            isLight ? LightSurfaces.page : darkPageToken,
           );
           expect(
             theme.barBackgroundColor,
-            isLight ? LightSurfaces.page : const Color(0xFF000000),
+            isLight ? LightSurfaces.page : darkPageToken,
           );
           final sections = tester.widgetList<CupertinoListSection>(
             find.byType(CupertinoListSection),
