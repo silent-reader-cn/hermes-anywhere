@@ -1739,6 +1739,14 @@ class AppLocalizations {
   String get surfaceDarkDeeper => isEnglish ? 'Deeper' : '更深';
   String get surfaceDarkWarm => isEnglish ? 'Warm' : '暖';
 
+  // 侧栏槽（v6，2026-10-14）：宽屏左侧栏的底色，比右侧内容区抬一个感知台阶。
+  // 「自动」是推荐档 —— 槽由页底色派生，页底色调档时槽跟着走，用户不必
+  // 在两处各配一次；括号里的「自动，推荐」是选项标签本身的一部分。
+  String get surfaceSidebarGroup => isEnglish ? 'Sidebar surface' : '侧栏槽';
+  String get surfaceSidebarAuto =>
+      isEnglish ? 'Follow page (auto)' : '跟随页底色（自动，推荐）';
+  String get surfaceSidebarCustom => isEnglish ? 'Custom' : '自定义';
+
   String get languageSectionTitle => isEnglish ? 'Language' : '语言';
   String get languageAuto => isEnglish ? 'Auto' : '自动';
   String get languageZh => '中文';
