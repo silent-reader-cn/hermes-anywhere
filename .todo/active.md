@@ -82,6 +82,7 @@ static const Color kDefaultDarkSidebarHighContrast = Color(0xFF262626);
 - 效果图：`.shots/sidebar-slab/` 7 张 1400×900 真渲染（A 深色默认 / B 深色 deeper / C 浅色默认 / D 浅色暖档 / E 深色自定义下限 / F 浅色自定义反向 / G 槽=页底色·改造前对照），像素实测与派生表逐档吻合。
 - **全量测试连坐挖出并已修的真缺陷（AA）**：浅色槽比页底色更深（`#E6E6E6` vs `#F2F2F2`），而 `textSecondary`（`#6A6A6F`）的明度是按页底色 4.838:1 定的 —— 直接放到槽上只有 **4.31:1，低于正文 AA 4.5**，命中的是**直接坐在槽面上**的侧栏分组标题（「置顶」）与行内相对时间（宽屏列表是朴素行、无卡片）。修法：新增 `LightSurfaces.sidebarSecondary`（对生效槽色二分压暗、只动明度），并接入分组标题 + `_SessionRow`（新增 `sidebarSlot` 透传）；新增守卫不变量④逐档守 4.5。深色态实测 5.5:1 本已达标，不需要该令牌。
 - 连带更新既有断言的 3 份测试（insights / kanban / session_list）：暗色页底色令牌已从硬编码 `#000000` 换成 `LightSurfaces.darkPage`（动态色语义），故断言改取同源 resolve 值；侧栏模式下的「生效面」断言改取槽色。
+- **打包与推送（2026-10-14）**：版本升 `0.1.77+83`（`9bcf05f`）并推送 main（远端回读 `9bcf05f5377`，**CI run 38525653238 全绿 8/8 jobs**）；Windows 安装包 `build/installer/HermesUI-0.1.77-x64-setup.exe`（45,848,075 B，sha256 `d7235656…12a`），构建产物 exe sha256 `ee3340a7…f34`。两处环境型拦路已解决并回写技能：① C1083 根因＝**陈旧 CMake 配置**（`CMakeCache.txt` 里搜不到两插件名即定性）⇒ 只删 `build/windows` 重配置；② `flutter build windows` 每次强制在线 `pub get`，`pub.dev` 被掐时用 `pub get --offline` + `build --no-pub`（**别用镜像环境变量**，会改写 `pubspec.lock` 的 hosted url）。冒烟因主人应用在跑（单实例保护）**SKIPPED、记为未取证**，替代取证＝与已装版插件注册符号同态（正对照三插件两版都在，`irondash`/`super_native` 两版同为无）。**发布（tag + gh release）与本机升级未做**，属独立授权项。
 - 遗留（不影响上线）：浅色 context 无法解析深色槽的动态色，故高对比度模式下「切自定义」的预填值是 `#1B1B1B`（而非 `#262626`），已在代码注释标注；未做高对比度分支。自定义槽为任意 HEX 时的可读性由用户自担（与页底色自定义同口径）。
 
 ### 验收
