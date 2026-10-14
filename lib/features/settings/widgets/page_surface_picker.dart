@@ -60,6 +60,14 @@ class _PageSurfaceSheetState extends ConsumerState<_PageSurfaceSheet> {
   late DarkSurfacePreset _darkPreset;
   late final TextEditingController _lightCtrl;
   late final TextEditingController _darkCtrl;
+  late bool _sidebarFollowsPage;
+
+  /// 明暗两态各有一个槽输入框，界面上只显示当前态那一个。
+  ///
+  /// 不共用单框：槽是分态生效的，浅色态填的值若被当成深色槽落盘，切到深色
+  /// 会得到一个与页底色无关的灰。
+  late final TextEditingController _lightSidebarCtrl;
+  late final TextEditingController _darkSidebarCtrl;
 
   @override
   void initState() {
@@ -69,12 +77,21 @@ class _PageSurfaceSheetState extends ConsumerState<_PageSurfaceSheet> {
     _darkPreset = current.darkPreset;
     _lightCtrl = TextEditingController(text: current.lightCustomHex);
     _darkCtrl = TextEditingController(text: current.darkCustomHex);
+    _sidebarFollowsPage = current.sidebarFollowsPage;
+    _lightSidebarCtrl = TextEditingController(
+      text: current.lightSidebarCustomHex,
+    );
+    _darkSidebarCtrl = TextEditingController(
+      text: current.darkSidebarCustomHex,
+    );
   }
 
   @override
   void dispose() {
     _lightCtrl.dispose();
     _darkCtrl.dispose();
+    _lightSidebarCtrl.dispose();
+    _darkSidebarCtrl.dispose();
     super.dispose();
   }
 
@@ -90,6 +107,39 @@ class _PageSurfaceSheetState extends ConsumerState<_PageSurfaceSheet> {
     return _darkPreset.color;
   }
 
+  /// 草稿的浅色槽「自动档」值（= 由草稿页底色派生）。
+  Color get _draftAutoLightSidebar =>
+      LightSurfaces.sidebarFor(_draftLightPage, dark: false);
+
+  /// 草稿的深色槽「自动档」值（= 由草稿深色页底色派生）。
+  ///
+  /// 深色页底色未覆盖时**不能**拿 `CupertinoColors.systemGroupedBackground`
+  /// 去 resolveFrom(context)：浅色态下它解析出的是浅色值，会把深色槽算成灰白。
+  /// 未覆盖时原生深色分组背景（#000000）的派生值就是
+  /// [LightSurfaces.kDefaultDarkSidebar]，直接取它，两侧口径一致。
+  Color get _draftAutoDarkSidebar {
+    final page = _draftDarkPage;
+    return page == null
+        ? LightSurfaces.kDefaultDarkSidebar
+        : LightSurfaces.sidebarFor(page, dark: true);
+  }
+
+  /// 自定义位色块要显示的值：输入合法就显示输入值，否则显示派生值
+  /// （与落码「非法回落自动档」同口径，色块不会空成一块白）。
+  Color _customSidebarSwatch(bool dark) {
+    final ctrl = dark ? _darkSidebarCtrl : _lightSidebarCtrl;
+    return parseHexColor(ctrl.text) ??
+        (dark ? _draftAutoDarkSidebar : _draftAutoLightSidebar);
+  }
+
+  /// 当前明暗态下生效的草稿槽色（自动档 = 派生；自定义 = 输入值）。
+  Color _draftSidebar(bool dark) {
+    if (_sidebarFollowsPage) {
+      return dark ? _draftAutoDarkSidebar : _draftAutoLightSidebar;
+    }
+    return _customSidebarSwatch(dark);
+  }
+
   Future<void> _apply() async {
     await ref
         .read(pageSurfaceProvider.notifier)
@@ -98,6 +148,9 @@ class _PageSurfaceSheetState extends ConsumerState<_PageSurfaceSheet> {
           lightCustomHex: _lightCtrl.text,
           darkPreset: _darkPreset,
           darkCustomHex: _darkCtrl.text,
+          sidebarFollowsPage: _sidebarFollowsPage,
+          lightSidebarCustomHex: _lightSidebarCtrl.text,
+          darkSidebarCustomHex: _darkSidebarCtrl.text,
         );
     if (mounted) Navigator.of(context).pop();
   }
@@ -109,6 +162,26 @@ class _PageSurfaceSheetState extends ConsumerState<_PageSurfaceSheet> {
       _darkPreset = defaults.darkPreset;
       _lightCtrl.text = PageSurfaceState.defaultLightCustomHex;
       _darkCtrl.text = PageSurfaceState.defaultDarkCustomHex;
+      _sidebarFollowsPage = defaults.sidebarFollowsPage;
+      _lightSidebarCtrl.text = PageSurfaceState.defaultLightSidebarCustomHex;
+      _darkSidebarCtrl.text = PageSurfaceState.defaultDarkSidebarCustomHex;
+    });
+  }
+
+  /// 槽切回「自动」：只翻开关，输入框里的值留着 —— 用户来回试色不丢输入。
+  void _selectSidebarAuto() => setState(() => _sidebarFollowsPage = true);
+
+  /// 槽切到「自定义」：把输入框预填成**当前派生值**。
+  ///
+  /// 这是「切到自定义这一步本身不改变像素」的实现：预填值取自当前草稿页底色
+  /// 的派生结果，所以点下去前后槽色逐字节相同（页底色「切到自定义」同口径）。
+  /// 两态都预填：只填可见的那一个，另一态在切主题时会露出一个凭空的值。
+  void _selectSidebarCustom() {
+    if (!_sidebarFollowsPage) return;
+    setState(() {
+      _sidebarFollowsPage = false;
+      _lightSidebarCtrl.text = hexFromColor(_draftAutoLightSidebar);
+      _darkSidebarCtrl.text = hexFromColor(_draftAutoDarkSidebar);
     });
   }
 
@@ -117,9 +190,14 @@ class _PageSurfaceSheetState extends ConsumerState<_PageSurfaceSheet> {
     final l10n = AppLocalizations.of(context);
     final isLightMode =
         CupertinoTheme.brightnessOf(context) == Brightness.light;
+    final isDarkMode = !isLightMode;
     final previewPage = isLightMode
         ? _draftLightPage
-        : (_draftDarkPage ?? CupertinoColors.systemGroupedBackground.resolveFrom(context));
+        : (_draftDarkPage ??
+              CupertinoColors.systemGroupedBackground.resolveFrom(context));
+    // 预览里的槽取**当前态**的草稿值：浅色态看浅色槽，深色态看深色槽。
+    final previewSidebar = _draftSidebar(isDarkMode);
+    final sidebarCtrl = isDarkMode ? _darkSidebarCtrl : _lightSidebarCtrl;
 
     final body = Padding(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
@@ -135,7 +213,7 @@ class _PageSurfaceSheetState extends ConsumerState<_PageSurfaceSheet> {
             ),
           ),
           const SizedBox(height: 14),
-          _preview(l10n, previewPage),
+          _preview(l10n, previewPage, previewSidebar, dark: isDarkMode),
           const SizedBox(height: 18),
           _groupTitle(l10n.surfaceGroupLight),
           const SizedBox(height: 10),
@@ -232,6 +310,74 @@ class _PageSurfaceSheetState extends ConsumerState<_PageSurfaceSheet> {
               onChanged: () => setState(() {}),
             ),
           ],
+          const SizedBox(height: 18),
+          _groupTitle(l10n.surfaceSidebarGroup),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _sidebarOption(
+                  key: const ValueKey('surface-sidebar-auto'),
+                  label: l10n.surfaceSidebarAuto,
+                  onTap: _selectSidebarAuto,
+                  swatch: _Swatch(
+                    size: 40,
+                    color: isDarkMode
+                        ? _draftAutoDarkSidebar
+                        : _draftAutoLightSidebar,
+                    selected: _sidebarFollowsPage,
+                    onTap: _selectSidebarAuto,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _sidebarOption(
+                  key: const ValueKey('surface-sidebar-custom'),
+                  label: l10n.surfaceSidebarCustom,
+                  onTap: _selectSidebarCustom,
+                  swatch: _Swatch(
+                    size: 40,
+                    color: _customSidebarSwatch(isDarkMode),
+                    selected: !_sidebarFollowsPage,
+                    isCustomEntry: true,
+                    customEntryActive: !_sidebarFollowsPage,
+                    onTap: _selectSidebarCustom,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // 当前值行在自动档也给出衍生值：自动档没有输入框，用户想核对
+          // 「槽现在到底是什么色」只有这一处。
+          _currentLine(
+            l10n,
+            _sidebarFollowsPage
+                ? l10n.surfaceSidebarAuto
+                : l10n.surfaceSidebarCustom,
+            hexFromColor(previewSidebar),
+          ),
+          if (!_sidebarFollowsPage) ...[
+            const SizedBox(height: 8),
+            _hexField(
+              key: const ValueKey('surface-sidebar-hex'),
+              controller: sidebarCtrl,
+              invalid: parseHexColor(sidebarCtrl.text) == null,
+              l10n: l10n,
+            ),
+            const SizedBox(height: 6),
+            _hslSliders(
+              key: const ValueKey('surface-sidebar-sliders'),
+              controller: sidebarCtrl,
+              l10n: l10n,
+              // 槽在深色态本就是暗色（#1B1B1B 的 HSL 明度只有 0.106），
+              // 页底色那套 0.60–1.00 的下限会把滑杆顶死在最小值上。
+              minLightness: 0,
+              onChanged: () => setState(() {}),
+            ),
+          ],
           const SizedBox(height: 20),
           Row(
             children: [
@@ -261,6 +407,9 @@ class _PageSurfaceSheetState extends ConsumerState<_PageSurfaceSheet> {
       ),
     );
 
+    // 内容要能滚：弹层是贴底/居中的定高形态，而内容会随档位长高 —— 实测
+    // 自动档 505、三组都切自定义 850（420 宽）；矮窗（640 高）差 210 才能
+    // 装下，844 高的手机屏也差 6。不加滚动就会把「应用」和槽组顶出屏幕。
     if (widget.wide) {
       return Center(
         child: ConstrainedBox(
@@ -270,7 +419,7 @@ class _PageSurfaceSheetState extends ConsumerState<_PageSurfaceSheet> {
               color: CupertinoColors.systemBackground.resolveFrom(context),
               borderRadius: const BorderRadius.all(Radius.circular(14)),
             ),
-            child: body,
+            child: SingleChildScrollView(child: body),
           ),
         ),
       );
@@ -284,43 +433,128 @@ class _PageSurfaceSheetState extends ConsumerState<_PageSurfaceSheet> {
             top: Radius.circular(14),
           ),
         ),
-        child: SafeArea(top: false, child: body),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(child: body),
+        ),
       ),
     );
   }
 
-  /// 草稿预览：页底色 + 一张白卡，实时反映选择（不必整页生效就能看效果）。
-  Widget _preview(AppLocalizations l10n, Color page) {
+  /// 草稿预览：左竖条 = 侧栏槽，右侧 = 页底色 + 一张卡，中间一条 0.5pt
+  /// 分栏线（三段都是真色块，不是灰占位）。
+  ///
+  /// 之所以要画槽：宽屏两栏的分区感全靠「槽比内容区差一个台阶」，只画页底色
+  /// 的预览看不出这件事，用户改完才有感觉就晚了。
+  Widget _preview(
+    AppLocalizations l10n,
+    Color page,
+    Color sidebar, {
+    required bool dark,
+  }) {
     final border = LightSurfaces.borderFor(page);
+    // 线族按主题解析：浅色用页底色派生的描边（与全页线族同源，v3 拍板），
+    // 深色用 Cupertino 分隔线 —— 深色下沿用浅色描边会在黑底上画出一圈亮框。
+    final hairline = LightSurfaces.resolve(
+      context,
+      border,
+      dark: CupertinoColors.separator,
+    );
+    const radius = 10.0;
     return Container(
       key: const ValueKey('surface-preview'),
       height: 62,
       width: double.infinity,
       decoration: BoxDecoration(
         color: page,
-        borderRadius: const BorderRadius.all(Radius.circular(10)),
-        border: Border.all(color: border, width: 0.5),
+        borderRadius: const BorderRadius.all(Radius.circular(radius)),
+        border: Border.all(color: hairline, width: 0.5),
       ),
-      alignment: Alignment.center,
-      child: Container(
-        width: 150,
-        height: 34,
-        decoration: BoxDecoration(
-          color: LightSurfaces.card,
-          borderRadius: const BorderRadius.all(Radius.circular(7)),
-          border: Border.all(color: border, width: 0.5),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          l10n.surfacePreviewLabel,
-          style: const TextStyle(
-            fontSize: kFontCaption,
-            color: LightSurfaces.textSecondary,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 槽竖条：只取左侧圆角，半径减去外层描边宽度，与外框内缘对齐。
+          Container(
+            key: const ValueKey('surface-preview-sidebar'),
+            width: 56,
+            decoration: BoxDecoration(
+              color: sidebar,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(radius - 0.5),
+                bottomLeft: Radius.circular(radius - 0.5),
+              ),
+            ),
           ),
-        ),
+          // 分栏线：真的 0.5pt 线，不是两块色之间的硬边。
+          Container(width: 0.5, color: hairline),
+          Expanded(
+            child: Center(
+              child: Container(
+                width: 150,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: LightSurfaces.resolve(
+                    context,
+                    LightSurfaces.card,
+                    dark: CupertinoColors.secondarySystemGroupedBackground,
+                  ),
+                  borderRadius: const BorderRadius.all(Radius.circular(7)),
+                  border: Border.all(color: hairline, width: 0.5),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  l10n.surfacePreviewLabel,
+                  style: TextStyle(
+                    fontSize: kFontCaption,
+                    color: LightSurfaces.resolve(
+                      context,
+                      LightSurfaces.textSecondary,
+                      dark: CupertinoColors.secondaryLabel,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
+
+  /// 侧栏槽的一个选项位：色块 + 选项名，整块可点。
+  ///
+  /// 只有排布是新的，色块本体仍用 [_Swatch]（勾选、「+」入口、选中描边都在
+  /// 那里），避免第二套语义相同的色块控件各自漂移；整块套一层 GestureDetector
+  /// 是因为选项名占的宽度比色块大得多 —— 只让色块可点的话，点在名字上是死的。
+  Widget _sidebarOption({
+    required Key key,
+    required String label,
+    required Widget swatch,
+    required VoidCallback onTap,
+  }) => GestureDetector(
+    key: key,
+    behavior: HitTestBehavior.opaque,
+    onTap: onTap,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        swatch,
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: kFontCaption,
+            color: LightSurfaces.resolve(
+              context,
+              LightSurfaces.textSecondary,
+              dark: CupertinoColors.secondaryLabel,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 
   Widget _groupTitle(String label) => Text(
     label,
@@ -373,9 +607,10 @@ class _PageSurfaceSheetState extends ConsumerState<_PageSurfaceSheet> {
 
   /// 自定义色的**色相 / 明度**滑杆（主人 2026-10-06 追加的易用入口）。
   ///
-  /// 只调 H 与 L，饱和度沿用当前值。明度给 **0.60–1.00** 区间 —— 页面底色
+  /// 只调 H 与 L，饱和度沿用当前值。明度默认给 **0.60–1.00** —— 页面底色
   /// 本质是浅色面，更暗的取值在界面上必然读不了字；需要极暗色仍可用 HEX
   /// 精确输入（输入框不设限，滑杆只是"顺手"的入口，不是门禁）。
+  /// 侧栏槽传 [minLightness]=0：槽在深色态本来就是暗色。
   ///
   /// 滑杆是自绘的：CupertinoSlider 的轨道（activeColor + tertiarySystemFill）
   /// 会盖住渐变轨，用它就画不出「彩虹条 / 灰阶条」这种带语义的轨道。
@@ -384,6 +619,8 @@ class _PageSurfaceSheetState extends ConsumerState<_PageSurfaceSheet> {
     required TextEditingController controller,
     required AppLocalizations l10n,
     required VoidCallback onChanged,
+    double minLightness = 0.60,
+    double maxLightness = 1.0,
   }) {
     final current =
         parseHexColor(controller.text) ?? PageSurfacePreset.neutral.color!;
@@ -436,7 +673,8 @@ class _PageSurfaceSheetState extends ConsumerState<_PageSurfaceSheet> {
                 ).toColor(),
             ],
           ),
-            onChanged: (v) => apply(v, hsl.lightness.clamp(0.60, 1.0)),
+            onChanged: (v) =>
+                apply(v, hsl.lightness.clamp(minLightness, maxLightness)),
           ),
         ),
         const SizedBox(height: 2),
@@ -444,13 +682,23 @@ class _PageSurfaceSheetState extends ConsumerState<_PageSurfaceSheet> {
           l10n.surfaceLightness,
           _gradientSlider(
             key: const ValueKey('surface-lightness-slider'),
-            value: hsl.lightness.clamp(0.60, 1.0),
-            min: 0.60,
-            max: 1.0,
+            value: hsl.lightness.clamp(minLightness, maxLightness),
+            min: minLightness,
+            max: maxLightness,
             gradient: LinearGradient(
             colors: [
-              HSLColor.fromAHSL(1, hsl.hue, hsl.saturation, 0.60).toColor(),
-              HSLColor.fromAHSL(1, hsl.hue, hsl.saturation, 1.0).toColor(),
+              HSLColor.fromAHSL(
+                1,
+                hsl.hue,
+                hsl.saturation,
+                minLightness,
+              ).toColor(),
+              HSLColor.fromAHSL(
+                1,
+                hsl.hue,
+                hsl.saturation,
+                maxLightness,
+              ).toColor(),
             ],
           ),
             onChanged: (v) => apply(hsl.hue, v),

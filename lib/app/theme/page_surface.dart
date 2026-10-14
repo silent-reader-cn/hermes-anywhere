@@ -73,6 +73,9 @@ class PageSurfaceState {
     this.lightCustomHex = defaultLightCustomHex,
     this.darkPreset = DarkSurfacePreset.system,
     this.darkCustomHex = defaultDarkCustomHex,
+    this.sidebarFollowsPage = true,
+    this.lightSidebarCustomHex = defaultLightSidebarCustomHex,
+    this.darkSidebarCustomHex = defaultDarkSidebarCustomHex,
   });
 
   /// 默认自定值（用户切到「自定义」但还没输入时的初值）。取默认档色，
@@ -80,10 +83,29 @@ class PageSurfaceState {
   static const String defaultLightCustomHex = '#F2F2F2';
   static const String defaultDarkCustomHex = '#1C1C1E';
 
+  /// 侧栏槽的默认自定值 = **默认页底色下的派生值**（#F2F2F2 → #E6E6E6、
+  /// #000000 → #1B1B1B，见 `LightSurfaces.sidebarFor`）。与页底色同一口径：
+  /// 让「切到自定义」这一步本身不改变像素，用户落到输入框里的是当前的槽色，
+  /// 而不是某个凭空冒出来的值。
+  static const String defaultLightSidebarCustomHex = '#E6E6E6';
+  static const String defaultDarkSidebarCustomHex = '#1B1B1B';
+
   final PageSurfacePreset lightPreset;
   final String lightCustomHex;
   final DarkSurfacePreset darkPreset;
   final String darkCustomHex;
+
+  /// 侧栏槽是否跟随页底色派生（默认 true = 自动档）。
+  ///
+  /// 自动档不存色值、只存这个开关：页底色调档时槽跟着重新派生，避免
+  /// 「换了页底色、槽还停在旧派生值」的分家。
+  final bool sidebarFollowsPage;
+
+  /// 自定义浅色槽的输入值；[sidebarFollowsPage] 为 true 时不生效。
+  final String lightSidebarCustomHex;
+
+  /// 自定义深色槽的输入值；[sidebarFollowsPage] 为 true 时不生效。
+  final String darkSidebarCustomHex;
 
   /// 浅色模式生效的页底色（[lightPreset] 为 custom 时取输入值；
   /// 输入非法则回落到 [PageSurfacePreset.neutral]）。
@@ -102,6 +124,17 @@ class PageSurfaceState {
     return darkPreset.color;
   }
 
+  /// 生效的自定义浅色槽；`null` = 走自动档（由页底色派生）。
+  ///
+  /// 与 [darkPage] 同一口径：切到「自定义」但输入非法时回落 `null`，避免把
+  /// 非法值灌进全局令牌（槽会退回跟随页底色的派生值，而不是变黑或变透明）。
+  Color? get lightSidebar =>
+      sidebarFollowsPage ? null : parseHexColor(lightSidebarCustomHex);
+
+  /// 生效的自定义深色槽；`null` = 走自动档（由页底色派生）。
+  Color? get darkSidebar =>
+      sidebarFollowsPage ? null : parseHexColor(darkSidebarCustomHex);
+
   /// 浅色自定义输入是否非法（供设置页就地提示，不阻断其它档位）。
   bool get hasInvalidLightHex =>
       lightPreset.isCustom && parseHexColor(lightCustomHex) == null;
@@ -114,11 +147,18 @@ class PageSurfaceState {
     String? lightCustomHex,
     DarkSurfacePreset? darkPreset,
     String? darkCustomHex,
+    bool? sidebarFollowsPage,
+    String? lightSidebarCustomHex,
+    String? darkSidebarCustomHex,
   }) => PageSurfaceState(
     lightPreset: lightPreset ?? this.lightPreset,
     lightCustomHex: lightCustomHex ?? this.lightCustomHex,
     darkPreset: darkPreset ?? this.darkPreset,
     darkCustomHex: darkCustomHex ?? this.darkCustomHex,
+    sidebarFollowsPage: sidebarFollowsPage ?? this.sidebarFollowsPage,
+    lightSidebarCustomHex:
+        lightSidebarCustomHex ?? this.lightSidebarCustomHex,
+    darkSidebarCustomHex: darkSidebarCustomHex ?? this.darkSidebarCustomHex,
   );
 
   @override
@@ -127,11 +167,21 @@ class PageSurfaceState {
       other.lightPreset == lightPreset &&
       other.lightCustomHex == lightCustomHex &&
       other.darkPreset == darkPreset &&
-      other.darkCustomHex == darkCustomHex;
+      other.darkCustomHex == darkCustomHex &&
+      other.sidebarFollowsPage == sidebarFollowsPage &&
+      other.lightSidebarCustomHex == lightSidebarCustomHex &&
+      other.darkSidebarCustomHex == darkSidebarCustomHex;
 
   @override
-  int get hashCode =>
-      Object.hash(lightPreset, lightCustomHex, darkPreset, darkCustomHex);
+  int get hashCode => Object.hash(
+    lightPreset,
+    lightCustomHex,
+    darkPreset,
+    darkCustomHex,
+    sidebarFollowsPage,
+    lightSidebarCustomHex,
+    darkSidebarCustomHex,
+  );
 }
 
 /// 解析 `#RRGGBB` / `RRGGBB` / `#RGB` / `RGB` 形式的十六进制颜色。
@@ -174,6 +224,12 @@ class PageSurfaceController extends Notifier<PageSurfaceState> {
   static const String darkKey = 'app_page_surface_dark';
   static const String darkCustomKey = 'app_page_surface_dark_custom';
 
+  /// 侧栏槽的三个键（2026-10-14）。与页底色同前缀同风格；「未写入」即自动档，
+  /// 因此老版本用户的升级路径天然是「槽跟随页底色」，不需要迁移代码。
+  static const String sidebarFollowsKey = 'app_sidebar_follows_page';
+  static const String sidebarLightCustomKey = 'app_sidebar_light_custom';
+  static const String sidebarDarkCustomKey = 'app_sidebar_dark_custom';
+
   /// 用户是否已在本进程内主动改过选择。
   ///
   /// [_load] 是 unawaited 的：若它在用户改色**之后**才完成，用磁盘旧值覆盖会把
@@ -195,6 +251,11 @@ class PageSurfaceController extends Notifier<PageSurfaceState> {
     LightSurfaces.applyUserSurface(
       light: state.lightPage,
       dark: state.darkPage,
+      // 槽的三项必须一起灌：漏掉任一项，侧栏会按自动档渲染，而选择器里显示的
+      // 是自定义值 —— 预览与真机两处口径不一致，用户会以为设置没生效。
+      sidebarFollowsPage: state.sidebarFollowsPage,
+      lightSidebar: state.lightSidebar,
+      darkSidebar: state.darkSidebar,
     );
   }
 
@@ -219,6 +280,13 @@ class PageSurfaceController extends Notifier<PageSurfaceState> {
       darkCustomHex:
           prefs.getString(darkCustomKey) ??
           PageSurfaceState.defaultDarkCustomHex,
+      sidebarFollowsPage: prefs.getBool(sidebarFollowsKey) ?? true,
+      lightSidebarCustomHex:
+          prefs.getString(sidebarLightCustomKey) ??
+          PageSurfaceState.defaultLightSidebarCustomHex,
+      darkSidebarCustomHex:
+          prefs.getString(sidebarDarkCustomKey) ??
+          PageSurfaceState.defaultDarkSidebarCustomHex,
     );
     state = next;
     _apply(next);
@@ -230,17 +298,27 @@ class PageSurfaceController extends Notifier<PageSurfaceState> {
   /// 一次性应用选择器里的全部改动。
   ///
   /// 逐项调 setter 会触发多次状态变更 ⇒ 多次整树重建；选择器「应用」走这里。
+  /// 槽的三项可选（缺省 = 保留当前值）：页底色的既有调用点不必知道槽的存在，
+  /// 而选择器一次性把三项都带上，避免中间态闪一次色。
   Future<void> applySelection({
     required PageSurfacePreset lightPreset,
     required String lightCustomHex,
     required DarkSurfacePreset darkPreset,
     required String darkCustomHex,
+    bool? sidebarFollowsPage,
+    String? lightSidebarCustomHex,
+    String? darkSidebarCustomHex,
   }) => _commit(
     PageSurfaceState(
       lightPreset: lightPreset,
       lightCustomHex: lightCustomHex,
       darkPreset: darkPreset,
       darkCustomHex: darkCustomHex,
+      sidebarFollowsPage: sidebarFollowsPage ?? state.sidebarFollowsPage,
+      lightSidebarCustomHex:
+          lightSidebarCustomHex ?? state.lightSidebarCustomHex,
+      darkSidebarCustomHex:
+          darkSidebarCustomHex ?? state.darkSidebarCustomHex,
     ),
   );
 
@@ -253,7 +331,19 @@ class PageSurfaceController extends Notifier<PageSurfaceState> {
   Future<void> setDarkCustomHex(String hex) =>
       _commit(state.copyWith(darkCustomHex: hex));
 
-  /// 恢复默认（浅色 = 中性同深；深色 = 跟随系统）。
+  /// 侧栏槽切到自动档（true）/ 自定义（false）。
+  ///
+  /// 切回自动只翻开关、**不擦**自定义色值：用户来回试色时手上那组值还在。
+  Future<void> setSidebarFollowsPage(bool value) =>
+      _commit(state.copyWith(sidebarFollowsPage: value));
+
+  Future<void> setLightSidebarCustomHex(String hex) =>
+      _commit(state.copyWith(lightSidebarCustomHex: hex));
+
+  Future<void> setDarkSidebarCustomHex(String hex) =>
+      _commit(state.copyWith(darkSidebarCustomHex: hex));
+
+  /// 恢复默认（浅色 = 中性同深；深色 = 跟随系统；侧栏槽 = 跟随页底色）。
   Future<void> resetToDefaults() => _commit(const PageSurfaceState());
 
   Future<void> _commit(PageSurfaceState next) async {
@@ -265,5 +355,8 @@ class PageSurfaceController extends Notifier<PageSurfaceState> {
     await prefs.setString(lightCustomKey, next.lightCustomHex);
     await prefs.setString(darkKey, next.darkPreset.name);
     await prefs.setString(darkCustomKey, next.darkCustomHex);
+    await prefs.setBool(sidebarFollowsKey, next.sidebarFollowsPage);
+    await prefs.setString(sidebarLightCustomKey, next.lightSidebarCustomHex);
+    await prefs.setString(sidebarDarkCustomKey, next.darkSidebarCustomHex);
   }
 }
