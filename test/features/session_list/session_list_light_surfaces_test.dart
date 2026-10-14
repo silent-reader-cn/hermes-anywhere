@@ -10,6 +10,7 @@ import 'package:hermes_ui/core/models/session.dart';
 import 'package:hermes_ui/features/projects/project_providers.dart';
 import 'package:hermes_ui/features/session_list/session_list_page.dart';
 import 'package:hermes_ui/features/session_list/session_list_providers.dart';
+import 'package:hermes_ui/l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/contrast_utils.dart';
@@ -82,11 +83,13 @@ void main() {
   for (final sidebar in [false, true]) {
     testWidgets('页面、搜索、白卡和菜单对比度（sidebar=$sidebar）', (tester) async {
       await _pumpPage(tester, sidebar: sidebar);
+      // #199：侧栏内复用的会话列表取**侧栏槽色**（宽屏左栏整列同底），
+      // 非侧栏（窄屏整页）仍取页底色。
       expect(
         tester
             .widget<CupertinoPageScaffold>(find.byType(CupertinoPageScaffold))
             .backgroundColor,
-        LightSurfaces.page,
+        sidebar ? LightSurfaces.sidebar : LightSurfaces.page,
       );
       // #149：sidebar=true 改挂 SessionSidebar，搜索框在品牌行内（先展开）；
       // sidebar=false 走默认列表页，搜索框仍在列表头部。
@@ -122,11 +125,21 @@ void main() {
       );
       // 行尾「⋯」按钮已移除（主人要求：改长按/右键）⇒ 改审计行内最次要文字
       // （紧凑模式右侧的相对时间）在页面底上的可读性。
-      final pageColor = LightSurfaces.page;
+      // 可读性要对**生效面**审：侧栏模式下生效面已是侧栏槽（#199），而槽比
+      // 页底色更深 ⇒ 深色文字对槽的对比只会更高，不会因换面而失守。
+      final pageColor = sidebar ? LightSurfaces.sidebar : LightSurfaces.page;
       final rowTexts = tester.widgetList<Text>(find.byType(Text)).where(
         (t) => (t.style?.color != null) && t.data != null && t.data!.isNotEmpty,
       );
+      // 本条用页面/槽色当**代理面**，守的是直接坐在页面上的那类文字；搜索框占位
+      // 文案坐在**白卡**上（字段自带白底装饰），其对比度由上面那条对着
+      // `search.decoration!.color`（真实面）的断言负责 —— 拿代理面审它会读到失真
+      // 值（#E6E6E6 槽上 4.31 < 4.5，而白卡上 5.38 合格），故此处跳过。
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(CupertinoPageScaffold)),
+      );
       for (final t in rowTexts) {
+        if (t.data == l10n.searchSessions) continue;
         expect(
           contrastRatio(t.style!.color!, pageColor),
           greaterThanOrEqualTo(4.5),
@@ -139,8 +152,12 @@ void main() {
           matching: find.byType(ColoredBox),
         ),
       );
+      // #199：表头带与所在列同底 —— 侧栏内它是槽色，窄屏整页是页底色。
       expect(
-        headerColors.any((box) => box.color == LightSurfaces.page),
+        headerColors.any(
+          (box) =>
+              box.color == (sidebar ? LightSurfaces.sidebar : LightSurfaces.page),
+        ),
         isTrue,
       );
     });

@@ -160,9 +160,13 @@ void main() {
     await _pump(tester, brightness: Brightness.dark);
     final card = find.byKey(const ValueKey('kanban-card-first'));
     final context = tester.element(card);
+    // 暗色页底色令牌 = [LightSurfaces.darkPage]（2026-10-14 #199：主题层此前把
+    // 它硬编码成 #000000，导致设置里选的深色页底色对宽屏外壳 / 聊天顶栏 / 正文
+    // 不生效）。未覆盖时该令牌是原生 `systemGroupedBackground`，保留动态色语义
+    // ⇒ 断言取同源的 resolve 值，而不是再钉一个普通 Color 常量。
     expect(
       CupertinoTheme.of(context).scaffoldBackgroundColor,
-      CupertinoColors.black,
+      CupertinoDynamicColor.resolve(LightSurfaces.darkPage, context),
     );
     final surfaces = <Color>[];
     for (final target in find.byType(DragTarget<KanbanCard>).evaluate()) {

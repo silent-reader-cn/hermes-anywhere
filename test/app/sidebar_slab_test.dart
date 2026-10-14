@@ -79,6 +79,10 @@ const Map<String, int> _darkPageTable = {
   'warm (#1E1C1A)': 0xFF1E1C1A,
 };
 
+/// 未修正的次要文字原值（`LightSurfaces.textSecondary`，`#6A6A6F`）——用于证明
+/// 槽面派生确实压暗过（而不是恰好等于原值）。
+const int textSecondaryProbeHint = 0xFF6A6A6F;
+
 void main() {
   // [LightSurfaces] 是全局可变令牌（250 处调用点直接读它）：一条用例写了用户选择
   // 后必须复位，否则会污染同进程内其它用例（尤其本文件的宽屏外壳 pump）。
@@ -405,6 +409,42 @@ void main() {
       expect(
         LightSurfaces.sidebar.toARGB32(),
         isNot(LightSurfaces.sidebarFor(custom.lightPage, dark: false).toARGB32()),
+      );
+    });
+  });
+
+  group('槽面上的次要文字', () {
+    test('不变量④：侧栏次要文字对槽色 ≥ kSidebarTextContrast（浅色逐档）', () {
+      // 起案根因（实测）：浅色槽比页底色更深（#E6E6E6 vs #F2F2F2），而
+      // `textSecondary`（#6A6A6F）的明度按页底色 4.838:1 定 —— 直接放到槽上只有
+      // 4.31:1，**低于正文 AA**（侧栏分组标题「置顶」与行内相对时间都直接坐在槽面
+      // 上）。故令牌派生 [LightSurfaces.sidebarSecondary]，此例逐档守住 4.5。
+      for (final preset in PageSurfacePreset.values) {
+        final page = preset.color ?? LightSurfaces.kDefaultPage;
+        LightSurfaces.applyUserSurface(light: page);
+        final slot = LightSurfaces.sidebar;
+        final text = LightSurfaces.sidebarSecondary;
+        final hi = math.max(_relativeLuminance(text), _relativeLuminance(slot));
+        final lo = math.min(_relativeLuminance(text), _relativeLuminance(slot));
+        final ratio = (hi + 0.05) / (lo + 0.05);
+        expect(
+          ratio,
+          greaterThanOrEqualTo(LightSurfaces.kSidebarTextContrast),
+          reason: '${preset.name} 档：${text.toARGB32().toRadixString(16)} '
+              '对槽 ${slot.toARGB32().toRadixString(16)} 只有 ${ratio.toStringAsFixed(3)}',
+        );
+      }
+      // 默认档（页底色 #F2F2F2 ⇒ 槽 #E6E6E6）上原值只有 4.31 ⇒ 必须**真的压暗过**：
+      // 这一条证伪「派生值恰好等于原值」的巧合（其余档槽更亮时原值本就达标，
+      // 派生函数按设计直接返回原值，故不逐档断言「不等」）。
+      LightSurfaces.applyUserSurface(light: LightSurfaces.kDefaultPage);
+      expect(
+        LightSurfaces.sidebarSecondary.toARGB32(),
+        isNot(textSecondaryProbeHint),
+      );
+      expect(
+        _lstar(LightSurfaces.sidebarSecondary),
+        lessThan(_lstar(LightSurfaces.textSecondary)),
       );
     });
   });

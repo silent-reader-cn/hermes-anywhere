@@ -955,6 +955,7 @@ class _SessionListPageState extends ConsumerState<SessionListPage> {
                             'session-row-${session.sessionId ?? session.id}',
                           ),
                           session: session,
+                          sidebarSlot: widget.sidebarSlot,
                           // #150：侧栏（宽屏）用紧凑单行；窄屏单栈保持原两行。
                           compact: !widget.showUtilityRows,
                           // #161：宽屏侧栏高亮「当前正在看的会话」。
@@ -1052,6 +1053,7 @@ class _SessionListPageState extends ConsumerState<SessionListPage> {
                               'session-row-${session.sessionId ?? session.id}',
                             ),
                             session: session,
+                            sidebarSlot: widget.sidebarSlot,
                             compact: false,
                             subtitleSettings: subtitleSettings,
                             projectNames: projectNames,
@@ -1105,9 +1107,13 @@ class _SessionListPageState extends ConsumerState<SessionListPage> {
     required bool isCollapsed,
     VoidCallback? onTap,
   }) {
+    // #199：分组标题直接坐在**生效面**上 —— 侧栏槽内（宽屏左栏）该面更深，
+    // 次要文字改用按槽色派生的 [LightSurfaces.sidebarSecondary] 才守住 AA。
     final secondaryColor = LightSurfaces.resolve(
       context,
-      LightSurfaces.textSecondary,
+      widget.sidebarSlot
+          ? LightSurfaces.sidebarSecondary
+          : LightSurfaces.textSecondary,
       dark: secondaryText,
     );
     final pillBg = LightSurfaces.resolve(
@@ -2611,7 +2617,12 @@ class _SessionRow extends StatefulWidget {
     this.highlightQuery,
     this.compact = false,
     this.isCurrent = false,
+    this.sidebarSlot = false,
   });
+
+  /// #199：本行是否渲染在宽屏侧栏「槽」内 —— 决定次要文字（相对时间 / 标记）
+  /// 取槽面派生色，守住对槽色的正文 AA；默认 false，窄屏逐像素不变。
+  final bool sidebarSlot;
 
   /// 紧凑单行（#150 档 B）：侧栏（宽屏）为提升信息密度而启用 ——
   /// 标题字号 17→13.5、左右内缩 16→10、上下 8→5，元信息从「第二行」改为
@@ -2757,7 +2768,9 @@ class _SessionRowState extends State<_SessionRow> {
     final isStreaming = _SessionRow._isStreaming(widget.session);
     final secondaryColor = LightSurfaces.resolve(
       context,
-      LightSurfaces.textSecondary,
+      widget.sidebarSlot
+          ? LightSurfaces.sidebarSecondary
+          : LightSurfaces.textSecondary,
       dark: secondaryText,
     );
     // 当前会话行的次级前景（右侧时间 / 活动指示器）：暗色实心蓝底档转

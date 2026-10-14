@@ -97,6 +97,9 @@ abstract final class LightSurfaces {
   /// 未覆盖深色页底色时槽的高对比度档（台阶再加大一档）。
   static const Color kDefaultDarkSidebarHighContrast = Color(0xFF262626);
 
+  /// 槽面上的次要文字需达到的对比度（正文 AA）。
+  static const double kSidebarTextContrast = 4.5;
+
   /// 生效中的浅色页底色（默认「中性同深」；由用户选择覆盖）。
   static Color _page = kDefaultPage;
 
@@ -115,6 +118,11 @@ abstract final class LightSurfaces {
 
   /// 自定义深色槽；仅在 [_sidebarFollowsPage] 为 false 时生效。
   static Color? _darkSidebar;
+
+  /// 生效中的「槽面上的次要文字色」（浅色态；由 [_deriveSidebarSecondary] 派生）。
+  static Color _sidebarSecondary = _deriveSidebarSecondary(
+    sidebarFor(kDefaultPage, dark: false),
+  );
 
   /// 页面与会话侧边栏列表区的分组背景。
   static Color get page => _page;
@@ -169,6 +177,16 @@ abstract final class LightSurfaces {
       darkHighContrastElevatedColor: kDefaultDarkSidebarHighContrast,
     );
   }
+
+  /// 槽面上的次要文字色（浅色态）。
+  ///
+  /// **为什么必须派生**：浅色槽比页底色更深（默认档 `#E6E6E6` vs `#F2F2F2`），而
+  /// [textSecondary]（`#6A6A6F`）的明度是按页底色的 4.838:1 定的 —— 直接放到槽上
+  /// 只有 4.31:1，**低于正文 AA 4.5**（实测：侧栏分组标题「置顶」、行内相对时间
+  /// 都直接坐在槽面上）。故按对**生效槽色** [kSidebarTextContrast] 二分出最接近原
+  /// 值的明度（只压暗、不动色相/饱和度）。深色态不需要它：深色槽上的次要文字
+  /// 实测 5.5:1 已达标。
+  static Color get sidebarSecondary => _sidebarSecondary;
 
   /// 由页底色派生侧栏槽（**纯函数**，供设置页预览草稿色用 —— 草稿尚未写入
   /// 全局令牌，不能读 [sidebar] / [darkSidebar]）。
@@ -242,6 +260,7 @@ abstract final class LightSurfaces {
     _sidebarFollowsPage = sidebarFollowsPage;
     _lightSidebar = lightSidebar;
     _darkSidebar = darkSidebar;
+    _sidebarSecondary = _deriveSidebarSecondary(sidebar);
   }
 
   /// 还原到默认（供测试 tearDown 与「恢复默认」共用）。
@@ -252,6 +271,42 @@ abstract final class LightSurfaces {
     _sidebarFollowsPage = true;
     _lightSidebar = null;
     _darkSidebar = null;
+    _sidebarSecondary = _deriveSidebarSecondary(sidebar);
+  }
+
+  /// 由槽色派生「槽面上的次要文字色」：只压暗 [textSecondary] 的明度，二分到
+  /// 对 [slot] 至少 [kSidebarTextContrast]（槽够亮时原值即达标，直接原值返回）。
+  static Color _deriveSidebarSecondary(Color slot) {
+    if (_contrast(textSecondary, slot) >= kSidebarTextContrast) {
+      return textSecondary;
+    }
+    final hsl = HSLColor.fromColor(textSecondary);
+    var good = 0.0; // 已知达标（更暗）
+    var bad = hsl.lightness; // 已知不达标（原值）
+    for (var i = 0; i < 24; i++) {
+      final mid = (good + bad) / 2;
+      final candidate = HSLColor.fromAHSL(
+        1,
+        hsl.hue,
+        hsl.saturation,
+        mid,
+      ).toColor();
+      if (_contrast(candidate, slot) >= kSidebarTextContrast) {
+        good = mid;
+      } else {
+        bad = mid;
+      }
+    }
+    return HSLColor.fromAHSL(1, hsl.hue, hsl.saturation, good).toColor();
+  }
+
+  /// 两色之间的 WCAG 对比度（比值 ≥ 1）。
+  static double _contrast(Color a, Color b) {
+    final la = _relativeLuminance(a);
+    final lb = _relativeLuminance(b);
+    final hi = math.max(la, lb);
+    final lo = math.min(la, lb);
+    return (hi + 0.05) / (lo + 0.05);
   }
 
   /// 由页底色派生配套描边：色相随底色（饱和度降到六成，描边不该比底色更
