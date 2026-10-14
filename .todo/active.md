@@ -9,7 +9,7 @@
 
 ## #199 宽屏侧栏「槽」：侧栏列与右侧内容区拉开一个感知台阶（页底色自动派生）
 
-**分类**：方向（宽屏 UI 层次）　**状态**：W1 已落（令牌/主题/外壳），W2 设置页 / W3 守卫 / W4 效果图并行中　**发现**：2026-10-14（主人提问「侧栏与右侧 header 是不是有点色差合适」）
+**分类**：方向（宽屏 UI 层次）　**状态**：四路全落并合入 main（analyze 零告警 + 定向测试全绿 + 窄屏像素守门零变化）；**待主人真机复验观感**　**发现**：2026-10-14（主人提问「侧栏与右侧 header 是不是有点色差合适」）
 
 ### 起案取证（实测，非观感）
 - 现状**零色差**：截图侧栏 (60,700)=`#000000`、右侧顶栏 (900,20)=`#000000`；源码同源 —— `cupertino_theme.dart` 的 `scaffoldBackgroundColor` 与 `barBackgroundColor` 取同一值（深色硬编码 `#000000`，浅色同为用户页底色 `LightSurfaces.page`）。
@@ -66,14 +66,21 @@ static const Color kDefaultDarkSidebarHighContrast = Color(0xFF262626);
 | 路 | 分支 | 文件 | 内容 | 状态 |
 |---|---|---|---|---|
 | W1 | main（本提交） | `light_surfaces.dart` / `cupertino_theme.dart` / `adaptive_shell.dart` / `session_sidebar.dart` / `sidebar_{brand_bar,tools_list,utility_toolbar,status_bar}.dart` / `session_list_page.dart` | 槽令牌 + 派生 + 深色页底色接主题 + 外壳/侧栏消费点 + `SessionListPage.sidebarSlot` | 已落（analyze 零告警） |
-| W2 | `feat/sidebar-slab-settings` | `page_surface.dart` / `page_surface_picker.dart` / `l10n/app_localizations.dart` | 「侧栏槽」自动/自定义 + 三段预览 + 持久化 + 中英文案 | 进行中 |
-| W3 | `feat/sidebar-slab-tests` | `test/app/sidebar_slab_test.dart` | 派生表断言 + 三个不变量 + 自定义优先/复位 + 宽屏外壳契约（窄屏无容器 key） | 进行中 |
-| W4 | `feat/sidebar-slab-shots` | `test/screenshots/sidebar_slab_shots_test.dart` | 真渲染效果图工装（宽/浅暗 × 若干档），给主人目检 | 进行中 |
+| W2 | `feat/sidebar-slab-settings` | `page_surface.dart` / `page_surface_picker.dart` / `l10n/app_localizations.dart` | 「侧栏槽」自动/自定义 + 三段预览 + 持久化 + 中英文案 | 已合并 @f2f0caf |
+| W3 | `feat/sidebar-slab-tests` | `test/app/sidebar_slab_test.dart` | 派生表断言 + 三个不变量 + 自定义/复位 + 动态色 + 宽屏外壳契约（窄屏无容器 key） | 已合并 @4dc9463（16 例） |
+| W4 | `feat/sidebar-slab-shots` | `test/screenshots/sidebar_slab_shots_test.dart` | 真渲染效果图工装（7 场景 × 1400×900，双证） | 已合并 @5503c53 |
 
 ### 硬约束
 - **窄屏（< 900）逐像素不变**（`SessionListPage.sidebarSlot` 默认 false；槽底只在宽屏分支内）—— 由 `NARROW_SHOTS=1` 工装守门。
 - 颜色一律走 `LightSurfaces.resolve(context, 浅色, dark: 暗色)`；字号走 `typography_tokens.dart`；UI 文案进 l10n 手写门面（`app_localizations.dart` 内联双语，**禁止**写死双语表）。
 - 金照：全量重拍后逐张审；窄屏金照必须零变化。
+
+### 收口证据（2026-10-14）
+- W3 审计挖出**契约缺陷并已修**：`LightSurfaces.sidebar` / `darkSidebar` 原先不看 `_sidebarFollowsPage`，一旦参数里带了自定义值，即使处于「自动」档自定义值也优先 ⇒ 侧栏不再跟随页底色（与字段注释相反）。已把该标志改为**权威开关**，`hasSidebarOverride` 同步收敛为「是否切到自定义档」，并补两条回归：自动档忽略传入自定义值 + **端到端（状态 → 令牌）切页底色档则槽跟着走**（逐档钉 hex）。
+- 验收实测：`analyze` 零告警；`test/app/sidebar_slab_test.dart` 16 例全绿；`test/features/settings/ + test/app/theme/ + test/l10n/` 386 例全绿；`NARROW_SHOTS=1` 窄屏像素守门 9 例对着**改动前基线**零变化（基线由临时 worktree @78cfa92 生成）。
+- 金照零变化（22 + 4 例全过）：查明金照 pump 是「裸页面 + 竖屏 780 宽」，**不覆盖宽屏外壳**，故本改动不产生金照 churn，无需重拍。
+- 效果图：`.shots/sidebar-slab/` 7 张 1400×900 真渲染（A 深色默认 / B 深色 deeper / C 浅色默认 / D 浅色暖档 / E 深色自定义下限 / F 浅色自定义反向 / G 槽=页底色·改造前对照），像素实测与派生表逐档吻合。
+- 遗留（不影响上线）：浅色 context 无法解析深色槽的动态色，故高对比度模式下「切自定义」的预填值是 `#1B1B1B`（而非 `#262626`），已在代码注释标注；未做高对比度分支。
 
 ### 验收
 `analyze` 零告警 + 全量 `test` 全绿 + 窄屏像素工装全绿 + 设置页真机目检 + 主人在效果图上拍板观感。

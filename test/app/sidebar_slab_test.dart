@@ -300,14 +300,10 @@ void main() {
       expect(LightSurfaces.hasSidebarOverride, isFalse);
     });
 
-    test('已知差异（哨兵）：sidebarFollowsPage:true 时自定义槽仍优先 —— getter 不读该标志', () {
-      // 实测：`sidebar` 是 `_lightSidebar ?? 派生`、`darkSidebar` 先看 `_darkSidebar`，
-      // 两个 getter 都**不看** `_sidebarFollowsPage`；该字段目前只进
-      // `hasSidebarOverride`。这与字段自身注释「仅在 _sidebarFollowsPage 为 false
-      // 时生效」不一致（全仓暂无调用点传这三个参数，属先占接口）。
-      // 本例按**实测行为**钉住，并已在交付说明里标注差异：若后续把 getter 改成
-      // 跟随该标志（`sidebarFollowsPage: true` ⇒ 忽略自定义值），本用例会红，
-      // 提示同期同步这处契约。
+    test('自动档忽略传入的自定义槽：sidebarFollowsPage:true 时回页底色派生值', () {
+      // 契约：`_sidebarFollowsPage` 是权威开关 —— 「自动」档一律走页底色派生，
+      // 传入的自定义值只在「自定义」档生效。与 `PageSurfaceState.lightSidebar`
+      // 「sidebarFollowsPage 为 true 时回 null」同源（两层口径一致）。
       LightSurfaces.applyUserSurface(
         light: const Color(0xFFEDEDED),
         sidebarFollowsPage: true,
@@ -315,17 +311,10 @@ void main() {
         darkSidebar: customDark,
       );
 
-      expect(LightSurfaces.sidebar.toARGB32(), customLight.toARGB32());
-      expect(LightSurfaces.darkSidebar.toARGB32(), customDark.toARGB32());
-      // 派生值与自定义值不同 ⇒ 上面的相等不是「两值恰好相同」的巧合。
-      expect(
-        LightSurfaces.sidebarFor(
-          const Color(0xFFEDEDED),
-          dark: false,
-        ).toARGB32(),
-        0xFFE1E1E1,
-      );
-      expect(LightSurfaces.hasSidebarOverride, isTrue);
+      expect(LightSurfaces.sidebar.toARGB32(), 0xFFE1E1E1); // neutralDeep 派生档
+      expect(LightSurfaces.sidebar.toARGB32(), isNot(customLight.toARGB32()));
+      expect(LightSurfaces.darkSidebar, isA<CupertinoDynamicColor>());
+      expect(LightSurfaces.hasSidebarOverride, isFalse);
     });
 
     test('resetUserSurface：回到默认档派生值，hasSidebarOverride == false', () {
@@ -354,7 +343,7 @@ void main() {
       expect(LightSurfaces.darkSidebar, isA<CupertinoDynamicColor>());
     });
 
-    test('hasSidebarOverride 只在「跟随页底色 + 无自定义」时为 false', () {
+    test('hasSidebarOverride 只在切到「自定义」档时为 true', () {
       LightSurfaces.resetUserSurface();
       expect(LightSurfaces.hasSidebarOverride, isFalse);
 
@@ -364,19 +353,59 @@ void main() {
       );
       expect(LightSurfaces.hasSidebarOverride, isTrue);
 
+      // 「自动」档即使在参数里带了自定义值也不算覆盖（该值此时不生效）。
       LightSurfaces.resetUserSurface();
       LightSurfaces.applyUserSurface(
         light: LightSurfaces.kDefaultPage,
         lightSidebar: customLight,
-      );
-      expect(LightSurfaces.hasSidebarOverride, isTrue);
-
-      LightSurfaces.resetUserSurface();
-      LightSurfaces.applyUserSurface(
-        light: LightSurfaces.kDefaultPage,
         darkSidebar: customDark,
       );
-      expect(LightSurfaces.hasSidebarOverride, isTrue);
+      expect(LightSurfaces.hasSidebarOverride, isFalse);
+      expect(LightSurfaces.sidebar.toARGB32(), 0xFFE6E6E6);
+    });
+
+    test('端到端：切页底色档 / 切自定义档 ⇒ 侧栏槽跟着走（状态 → 令牌）', () {
+      // 主人拍板口径是「侧栏槽跟随页底色派生」，这条钉住 **状态层 → 令牌层** 的
+      // 整条链路：预设页底色一变，槽色必须跟着变（逐档钉实测 hex，避免恒真断言）。
+      const expected = {
+        PageSurfacePreset.warmPaper: 0xFFEAE7E3,
+        PageSurfacePreset.iosGrouped: 0xFFE6E6EC,
+        PageSurfacePreset.neutralDeep: 0xFFE1E1E1,
+      };
+      for (final entry in expected.entries) {
+        final state = PageSurfaceState(lightPreset: entry.key);
+        LightSurfaces.applyUserSurface(
+          light: state.lightPage,
+          dark: state.darkPage,
+          sidebarFollowsPage: state.sidebarFollowsPage,
+          lightSidebar: state.lightSidebar,
+          darkSidebar: state.darkSidebar,
+        );
+        expect(
+          LightSurfaces.sidebar.toARGB32(),
+          entry.value,
+          reason: '${entry.key.name} 档的槽没有跟随页底色',
+        );
+      }
+
+      // 切「自定义」档 ⇒ 吃输入值，且与自动档派生结果不同。
+      const custom = PageSurfaceState(
+        lightPreset: PageSurfacePreset.warmPaper,
+        sidebarFollowsPage: false,
+        lightSidebarCustomHex: '#123456',
+      );
+      LightSurfaces.applyUserSurface(
+        light: custom.lightPage,
+        dark: custom.darkPage,
+        sidebarFollowsPage: custom.sidebarFollowsPage,
+        lightSidebar: custom.lightSidebar,
+        darkSidebar: custom.darkSidebar,
+      );
+      expect(LightSurfaces.sidebar.toARGB32(), 0xFF123456);
+      expect(
+        LightSurfaces.sidebar.toARGB32(),
+        isNot(LightSurfaces.sidebarFor(custom.lightPage, dark: false).toARGB32()),
+      );
     });
   });
 

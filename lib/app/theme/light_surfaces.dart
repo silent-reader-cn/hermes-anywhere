@@ -134,16 +134,26 @@ abstract final class LightSurfaces {
 
   /// 宽屏左侧栏「槽」底（浅色态）。
   ///
-  /// 「自动」档由 [page] 派生（见 [sidebarFor]）；「自定义」档回用户值。
-  static Color get sidebar => _lightSidebar ?? sidebarFor(_page, dark: false);
+  /// [_sidebarFollowsPage] 是**权威开关**：「自动」档一律由 [page] 派生（此时即使
+  /// 传了自定义值也不生效 —— 与 `PageSurfaceState.lightSidebar` 在自动档返回 null
+  /// 同源）；「自定义」档才回用户值。
+  static Color get sidebar {
+    if (!_sidebarFollowsPage) {
+      final custom = _lightSidebar;
+      if (custom != null) return custom;
+    }
+    return sidebarFor(_page, dark: false);
+  }
 
   /// 宽屏左侧栏「槽」底（深色态）。
   ///
   /// 未覆盖深色页底色时返回 [CupertinoDynamicColor]，保留动态色语义（高对比度
   /// 档再抬一档）—— 与 [darkPage] 的既有口径一致，默认路径不丢语义。
   static Color get darkSidebar {
-    final custom = _darkSidebar;
-    if (custom != null) return custom;
+    if (!_sidebarFollowsPage) {
+      final custom = _darkSidebar;
+      if (custom != null) return custom;
+    }
     final page = _darkPage;
     if (page != null) return sidebarFor(page, dark: true);
     // elevated 四档与普通档同值：槽底不落在抬升面（弹层/浮卡）上，保留字段
@@ -212,9 +222,8 @@ abstract final class LightSurfaces {
   /// 用户是否覆盖过深色页底色。
   static bool get hasDarkOverride => _darkPage != null;
 
-  /// 用户是否把侧栏槽切到了「自定义」。
-  static bool get hasSidebarOverride =>
-      !_sidebarFollowsPage || _lightSidebar != null || _darkSidebar != null;
+  /// 用户是否把侧栏槽切到了「自定义」档（= 不再跟随页底色派生）。
+  static bool get hasSidebarOverride => !_sidebarFollowsPage;
 
   /// 写入用户选择（**唯一入口**，由 PageSurfaceController 调用）。
   ///
