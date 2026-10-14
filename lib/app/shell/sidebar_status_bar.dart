@@ -61,10 +61,14 @@ class SidebarStatusBar extends ConsumerWidget {
             ? SidebarConnectionStatus.connected
             : SidebarConnectionStatus.offline);
 
+    // v6：状态条并入侧栏「槽」底（整列同底）。改造前浅色取页底色、深色取
+    // #1C1C1E；槽底抬升后 #1C1C1E 与槽几乎同值（ΔL* ≈ 0.5），留着只会是
+    // 「看不出来的第二种底色」，故直接取槽色 —— 状态内容由 pill / 文字承担
+    // （与主人 2026-10-14 拍板的预览同观感）。
     final bgColor = LightSurfaces.resolve(
       context,
-      LightSurfaces.page,
-      dark: const Color(0xFF1C1C1E),
+      LightSurfaces.sidebar,
+      dark: LightSurfaces.darkSidebar,
     );
     // 结构线 L1（全仓唯一出口）。原深色在此单点写死 #3A3A3C，与侧栏其它三栏的
     // system separator 分家 —— 统一到令牌后四条栏线同源。

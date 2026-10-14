@@ -53,6 +53,7 @@ class SessionSidebar extends ConsumerWidget {
               showUtilityRows: false,
               showSettingsTrailing: false,
               showFab: false,
+              sidebarSlot: true,
             ),
           ),
           SidebarStatusBar(

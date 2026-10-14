@@ -56,6 +56,47 @@ abstract final class LightSurfaces {
   /// 描边对白卡的对比度基准（= 原 [kLegacyIosBorder] 实测值）。
   static const double kBorderContrastVsWhite = 1.543866;
 
+  // ───────────────────────────────────────────────────────────────────────
+  // 侧栏槽（v6，2026-10-14 主人拍板）
+  // ───────────────────────────────────────────────────────────────────────
+  // 宽屏左侧栏「槽」= 外壳面，比右侧内容区（页底色）抬一个感知台阶，解决
+  // 「整窗同底 ⇒ 两栏分区只剩一条 10% 发丝线」的分界弱问题。台阶按 **ΔL*
+  // （感知明度）** 定档而非固定 RGB 差：预设六档 + 任意自定义页底色都能得到
+  // 同一种「看得出但不脏」的层次。
+  //
+  // 三个不变量（[sidebarFor] 里夹紧）：
+  // ① 深色 = 抬升 ΔL* 10（#000000 → #1B1B1B，即主人拍板的那档观感）；
+  //    抬不动（余量 < [kSidebarMinStep]）则反向下沉，避免退化成「无差」。
+  // ② 槽不得撞侧栏内最亮的填充（暗色 hover/选中/底部芯片 #2C2C2E）：必须留
+  //    [kSidebarFillGap] 的 ΔL* 间隔，否则芯片糊在槽里。
+  // ③ 浅色 = 下沉 ΔL* 4（#F2F2F2 → #E6E6E6）：页底色本身要给白卡当衬底，槽再亮
+  //    就压平卡片；下限 [kSidebarLightFloor]。实测白卡对槽 1.248:1 > 对页底色
+  //    1.119:1 ⇒ 卡片反而更立得住。
+
+  /// 深色槽的感知明度台阶（ΔL*，抬升）。
+  static const double kSidebarStepDark = 10.0;
+
+  /// 浅色槽的感知明度台阶（ΔL*，下沉）。
+  static const double kSidebarStepLight = -4.0;
+
+  /// 正向台阶下限：抬升余量不足时反向下沉同值，避免槽与页底色同色。
+  static const double kSidebarMinStep = 4.0;
+
+  /// 槽与侧栏内最亮填充之间必须保住的最小 ΔL* 间隔。
+  static const double kSidebarFillGap = 6.0;
+
+  /// 侧栏内最亮填充（暗色 hover / 选中 / 底部芯片）。
+  static const Color kSidebarBrightestFill = Color(0xFF2C2C2E);
+
+  /// 浅色槽下限（再深就读作凹陷的灰块）。
+  static const Color kSidebarLightFloor = Color(0xFFE0E0E0);
+
+  /// 未覆盖深色页底色时槽的普通档（= sidebarFor(#000000, dark: true) 实算值）。
+  static const Color kDefaultDarkSidebar = Color(0xFF1B1B1B);
+
+  /// 未覆盖深色页底色时槽的高对比度档（台阶再加大一档）。
+  static const Color kDefaultDarkSidebarHighContrast = Color(0xFF262626);
+
   /// 生效中的浅色页底色（默认「中性同深」；由用户选择覆盖）。
   static Color _page = kDefaultPage;
 
@@ -65,6 +106,15 @@ abstract final class LightSurfaces {
 
   /// 生效中的深色页底色；null = 不覆盖，沿用 Cupertino 原生分组背景。
   static Color? _darkPage;
+
+  /// 侧栏槽是否跟随页底色派生（默认 true；用户「自定义」时置 false）。
+  static bool _sidebarFollowsPage = true;
+
+  /// 自定义浅色槽；仅在 [_sidebarFollowsPage] 为 false 时生效。
+  static Color? _lightSidebar;
+
+  /// 自定义深色槽；仅在 [_sidebarFollowsPage] 为 false 时生效。
+  static Color? _darkSidebar;
 
   /// 页面与会话侧边栏列表区的分组背景。
   static Color get page => _page;
@@ -82,6 +132,79 @@ abstract final class LightSurfaces {
   static Color get darkPage =>
       _darkPage ?? CupertinoColors.systemGroupedBackground;
 
+  /// 宽屏左侧栏「槽」底（浅色态）。
+  ///
+  /// 「自动」档由 [page] 派生（见 [sidebarFor]）；「自定义」档回用户值。
+  static Color get sidebar => _lightSidebar ?? sidebarFor(_page, dark: false);
+
+  /// 宽屏左侧栏「槽」底（深色态）。
+  ///
+  /// 未覆盖深色页底色时返回 [CupertinoDynamicColor]，保留动态色语义（高对比度
+  /// 档再抬一档）—— 与 [darkPage] 的既有口径一致，默认路径不丢语义。
+  static Color get darkSidebar {
+    final custom = _darkSidebar;
+    if (custom != null) return custom;
+    final page = _darkPage;
+    if (page != null) return sidebarFor(page, dark: true);
+    // elevated 四档与普通档同值：槽底不落在抬升面（弹层/浮卡）上，保留字段
+    // 只为满足 CupertinoDynamicColor 的构造契约。
+    return const CupertinoDynamicColor(
+      color: kDefaultDarkSidebar,
+      darkColor: kDefaultDarkSidebar,
+      highContrastColor: kDefaultDarkSidebar,
+      darkHighContrastColor: kDefaultDarkSidebarHighContrast,
+      elevatedColor: kDefaultDarkSidebar,
+      darkElevatedColor: kDefaultDarkSidebar,
+      highContrastElevatedColor: kDefaultDarkSidebar,
+      darkHighContrastElevatedColor: kDefaultDarkSidebarHighContrast,
+    );
+  }
+
+  /// 由页底色派生侧栏槽（**纯函数**，供设置页预览草稿色用 —— 草稿尚未写入
+  /// 全局令牌，不能读 [sidebar] / [darkSidebar]）。
+  ///
+  /// [dark] 走「抬升优先、抬不动则下沉」；浅色走「下沉、不破下限」。
+  static Color sidebarFor(Color page, {required bool dark}) {
+    final pageL = _lstar(page);
+    if (!dark) {
+      final target = math.max(
+        pageL + kSidebarStepLight,
+        _lstar(kSidebarLightFloor),
+      );
+      return _atLstar(page, target);
+    }
+    final cap = _lstar(kSidebarBrightestFill) - kSidebarFillGap;
+    var target = math.min(pageL + kSidebarStepDark, cap);
+    if (target - pageL < kSidebarMinStep) target = pageL - kSidebarMinStep;
+    return _atLstar(page, target);
+  }
+
+  /// 保持色相、饱和度降到五成（≤0.20）、二分到目标感知明度 L* 的色。
+  ///
+  /// 「大面比描边更不该抢色」：槽的饱和度折半（描边见 [_deriveBorder] 取六成）。
+  static Color _atLstar(Color base, double targetL) {
+    final hsl = HSLColor.fromColor(base);
+    final saturation = (hsl.saturation * 0.5).clamp(0.0, 0.20);
+    var lo = 0.0;
+    var hi = 1.0;
+    for (var i = 0; i < 32; i++) {
+      final mid = (lo + hi) / 2;
+      final candidate = HSLColor.fromAHSL(1, hsl.hue, saturation, mid).toColor();
+      if (_lstar(candidate) < targetL) {
+        lo = mid;
+      } else {
+        hi = mid;
+      }
+    }
+    return HSLColor.fromAHSL(1, hsl.hue, saturation, lo).toColor();
+  }
+
+  /// CIE L*（感知明度：0 = 黑，100 = 白）。
+  static double _lstar(Color color) {
+    final y = _relativeLuminance(color);
+    return y > 0.008856 ? 116 * math.pow(y, 1 / 3) - 16 : 903.3 * y;
+  }
+
   /// 用户是否覆盖过浅色页底色（默认档 == 未覆盖；供 `app.dart` 决定全局
   /// scaffold 底色是否跟随，避免默认路径丢动态色语义）。
   static bool get hasLightOverride => _page.toARGB32() != kDefaultPage.toARGB32();
@@ -89,14 +212,27 @@ abstract final class LightSurfaces {
   /// 用户是否覆盖过深色页底色。
   static bool get hasDarkOverride => _darkPage != null;
 
+  /// 用户是否把侧栏槽切到了「自定义」。
+  static bool get hasSidebarOverride =>
+      !_sidebarFollowsPage || _lightSidebar != null || _darkSidebar != null;
+
   /// 写入用户选择（**唯一入口**，由 PageSurfaceController 调用）。
   ///
   /// [dark] 传 null 表示深色不覆盖。配套描边由 [light] 派生：选 iOS 分组灰档
   /// 时回到原设计值，其余按对白卡对比度基准派生。
-  static void applyUserSurface({required Color light, Color? dark}) {
+  static void applyUserSurface({
+    required Color light,
+    Color? dark,
+    bool sidebarFollowsPage = true,
+    Color? lightSidebar,
+    Color? darkSidebar,
+  }) {
     _page = light;
     _darkPage = dark;
     _border = _deriveBorder(light);
+    _sidebarFollowsPage = sidebarFollowsPage;
+    _lightSidebar = lightSidebar;
+    _darkSidebar = darkSidebar;
   }
 
   /// 还原到默认（供测试 tearDown 与「恢复默认」共用）。
@@ -104,6 +240,9 @@ abstract final class LightSurfaces {
     _page = kDefaultPage;
     _border = _deriveBorder(kDefaultPage);
     _darkPage = null;
+    _sidebarFollowsPage = true;
+    _lightSidebar = null;
+    _darkSidebar = null;
   }
 
   /// 由页底色派生配套描边：色相随底色（饱和度降到六成，描边不该比底色更
@@ -133,7 +272,11 @@ abstract final class LightSurfaces {
   }
 
   /// WCAG 相对亮度对比度（对纯白）。
-  static double _contrastVsWhite(Color color) {
+  static double _contrastVsWhite(Color color) =>
+      (1.0 + 0.05) / (_relativeLuminance(color) + 0.05);
+
+  /// WCAG 相对亮度（0 = 黑，1 = 白）。
+  static double _relativeLuminance(Color color) {
     final argb = color.toARGB32();
     double channel(int v) {
       final s = v / 255.0;
@@ -142,11 +285,9 @@ abstract final class LightSurfaces {
           : math.pow((s + 0.055) / 1.055, 2.4) as double;
     }
 
-    final lum =
-        0.2126 * channel((argb >> 16) & 0xFF) +
+    return 0.2126 * channel((argb >> 16) & 0xFF) +
         0.7152 * channel((argb >> 8) & 0xFF) +
         0.0722 * channel(argb & 0xFF);
-    return (1.0 + 0.05) / (lum + 0.05);
   }
 
   // ───────────────────────────────────────────────────────────────────────

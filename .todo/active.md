@@ -7,6 +7,79 @@
 
 ---
 
+## #199 宽屏侧栏「槽」：侧栏列与右侧内容区拉开一个感知台阶（页底色自动派生）
+
+**分类**：方向（宽屏 UI 层次）　**状态**：W1 已落（令牌/主题/外壳），W2 设置页 / W3 守卫 / W4 效果图并行中　**发现**：2026-10-14（主人提问「侧栏与右侧 header 是不是有点色差合适」）
+
+### 起案取证（实测，非观感）
+- 现状**零色差**：截图侧栏 (60,700)=`#000000`、右侧顶栏 (900,20)=`#000000`；源码同源 —— `cupertino_theme.dart` 的 `scaffoldBackgroundColor` 与 `barBackgroundColor` 取同一值（深色硬编码 `#000000`，浅色同为用户页底色 `LightSurfaces.page`）。
+- 分区信息只有两条发丝线：竖线 `#1D1D1E`（x=364/365，全高）、顶带下沿 `#191A1A`（y=54/55，**通栏连续**，282 个采样点无一断裂 ⇒ 侧栏品牌行与右侧标题栏是一条顶带）。
+- 量化：发丝线对底对比 1.204:1（ΔL* 9.2）；「整列色差」要 ΔL* ≥ 6（`#141414`）才可辨 ⇒ **线的效率高于面**。
+- 侧栏内填充阶梯（暗色）：`#1C1C1E`（底部状态条，唯一大面）/ `#2C2C2E`（hover·选中·芯片）；实测侧栏体内无卡片面（宽屏列表是朴素平铺行）。
+
+### 主人拍板（2026-10-14）
+1. 采用**第 5 档观感**：侧栏整列抬到 `#1C1C1C` 量级（暗色）；「整列（含品牌行）取槽色、右侧（顶栏+正文）取页底色」口径成立 —— 断口落在竖线上，读作列边界。
+2. 机制 = **自动派生（默认）+ 自定义后备**；**不做组合预设表**（预设 7×5 组覆盖不了自定义页底色，且要新增 35 个色块）。
+3. 台阶：深色抬升 ΔL* 10、浅色下沉 ΔL* 4；保留「自定义」后备。
+
+### 冻结接口（W1 已落，勿改签名）
+```dart
+// lib/app/theme/light_surfaces.dart
+static Color get sidebar;                       // 浅色槽
+static Color get darkSidebar;                   // 深色槽（默认档为 CupertinoDynamicColor）
+static Color sidebarFor(Color page, {required bool dark});  // 纯函数，供设置页草稿预览
+static void applyUserSurface({
+  required Color light, Color? dark,
+  bool sidebarFollowsPage = true, Color? lightSidebar, Color? darkSidebar,
+});
+static const double kSidebarStepDark = 10.0;   // ΔL*
+static const double kSidebarStepLight = -4.0;
+static const double kSidebarMinStep = 4.0;     // 抬不动则反向下沉
+static const double kSidebarFillGap = 6.0;     // 与 #2C2C2E 的最小 ΔL* 间隔
+static const Color kSidebarBrightestFill = Color(0xFF2C2C2E);
+static const Color kSidebarLightFloor = Color(0xFFE0E0E0);
+static const Color kDefaultDarkSidebar = Color(0xFF1B1B1B);
+static const Color kDefaultDarkSidebarHighContrast = Color(0xFF262626);
+```
+
+### 派生表（探针实测，Dart 侧与脚本一致）
+| 态 | 页底色 | 派生槽 |
+|---|---|---|
+| 浅 | iosGrouped `#F2F2F7` | `#E6E6EC` |
+| 浅 | neutral `#F2F2F2`（默认） | `#E6E6E6` |
+| 浅 | neutralDeep `#EDEDED` | `#E1E1E1` |
+| 浅 | neutralBright `#F8F8F8` | `#ECECEC` |
+| 浅 | warmNeutral `#F1EFEA` | `#E5E3DF` |
+| 浅 | warmPaper `#F6F3EE` | `#EAE7E3` |
+| 深 | system（默认 `#000000`） | `#1B1B1B`（动态色，高对比度 `#262626`） |
+| 深 | deeper `#141414` | `#1F1F1F`（撞芯片上限，夹紧） |
+| 深 | neutral `#1C1C1C` | `#131313`（抬不动 → 下沉） |
+| 深 | warm `#1E1C1A` | `#151414` |
+
+不变量：深色槽对 `#2C2C2E` 的 ΔL* ≥ 6；浅色槽 ≥ `#E0E0E0`；台阶绝对值 ≥ 4（否则反向）。
+白卡对槽的对比 1.248:1 > 对页底色的 1.119:1（浅色下沉的副作用是正向的）。
+
+### 顺带修的确凿缺陷（同批落）
+`cupertino_theme.dart` 深色分支硬编码 `#000000`，使 `LightSurfaces.darkPage` 只被 11 个页面显式消费（看板/设置/记忆/任务/技能/下载/诊断/洞察/…），而**宽屏外壳 `adaptive_shell.dart:263`、聊天正文 `chat_page.dart:263`（深色传 null）、空态详情页、顶栏**全拿不到 ⇒ 深色下改页底色会出现「同一窗口两套底色」。已修：深色 `scaffold == LightSurfaces.darkPage`（未覆盖时解析原生 `systemGroupedBackground`，保留动态色语义；SDK 在 `CupertinoTheme.of(context)` 处 resolve，实测确认）。
+
+### 并行分区（文件零重叠）
+| 路 | 分支 | 文件 | 内容 | 状态 |
+|---|---|---|---|---|
+| W1 | main（本提交） | `light_surfaces.dart` / `cupertino_theme.dart` / `adaptive_shell.dart` / `session_sidebar.dart` / `sidebar_{brand_bar,tools_list,utility_toolbar,status_bar}.dart` / `session_list_page.dart` | 槽令牌 + 派生 + 深色页底色接主题 + 外壳/侧栏消费点 + `SessionListPage.sidebarSlot` | 已落（analyze 零告警） |
+| W2 | `feat/sidebar-slab-settings` | `page_surface.dart` / `page_surface_picker.dart` / `l10n/app_localizations.dart` | 「侧栏槽」自动/自定义 + 三段预览 + 持久化 + 中英文案 | 进行中 |
+| W3 | `feat/sidebar-slab-tests` | `test/app/sidebar_slab_test.dart` | 派生表断言 + 三个不变量 + 自定义优先/复位 + 宽屏外壳契约（窄屏无容器 key） | 进行中 |
+| W4 | `feat/sidebar-slab-shots` | `test/screenshots/sidebar_slab_shots_test.dart` | 真渲染效果图工装（宽/浅暗 × 若干档），给主人目检 | 进行中 |
+
+### 硬约束
+- **窄屏（< 900）逐像素不变**（`SessionListPage.sidebarSlot` 默认 false；槽底只在宽屏分支内）—— 由 `NARROW_SHOTS=1` 工装守门。
+- 颜色一律走 `LightSurfaces.resolve(context, 浅色, dark: 暗色)`；字号走 `typography_tokens.dart`；UI 文案进 l10n 手写门面（`app_localizations.dart` 内联双语，**禁止**写死双语表）。
+- 金照：全量重拍后逐张审；窄屏金照必须零变化。
+
+### 验收
+`analyze` 零告警 + 全量 `test` 全绿 + 窄屏像素工装全绿 + 设置页真机目检 + 主人在效果图上拍板观感。
+
+---
+
 ## #175 弹窗族统一设计：六窗对齐同一套「鼠标档密排」语言
 
 **分类**：方向（UI 统一）　**状态**：已合并 main（analyze 零告警 + 全量 +5463 全绿，29 例新守卫；待主人真机复验）　**发现**：2026-10-06（主人反馈 + 本喵取证）

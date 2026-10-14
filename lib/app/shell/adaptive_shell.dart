@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../theme/light_surfaces.dart';
 import '../widgets/adaptive_popover.dart';
 import 'android_back_interceptor.dart';
 import 'empty_detail_pane.dart';
@@ -270,7 +271,20 @@ class _AdaptiveShellState extends State<AdaptiveShell> {
                     SizedBox(
                       key: const ValueKey('adaptive-shell-sidebar-container'),
                       width: _sidebarWidth,
-                      child: SessionSidebar(currentLocation: effectiveLocation),
+                      child: ColoredBox(
+                        // v6 侧栏「槽」底：宽屏左栏整列（品牌行 / 工具区 / 会话列表 /
+                        // 状态条）同底，与右侧内容区（页底色）差一个感知台阶。
+                        // 方向与夹紧口径见 `light_surfaces.dart` 的侧栏槽注释。
+                        // 本组件只在宽屏分支内 ⇒ 窄屏（< 900）逐像素不变。
+                        color: LightSurfaces.resolve(
+                          context,
+                          LightSurfaces.sidebar,
+                          dark: LightSurfaces.darkSidebar,
+                        ),
+                        child: SessionSidebar(
+                          currentLocation: effectiveLocation,
+                        ),
+                      ),
                     ),
                     Expanded(
                       child: Stack(

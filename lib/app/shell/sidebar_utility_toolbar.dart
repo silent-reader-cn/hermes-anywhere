@@ -122,8 +122,17 @@ class SidebarUtilityToolbar extends ConsumerWidget {
         ),
       ],
     );
+    // v6：侧栏「槽」底（宽屏左栏整列同底）。深色路径返回裸 content，槽底由外壳
+    // 的 ColoredBox 提供 —— 与改造前结构同构。
     return isLight
-        ? ColoredBox(color: LightSurfaces.page, child: content)
+        ? ColoredBox(
+            color: LightSurfaces.resolve(
+              context,
+              LightSurfaces.sidebar,
+              dark: LightSurfaces.darkSidebar,
+            ),
+            child: content,
+          )
         : content;
   }
 }

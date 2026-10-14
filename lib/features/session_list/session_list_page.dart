@@ -54,6 +54,7 @@ class SessionListPage extends ConsumerStatefulWidget {
     this.showUtilityRows = true,
     this.showSettingsTrailing = true,
     this.showFab = true,
+    this.sidebarSlot = false,
   });
 
   /// 是否渲染顶部工具行入口（任务/看板/技能/记忆/统计）。
@@ -74,6 +75,13 @@ class SessionListPage extends ConsumerStatefulWidget {
   /// 手机单栈（窄屏）保持默认 `true`；桌面侧栏场景隐藏 FAB，新建入口由
   /// 头部右上角按钮承担（见 [SessionListHeaderDelegate.actions]）。
   final bool showFab;
+
+  /// 本实例是否渲染在宽屏侧栏「槽」内（v6，2026-10-14 主人拍板）。
+  ///
+  /// 为 true 时页底 / 栏底一律取槽色（[LightSurfaces.sidebar] /
+  /// [LightSurfaces.darkSidebar]），与左侧栏其余各栏同底；默认 false 走既有
+  /// 分支 —— 窄屏整页与宽屏右侧面板栈逐像素不变。
+  final bool sidebarSlot;
 
   @override
   ConsumerState<SessionListPage> createState() => _SessionListPageState();
@@ -275,7 +283,15 @@ class _SessionListPageState extends ConsumerState<SessionListPage> {
     final isLight = CupertinoTheme.brightnessOf(context) == Brightness.light;
     final content = SessionAutoRefreshObserver(
       child: CupertinoPageScaffold(
-        backgroundColor: isLight ? LightSurfaces.page : null,
+        // v6：侧栏槽内复用本页时底色取槽色（宽屏左栏整列同底）；深色分支
+        // 同样走槽色 —— 否则会盖住外壳的槽底（改造前取主题 scaffold，#000）。
+        backgroundColor: widget.sidebarSlot
+            ? LightSurfaces.resolve(
+                context,
+                LightSurfaces.sidebar,
+                dark: LightSurfaces.darkSidebar,
+              )
+            : (isLight ? LightSurfaces.page : null),
         child: Column(
           children: [
             Expanded(
@@ -412,11 +428,14 @@ class _SessionListPageState extends ConsumerState<SessionListPage> {
       ),
     );
     // Scope the new bar/page surfaces to this page and its sidebar reuse.
+    final scopeSurface = widget.sidebarSlot
+        ? LightSurfaces.sidebar
+        : LightSurfaces.page;
     return isLight
         ? CupertinoTheme(
             data: CupertinoTheme.of(context).copyWith(
-              scaffoldBackgroundColor: LightSurfaces.page,
-              barBackgroundColor: LightSurfaces.page,
+              scaffoldBackgroundColor: scopeSurface,
+              barBackgroundColor: scopeSurface,
             ),
             child: content,
           )

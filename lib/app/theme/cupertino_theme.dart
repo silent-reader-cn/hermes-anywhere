@@ -12,8 +12,12 @@ const String kAppFontFamily = 'MiSans';
 /// 全局文字绑定 [kAppFontFamily]（MiSans），提供清晰美观的中文与英文/数字排版体验。
 CupertinoThemeData buildCupertinoTheme(Brightness brightness) {
   final isDark = brightness == Brightness.dark;
-  // 浅色跟随用户可调的页底色令牌（LightSurfaces.page）；深色保持纯黑最底层。
-  final scaffold = isDark ? const Color(0xFF000000) : LightSurfaces.page;
+  // 浅色跟随用户可调的页底色令牌（LightSurfaces.page）；深色跟随深色页底色
+  // （LightSurfaces.darkPage —— 未覆盖时解析为 Cupertino 原生分组背景，保留其
+  // 动态色语义）。2026-10-14 修复：此前深色硬编码 #000000，导致「页面底色」
+  // 设置对宽屏外壳（侧栏 / 聊天顶栏 / 正文）与空态详情页**不生效**，而看板 /
+  // 设置等显式传 darkPage 的页面却变了 —— 同一窗口两套底色。
+  final scaffold = isDark ? LightSurfaces.darkPage : LightSurfaces.page;
   return CupertinoThemeData(
     brightness: brightness,
     primaryColor: const Color(0xFF007AFF),
