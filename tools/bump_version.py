@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synchronize and bump Hermes UI version across pubspec.yaml and version_info.dart.
+"""Synchronize and bump Hermes Anywhere version across pubspec.yaml and version_info.dart.
 
 Usage:
   python tools/bump_version.py 0.1.52         # build number = current + 1
@@ -217,7 +217,7 @@ def resolve_flutter_bin() -> str | None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="One-step version bumper and consistency validator for Hermes UI.",
+        description="One-step version bumper and consistency validator for Hermes Anywhere.",
     )
     parser.add_argument(
         "version",

@@ -146,7 +146,7 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
     originalLauncher = UrlLauncherPlatform.instance;
-    // 默认：外链失败兜底（关于页「Hermes UI」行会弹地址框）。
+    // 默认：外链失败兜底（关于页「Hermes Anywhere」行会弹地址框）。
     UrlLauncherPlatform.instance = _FailingUrlLauncher();
   });
 

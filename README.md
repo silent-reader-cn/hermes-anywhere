@@ -1,6 +1,6 @@
 <div align="center">
 
-# Hermes UI
+# Hermes Anywhere
 
 **One smooth Hermes experience, everywhere.**
 
@@ -21,7 +21,7 @@ A Flutter + Cupertino client for [Hermes Agent](https://hermes-agent.nousresearc
 
 **Windows desktop** — your sessions on the left, the conversation on the right: streamed Markdown answers, reasoning and tool cards, steer mid-turn.
 
-<img src="docs/screenshots/en/wide-chat-dark.png" width="100%" alt="Hermes UI on Windows: session sidebar beside a streaming answer with Markdown text, a table, a code block and a follow-up prompt"/>
+<img src="docs/screenshots/en/wide-chat-dark.png" width="100%" alt="Hermes Anywhere on Windows: session sidebar beside a streaming answer with Markdown text, a table, a code block and a follow-up prompt"/>
 
 <div align="center">
 
@@ -75,8 +75,8 @@ behaves the same everywhere it runs.
 
 ### Windows
 
-1. Grab the latest installer `HermesUI-<version>-x64-setup.exe` from the [Releases](https://github.com/silent-reader-cn/hermes-keep/releases) page and run it.
-2. Launch **Hermes UI**. On the onboarding screen pick **Built-in service** → **Start & Connect**. That's it — the WebUI backend starts automatically.
+1. Grab the latest installer `HermesAnywhere-<version>-x64-setup.exe` from the [Releases](https://github.com/silent-reader-cn/hermes-keep/releases) page and run it.
+2. Launch **Hermes Anywhere**. On the onboarding screen pick **Built-in service** → **Start & Connect**. That's it — the WebUI backend starts automatically.
 
 Chat requires a [Hermes Agent](https://hermes-agent.nousresearch.com/docs) installation. If none is detected, the onboarding screen shows a card linking to the install guide; without it the app still works in read-only mode (session history), and attempting to chat will tell you what's missing.
 
@@ -86,7 +86,7 @@ Download `app-release.apk` from the [Releases](https://github.com/silent-reader-
 
 ### macOS
 
-Download `HermesUI-<version>-macos-arm64.zip` from the [Releases](https://github.com/silent-reader-cn/hermes-keep/releases) page. The app is not signed or notarized yet, so clear the quarantine flag before opening it:
+Download `HermesAnywhere-<version>-macos-arm64.zip` from the [Releases](https://github.com/silent-reader-cn/hermes-keep/releases) page. The app is not signed or notarized yet, so clear the quarantine flag before opening it:
 
 ```bash
 xattr -cr hermes_ui.app
@@ -97,10 +97,10 @@ Apple Silicon only, for now.
 
 ### Linux
 
-Download `HermesUI-<version>-linux-x64.tar.gz`, unpack it and run — the bundle ships its own mpv/ffmpeg runtime, so a standard desktop needs nothing extra:
+Download `HermesAnywhere-<version>-linux-x64.tar.gz`, unpack it and run — the bundle ships its own mpv/ffmpeg runtime, so a standard desktop needs nothing extra:
 
 ```bash
-tar -xzf HermesUI-<version>-linux-x64.tar.gz
+tar -xzf HermesAnywhere-<version>-linux-x64.tar.gz
 ./hermes_ui
 ```
 

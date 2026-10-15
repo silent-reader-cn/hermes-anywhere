@@ -312,7 +312,7 @@ void main() {
       expect(LocaleResolver.listenerCount, 1);
 
       final toolTipArgs = _trayChannel.lastOf('setToolTip')?.arguments as Map?;
-      expect(toolTipArgs?['toolTip'], 'Hermes');
+      expect(toolTipArgs?['toolTip'], 'Hermes Anywhere');
 
       final menuCallsAfterFirst = _trayChannel.countOf('setContextMenu');
       await service.initialize();

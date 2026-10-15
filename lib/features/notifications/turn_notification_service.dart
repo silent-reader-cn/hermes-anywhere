@@ -106,15 +106,15 @@ abstract interface class TurnNotificationService {
 ///    - 导致现象：后台期间无法实时接收服务端 SSE 结束事件；切回前台时才触发重连与同步。
 ///
 /// 2. **用户端可复现引导与配置**：
-///    - 自启动管理：系统设置 → 应用设置 → 应用管理 → Hermes → 开启「自启动」与「关联启动」；
-///    - 省电策略：系统设置 → 应用设置 → Hermes → 省电策略 → 设为「无限制」；
-///    - 后台联网：系统设置 → 应用设置 → Hermes → 联网控制 → 确保 WLAN 和移动数据全开；
+///    - 自启动管理：系统设置 → 应用设置 → 应用管理 → Hermes Anywhere → 开启「自启动」与「关联启动」；
+///    - 省电策略：系统设置 → 应用设置 → Hermes Anywhere → 省电策略 → 设为「无限制」；
+///    - 后台联网：系统设置 → 应用设置 → Hermes Anywhere → 联网控制 → 确保 WLAN 和移动数据全开；
 ///    - 通知权限与锁屏：允许「通知」以及「悬浮通知」、「锁屏通知」；
-///    - 任务卡片锁定：在多任务界面下拉 Hermes 卡片加锁，防止被一键清理。
+///    - 任务卡片锁定：在多任务界面下拉 Hermes Anywhere 卡片加锁，防止被一键清理。
 ///
 /// 3. **长期保活与降级架构方案**：
 ///    - 方案 A（Foreground Service 前台服务）：在后台流式生成进行期间启动前台服务，
-///      展示进行中通知（"Hermes 正在生成..."）并持有 CPU WakeLock，防止网络冻结；生成完成后
+///      展示进行中通知（"Hermes Anywhere 正在生成..."）并持有 CPU WakeLock，防止网络冻结；生成完成后
 ///      自动关闭前台服务并弹出回合完成高优先级通知（ID: 1001）；
 ///    - 方案 B（WorkManager / 周期探活）：当流式断开或未收到完成通知时，通过 WorkManager
 ///      后台拉取 `GET /api/sessions/:id/status` 纠偏，触发补发通知；
@@ -124,7 +124,7 @@ abstract interface class TurnNotificationService {
 ///
 /// 行为对齐契约：
 /// 1. Android 分区 1001(turns)/1101(clarify)/1201(errors)/1301(downloads)，冷启动即批量预创建通道；
-/// 2. Windows Toast 初始化 (Hermes UI + AUMID com.hermes.ui)；
+/// 2. Windows Toast 初始化 (Hermes Anywhere + AUMID com.hermes.ui)；
 /// 3. 点击回到对应会话或处理下载，回到 app 自动清除。所有平台调用均吞异常并记日志与诊断。
 class LocalNotificationsTurnNotificationService
     implements TurnNotificationService {
@@ -259,7 +259,7 @@ class LocalNotificationsTurnNotificationService
       images: [
         WindowsImage(
           Uri.file(logo, windows: true),
-          altText: 'Hermes',
+          altText: 'Hermes Anywhere',
           placement: WindowsImagePlacement.appLogoOverride,
         ),
       ],
@@ -305,7 +305,7 @@ class LocalNotificationsTurnNotificationService
         settings: InitializationSettings(
           android: const AndroidInitializationSettings('@mipmap/ic_launcher'),
           windows: WindowsInitializationSettings(
-            appName: 'Hermes UI',
+            appName: 'Hermes Anywhere',
             appUserModelId: 'com.hermes.ui',
             guid: 'd9b0a6fb-9a4f-4d33-97be-4ef018260827',
             iconPath: windowsLogoPath,

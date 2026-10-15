@@ -523,7 +523,7 @@ void main() {
       );
       await second.initialize();
       expect(fg.startServiceCallCount, 1);
-      expect(fg.lastNotificationTitle, 'Hermes');
+      expect(fg.lastNotificationTitle, 'Hermes Anywhere');
       expect(fg.lastNotificationText, '暂无进行中会话');
       expect(fg.lastCallback, equals(foregroundTaskCallback));
     });
@@ -614,7 +614,7 @@ void main() {
 
       expect(wrapper.updateServiceCallCount, 1);
       expect(wrapper.lastNotificationText, '1 session generating');
-      expect(wrapper.lastNotificationTitle, 'Hermes');
+      expect(wrapper.lastNotificationTitle, 'Hermes Anywhere');
     });
 
     test('C2 开关关闭 → 监听回调早退，不刷新通知', () async {
@@ -1057,7 +1057,7 @@ void main() {
 
       expect(fg.startServiceCallCount, 0);
       expect(fg.updateServiceCallCount, 1);
-      expect(fg.lastNotificationTitle, 'Hermes');
+      expect(fg.lastNotificationTitle, 'Hermes Anywhere');
       expect(fg.lastNotificationText, '1 个会话正在生成');
     });
 
@@ -1163,7 +1163,7 @@ void main() {
       await service.updateNotification(activeCount: 4);
 
       expect(fg.updateServiceCallCount, 1);
-      expect(fg.lastNotificationTitle, 'Hermes');
+      expect(fg.lastNotificationTitle, 'Hermes Anywhere');
       expect(fg.lastNotificationText, '4 个会话正在生成');
       final log = _diagEntries().firstWhere(
         (e) => e.$2 == '更新前台服务常驻通知文本',
@@ -1757,7 +1757,7 @@ void main() {
         () async {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
       PackageInfo.setMockInitialValues(
-        appName: 'Hermes UI',
+        appName: 'Hermes Anywhere',
         packageName: 'com.silentreader.hermes_ui',
         version: '0.0.1',
         buildNumber: '1',
@@ -1861,7 +1861,7 @@ void main() {
       serviceRunning = false;
 
       final result = await wrapper.startService(
-        notificationTitle: 'Hermes',
+        notificationTitle: 'Hermes Anywhere',
         notificationText: '1 个会话正在生成',
         callback: foregroundTaskCallback,
       );
@@ -1869,7 +1869,7 @@ void main() {
       expect(result, isA<ServiceRequestSuccess>());
       final call = calls.firstWhere((c) => c.method == 'startService');
       final args = call.arguments as Map<Object?, Object?>;
-      expect(args['notificationContentTitle'], 'Hermes');
+      expect(args['notificationContentTitle'], 'Hermes Anywhere');
       expect(args['notificationContentText'], '1 个会话正在生成');
     });
 
@@ -1885,7 +1885,7 @@ void main() {
       });
 
       final result = await wrapper.startService(
-        notificationTitle: 'Hermes',
+        notificationTitle: 'Hermes Anywhere',
         notificationText: 'x',
       );
 
@@ -1901,7 +1901,7 @@ void main() {
       serviceRunning = false;
 
       final result = await wrapper.startService(
-        notificationTitle: 'Hermes',
+        notificationTitle: 'Hermes Anywhere',
         notificationText: 'x',
       );
 
@@ -1918,7 +1918,7 @@ void main() {
       serviceRunning = true;
 
       final ok = await wrapper.updateService(
-        notificationTitle: 'Hermes',
+        notificationTitle: 'Hermes Anywhere',
         notificationText: '2 个会话正在生成',
       );
       expect(ok, isA<ServiceRequestSuccess>());
@@ -1936,7 +1936,7 @@ void main() {
         throw PlatformException(code: 'update-error');
       });
       final failed = await wrapper.updateService(
-        notificationTitle: 'Hermes',
+        notificationTitle: 'Hermes Anywhere',
         notificationText: 'x',
       );
       expect(failed, isA<ServiceRequestFailure>());
@@ -1951,7 +1951,7 @@ void main() {
       serviceRunning = false;
 
       final result = await wrapper.updateService(
-        notificationTitle: 'Hermes',
+        notificationTitle: 'Hermes Anywhere',
         notificationText: 'x',
       );
 

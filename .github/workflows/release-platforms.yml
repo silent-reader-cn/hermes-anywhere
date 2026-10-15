@@ -177,7 +177,7 @@ jobs:
       - name: Package tar.gz
         run: |
           VER="${{ inputs.tag }}"; VER="${VER#v}"
-          OUT="HermesUI-${VER}-linux-x64.tar.gz"
+          OUT="HermesAnywhere-${VER}-linux-x64.tar.gz"
           tar -czf "$OUT" -C build/linux/x64/release/bundle .
           sha256sum "$OUT" > "$OUT.sha256"
           echo "--- bundle 内容（前 30 行）---"
@@ -188,8 +188,8 @@ jobs:
         with:
           name: linux-pkg
           path: |
-            HermesUI-*-linux-x64.tar.gz
-            HermesUI-*-linux-x64.tar.gz.sha256
+            HermesAnywhere-*-linux-x64.tar.gz
+            HermesAnywhere-*-linux-x64.tar.gz.sha256
           if-no-files-found: error
 
   macos:
@@ -232,7 +232,7 @@ jobs:
       - name: Package zip
         run: |
           VER="${{ inputs.tag }}"; VER="${VER#v}"
-          OUT="HermesUI-${VER}-macos-arm64.zip"
+          OUT="HermesAnywhere-${VER}-macos-arm64.zip"
           ditto -c -k --sequesterRsrc --keepParent \
             build/macos/Build/Products/Release/hermes_ui.app "$OUT"
           shasum -a 256 "$OUT" > "$OUT.sha256"
@@ -242,8 +242,8 @@ jobs:
         with:
           name: macos-pkg
           path: |
-            HermesUI-*-macos-arm64.zip
-            HermesUI-*-macos-arm64.zip.sha256
+            HermesAnywhere-*-macos-arm64.zip
+            HermesAnywhere-*-macos-arm64.zip.sha256
           if-no-files-found: error
 
   publish:

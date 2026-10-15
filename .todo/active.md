@@ -7,6 +7,34 @@
 
 ---
 
+## #200 品牌更名：Hermes UI → Hermes Anywhere（显示层已落；标识层与仓库名待拍板）
+
+**分类**：品牌 / 对外口径　**状态**：显示层已落地并过测（`analyze` 零告警 + 全量 **5922 通过 / 238 skipped / 0 失败** + 金照 8 张重拍 + README 截图 16 张重出）；**标识层 2 项 + 仓库名 1 项待主人拍板**　**发现**：2026-10-15（主人：「项目改叫 Hermes anywhere 吧」）
+
+### 已改（显示层）
+- **应用内**：窗口标题默认值（`<会话标题> - Hermes Anywhere`）、`MaterialApp.title`、侧栏品牌条、引导页品牌字、托盘 tooltip、Android 前台服务通知标题（8 处）、Windows Toast `appName`/`altText`、系统「安装未知应用」提示里的 App 名、实况通知标题（单会话/多会话两版）、设置「关于」行、桌面自启动开关说明
+- **平台清单**：Android `android:label`、iOS `CFBundleDisplayName`、Windows 窗口标题 + `Runner.rc` 的 `FileDescription`/`ProductName`
+- **安装器/发布**：`MyAppName`（仅显示）、`OutputBaseFilename` → `HermesAnywhere-<ver>-x64-setup`、发布资产名（linux `tar.gz` / macos `zip`）、`tools/release.py` 的 Release 标题与 tag 说明
+- **文档**：README 中英、docs 3 篇、CHANGELOG（含冻结清单表）、THIRD-PARTY-NOTICES
+- **测试**：窗口标题 / 托盘 / 常驻通知 / 实况通知 / 引导品牌字 / 关于页 / 安装权限等期望同步改写
+- **金照与截图**：`test/golden/goldens/windows/` 重拍 8 张（引导页宽屏 2 + 安装指南 6，四处内联金照同源）；README 截图 4 套共 16 张重出（`docs/screenshots/**`）
+- **内部标识符**：`kHermesUiRepoUrl` → `kHermesAnywhereRepoUrl`
+
+### 有意冻结（改名＝改身份，会断升级链或产生重复项；CHANGELOG 已列表）
+Android `applicationId`/`namespace`、Inno `AppId` GUID、安装目录 + 开始菜单组 `HermesUI`（脚本拆出 `MyAppDirName` 冻结 / `MyAppName` 显示）、AUMID `com.hermes.ui`、开机启动注册表值名 `Hermes`、单实例互斥名与窗口消息、Android 通知渠道 id、Dart 包名 `hermes_ui`、仓库 slug `hermes-keep`
+
+### 待主人拍板（本喵逐条推荐）
+1. **GitHub 仓库名** `hermes-keep` → `hermes-anywhere`？**推荐改**（对外一致；GitHub 对旧名自动 301，已装版本的更新检查不受影响）
+2. **Dart 包名** `hermes_ui` → `hermes_anywhere`？**推荐暂不改**（牵连 611 文件 + exe/Linux/macOS 二进制名 + `AppExeName`；收益仅是内部一致）
+3. **包标识** `com.silentreader.hermes_ui` / `AppId`：**推荐永久冻结**
+4. 本地目录 `D:\projects\hermes-ui`：**推荐保留**（worktree、CI 脚本、技能库路径都在引用）
+
+### 保留未动（有意）
+- `Hermes Agent`、`Hermes WebUI`、`连接你的 Hermes 服务器`、`一键部署 Hermes Agent 和 WebUI`、`Hermes 内置服务`、`Hermes is generating…` —— 均指**上游引擎/协议**，不是本应用名
+- 历史归档（`.todo/YYYYMMDD.md`、`HERMES.md`）里的旧名与旧资产名：**不改**（历史记录）
+
+---
+
 ## #199 宽屏侧栏「槽」：侧栏列与右侧内容区拉开一个感知台阶（页底色自动派生）
 
 **分类**：方向（宽屏 UI 层次）　**状态**：四路全落并合入 main（analyze 零告警 + 定向测试全绿 + 窄屏像素守门零变化）；**待主人真机复验观感**　**发现**：2026-10-14（主人提问「侧栏与右侧 header 是不是有点色差合适」）

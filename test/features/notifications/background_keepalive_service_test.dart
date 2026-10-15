@@ -445,7 +445,7 @@ void main() {
       expect(fakeFg.startServiceCallCount, 1);
       expect(fakeFg.lastCallback, isNotNull);
       expect(fakeFg.lastCallback, equals(foregroundTaskCallback));
-      expect(fakeFg.lastNotificationTitle, 'Hermes');
+      expect(fakeFg.lastNotificationTitle, 'Hermes Anywhere');
       expect(fakeFg.lastNotificationText, contains('1 个会话正在生成'));
     });
 

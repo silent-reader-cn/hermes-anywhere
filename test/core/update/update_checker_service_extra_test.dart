@@ -47,7 +47,7 @@ void main() {
   group('platformAppVersion 真实安装版本解析', () {
     test('version + buildNumber → "<version>+<build>"（与设置页同源格式）', () async {
       PackageInfo.setMockInitialValues(
-        appName: 'Hermes UI',
+        appName: 'Hermes Anywhere',
         packageName: 'cn.hermes.ui',
         version: '0.1.50',
         buildNumber: '56',
@@ -59,7 +59,7 @@ void main() {
 
     test('buildNumber 为空 → 只返回 version（不留下孤立 "+"）', () async {
       PackageInfo.setMockInitialValues(
-        appName: 'Hermes UI',
+        appName: 'Hermes Anywhere',
         packageName: 'cn.hermes.ui',
         version: '0.1.50',
         buildNumber: '',
@@ -71,7 +71,7 @@ void main() {
 
     test('两端带空白 → trim 后再拼接', () async {
       PackageInfo.setMockInitialValues(
-        appName: 'Hermes UI',
+        appName: 'Hermes Anywhere',
         packageName: 'cn.hermes.ui',
         version: ' 0.1.50 ',
         buildNumber: ' 56 ',
@@ -83,7 +83,7 @@ void main() {
 
     test('version 只有空白 → 兜底常量 appVersion（不返回空白版本）', () async {
       PackageInfo.setMockInitialValues(
-        appName: 'Hermes UI',
+        appName: 'Hermes Anywhere',
         packageName: 'cn.hermes.ui',
         version: '   ',
         buildNumber: '56',
@@ -95,7 +95,7 @@ void main() {
 
     test('解析出的版本可直接作为比对基准（远端同版 → 无更新）', () async {
       PackageInfo.setMockInitialValues(
-        appName: 'Hermes UI',
+        appName: 'Hermes Anywhere',
         packageName: 'cn.hermes.ui',
         version: '0.1.50',
         buildNumber: '56',

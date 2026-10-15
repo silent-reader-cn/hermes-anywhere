@@ -120,7 +120,7 @@ void main() {
       await tester.pumpWidget(_host(const SidebarBrandBar()));
       await tester.pumpAndSettle();
 
-      expect(find.text('Hermes'), findsOneWidget);
+      expect(find.text('Hermes Anywhere'), findsOneWidget);
       expect(find.textContaining('个会话'), findsNothing);
     });
   });

@@ -93,7 +93,7 @@ void main() {
 
       await service.sync(activeCount: 2, titles: const []);
       args = calls.last.arguments as Map<Object?, Object?>;
-      expect(args['title'], 'Hermes · 回合进行中 · 2 个会话');
+      expect(args['title'], 'Hermes Anywhere · 回合进行中 · 2 个会话');
       expect(args['text'], '正在生成回复…');
       expect(args['subText'], isNull);
     });
@@ -106,7 +106,7 @@ void main() {
       await service.sync(activeCount: 1, titles: const []);
 
       final args = calls.last.arguments as Map<Object?, Object?>;
-      expect(args['title'], 'Hermes · Working');
+      expect(args['title'], 'Hermes Anywhere · Working');
       expect(args['text'], 'Generating reply…');
       expect(args['shortCriticalText'], 'Live');
     });
@@ -635,7 +635,7 @@ void main() {
   // -------------------------------------------------------------------------
   // B 案「身份优先 + 状态着色」（2026-09-19，主人拍板；真机取证驱动）
   //
-  // 病灶：展开态最大字号位长期被恒定文案「Hermes · 回合进行中」占死，而 chat 侧
+  // 病灶：展开态最大字号位长期被恒定文案「Hermes Anywhere · 回合进行中」占死，而 chat 侧
   // 一路传上来的会话标题在服务层被丢弃 —— 用户看不出是哪个会话在跑；同时真机
   // 显示小米超级岛会自行在头部显示 App 名与计时器，任何再放 App 名的做法只会
   // 让一屏出现两遍「Hermes」。
@@ -677,7 +677,7 @@ void main() {
       await service.sync(activeCount: 3);
 
       final args = calls.last.arguments as Map<Object?, Object?>;
-      expect(args['title'], 'Hermes · 回合进行中 · 3 个会话');
+      expect(args['title'], 'Hermes Anywhere · 回合进行中 · 3 个会话');
       expect(args['text'], '正在生成回复…');
       // title 已含计数 —— 再报一次「另有」等于同一句话占两处。
       expect(args['subText'], isNull);
@@ -1135,7 +1135,7 @@ void main() {
       final lastArgs =
           calls.where((c) => c.method == 'show').last.arguments
               as Map<Object?, Object?>;
-      expect(lastArgs['title'], 'Hermes · Working');
+      expect(lastArgs['title'], 'Hermes Anywhere · Working');
       expect(lastArgs['text'], 'Downloading english.pdf · 25% · +1 queued');
       expect(lastArgs['shortCriticalText'], 'Save');
     });

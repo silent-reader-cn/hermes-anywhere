@@ -65,7 +65,7 @@ void _expectSettledBrand(WidgetTester tester) {
   expect(_opacity(tester, 'logo'), 1);
   expect(_opacity(tester, 'title'), 1);
   expect(_opacity(tester, 'slogan'), 1);
-  expect(tester.widget<Text>(find.text('Hermes')).style!.letterSpacing, -0.5);
+  expect(tester.widget<Text>(find.text('Hermes Anywhere')).style!.letterSpacing, -0.5);
   expect(find.text(_slogan), findsOneWidget);
   expect(tester.takeException(), isNull);
 }
@@ -98,10 +98,10 @@ void main() {
       expect(_breathScale(tester), 1);
       expect(tester.hasRunningAnimations, isFalse);
       expect(tester.binding.transientCallbackCount, 0);
-      expect(find.bySemanticsLabel('Hermes'), findsOneWidget);
+      expect(find.bySemanticsLabel('Hermes Anywhere'), findsOneWidget);
       expect(
-        tester.getSemantics(find.text('Hermes')),
-        matchesSemantics(label: 'Hermes', isHeader: true),
+        tester.getSemantics(find.text('Hermes Anywhere')),
+        matchesSemantics(label: 'Hermes Anywhere', isHeader: true),
       );
       expect(find.bySemanticsLabel(_slogan), findsOneWidget);
 
@@ -143,9 +143,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1200));
     // Flutter reports completion on the first frame strictly after duration.
     await tester.pump(const Duration(milliseconds: 16));
-    final title = tester.widget<Text>(find.text('Hermes'));
+    final title = tester.widget<Text>(find.text('Hermes Anywhere'));
     final slogan = tester.widget<Text>(find.text(_slogan));
-    final titleRect = tester.getRect(find.text('Hermes'));
+    final titleRect = tester.getRect(find.text('Hermes Anywhere'));
     final sloganRect = tester.getRect(find.text(_slogan));
 
     for (var cycle = 0; cycle < 3; cycle++) {
@@ -154,9 +154,9 @@ void main() {
       await tester.pump(const Duration(seconds: 6));
       expect(_breathScale(tester), closeTo(1, 0.000001));
       expect(tester.hasRunningAnimations, isTrue);
-      expect(tester.widget<Text>(find.text('Hermes')), same(title));
+      expect(tester.widget<Text>(find.text('Hermes Anywhere')), same(title));
       expect(tester.widget<Text>(find.text(_slogan)), same(slogan));
-      expect(tester.getRect(find.text('Hermes')), titleRect);
+      expect(tester.getRect(find.text('Hermes Anywhere')), titleRect);
       expect(tester.getRect(find.text(_slogan)), sloganRect);
       expect(tester.takeException(), isNull);
     }
@@ -191,7 +191,7 @@ void main() {
         );
         expect(paneRect.width, closeTo((size.width - 0.5) * 0.45, 0.01));
         expect(
-          paneRect.contains(tester.getCenter(find.text('Hermes'))),
+          paneRect.contains(tester.getCenter(find.text('Hermes Anywhere'))),
           isTrue,
         );
         expect(

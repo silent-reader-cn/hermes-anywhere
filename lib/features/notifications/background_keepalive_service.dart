@@ -533,7 +533,7 @@ class ProductionBackgroundKeepaliveService
       final isRunning = await _foregroundTaskWrapper.isRunningService;
       if (isRunning) {
         final updateResult = await _foregroundTaskWrapper.updateService(
-          notificationTitle: 'Hermes',
+          notificationTitle: 'Hermes Anywhere',
           notificationText: text,
         );
         if (updateResult is ServiceRequestFailure) {
@@ -544,7 +544,7 @@ class ProductionBackgroundKeepaliveService
       }
 
       final result = await _foregroundTaskWrapper.startService(
-        notificationTitle: 'Hermes',
+        notificationTitle: 'Hermes Anywhere',
         notificationText: text,
         callback: callback ?? foregroundTaskCallback,
       );
@@ -583,7 +583,7 @@ class ProductionBackgroundKeepaliveService
       if (!isRunning) return;
       final text = formatNotificationText(activeCount, isEnglish: LocaleResolver.isEnglish);
       final result = await _foregroundTaskWrapper.updateService(
-        notificationTitle: 'Hermes',
+        notificationTitle: 'Hermes Anywhere',
         notificationText: text,
       );
       if (result is ServiceRequestFailure) {
@@ -626,7 +626,7 @@ class ProductionBackgroundKeepaliveService
         return;
       }
       final result = await _foregroundTaskWrapper.updateService(
-        notificationTitle: 'Hermes',
+        notificationTitle: 'Hermes Anywhere',
         notificationText: text,
       );
       if (result is ServiceRequestFailure) {
@@ -830,7 +830,7 @@ class ProductionBackgroundKeepaliveService
                   'com.miui.powerkeeper/com.miui.powerkeeper.ui.HiddenAppsConfigActivity',
               arguments: {
                 'package_name': packageName,
-                'package_label': 'Hermes',
+                'package_label': 'Hermes Anywhere',
               },
             ),
             // 2. 原生忽略电池优化设置
@@ -958,7 +958,7 @@ class ProductionBackgroundKeepaliveService
             if (isRunning) {
               final text = formatNotificationText(activeStreams, isEnglish: LocaleResolver.isEnglish);
               await FlutterForegroundTask.updateService(
-                notificationTitle: 'Hermes',
+                notificationTitle: 'Hermes Anywhere',
                 notificationText: text,
               );
             }
@@ -1114,7 +1114,7 @@ class ProductionBackgroundKeepaliveService
                       await FlutterForegroundTask.isRunningService;
                   if (isRunning) {
                     await FlutterForegroundTask.updateService(
-                      notificationTitle: 'Hermes',
+                      notificationTitle: 'Hermes Anywhere',
                       notificationText: formatNotificationText(0, isEnglish: LocaleResolver.isEnglish),
                     );
                   }
@@ -1205,7 +1205,7 @@ class ProductionBackgroundKeepaliveService
                       await FlutterForegroundTask.isRunningService;
                   if (isRunning) {
                     await FlutterForegroundTask.updateService(
-                      notificationTitle: 'Hermes',
+                      notificationTitle: 'Hermes Anywhere',
                       notificationText: formatNotificationText(0, isEnglish: LocaleResolver.isEnglish),
                     );
                   }

@@ -1242,8 +1242,8 @@ class AppLocalizations {
       : '启动时恢复上次窗口位置与尺寸';
   String get startOnLogin => isEnglish ? 'Start on Login' : '开机启动';
   String get startOnLoginSubtitle => isEnglish
-      ? 'Launch Hermes automatically when you sign in to Windows'
-      : '登录 Windows 时自动启动 Hermes';
+      ? 'Launch Hermes Anywhere automatically when you sign in to Windows'
+      : '登录 Windows 时自动启动 Hermes Anywhere';
   String get silentStart => isEnglish ? 'Silent Start' : '静默启动';
   String get silentStartSubtitle => isEnglish
       ? 'Start in the system tray without showing the main window'
@@ -1913,8 +1913,8 @@ extension AppLocalizationsInstallPermission96 on AppLocalizations {
   String get installPermissionTitle =>
       isEnglish ? 'Install Permission Required' : '需要安装权限';
   String get installPermissionBody => isEnglish
-      ? 'To install APK files, allow "Install unknown apps" for Hermes in system settings, then come back and tap Open again.'
-      : '安装 APK 需要在系统设置中允许 Hermes「安装未知应用」，授权后回来重新点「打开」即可。';
+      ? 'To install APK files, allow "Install unknown apps" for Hermes Anywhere in system settings, then come back and tap Open again.'
+      : '安装 APK 需要在系统设置中允许 Hermes Anywhere「安装未知应用」，授权后回来重新点「打开」即可。';
   String get installPermissionGoSettings =>
       isEnglish ? 'Go to Settings' : '去设置';
 }
@@ -1976,12 +1976,12 @@ extension AppLocalizationsProjectFolder on AppLocalizations {
 extension AppLocalizationsLiveUpdate105 on AppLocalizations {
   /// 实况通知标题（单会话）。
   String get liveUpdateTitle =>
-      isEnglish ? 'Hermes · Working' : 'Hermes · 回合进行中';
+      isEnglish ? 'Hermes Anywhere · Working' : 'Hermes Anywhere · 回合进行中';
 
   /// 实况通知标题（多会话聚合）。
   String liveUpdateTitleMulti(int count) => isEnglish
-      ? 'Hermes · Working · $count sessions'
-      : 'Hermes · 回合进行中 · $count 个会话';
+      ? 'Hermes Anywhere · Working · $count sessions'
+            : 'Hermes Anywhere · 回合进行中 · $count 个会话';
 
   /// 无会话名时的兜底正文。
   String get liveUpdateDefaultText =>

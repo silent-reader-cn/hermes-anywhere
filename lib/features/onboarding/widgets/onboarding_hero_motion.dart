@@ -204,7 +204,7 @@ class _OnboardingHeroMotionState extends State<OnboardingHeroMotion>
                     child: AnimatedBuilder(
                       animation: _titleProgress,
                       builder: (context, child) => Text(
-                        'Hermes',
+                        'Hermes Anywhere',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: kFontLargeTitle,

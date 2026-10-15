@@ -715,7 +715,7 @@ List<DownloadTask> demoDownloadTasks({required String completedDir}) {
     DownloadTask(
       id: 'dl-1',
       sourceUrl: '$_demoBaseUrl/api/workspace/download?session=s-demo-1&path=build/app-release.apk',
-      fileName: 'HermesUI-0.1.51-arm64.apk',
+      fileName: 'HermesAnywhere-0.1.51-arm64.apk',
       mimeType: 'application/vnd.android.package-archive',
       status: DownloadStatus.downloading,
       receivedBytes: 61865984,
@@ -726,7 +726,7 @@ List<DownloadTask> demoDownloadTasks({required String completedDir}) {
     DownloadTask(
       id: 'dl-2',
       sourceUrl: '$_demoBaseUrl/api/workspace/download?session=s-demo-1&path=dist/windows',
-      fileName: 'HermesUI-0.1.51-x64-setup.exe',
+      fileName: 'HermesAnywhere-0.1.51-x64-setup.exe',
       mimeType: 'application/vnd.microsoft.portable-executable',
       status: DownloadStatus.queued,
       receivedBytes: 0,
@@ -1275,7 +1275,7 @@ Future<DiagnosticsService> demoDiagnosticsService() async {
     'downloads',
     '断点续传已恢复：已存 61.9 MB / 共 91.8 MB，续传起点 61865984',
     durationMs: 1420,
-    details: {'file': 'HermesUI-0.1.51-arm64.apk', 'range': 'bytes=61865984-'},
+    details: {'file': 'HermesAnywhere-0.1.51-arm64.apk', 'range': 'bytes=61865984-'},
   );
   log(
     const Duration(seconds: 38),

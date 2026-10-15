@@ -6,38 +6,38 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('WindowTitleService 纯函数 formatWindowTitle 单元测试', () {
-    test('null / 空串 / 纯空格 返回默认 Hermes', () {
-      expect(WindowTitleService.formatWindowTitle(null), 'Hermes');
-      expect(WindowTitleService.formatWindowTitle(''), 'Hermes');
-      expect(WindowTitleService.formatWindowTitle('   '), 'Hermes');
+    test('null / 空串 / 纯空格 返回默认 Hermes Anywhere', () {
+      expect(WindowTitleService.formatWindowTitle(null), 'Hermes Anywhere');
+      expect(WindowTitleService.formatWindowTitle(''), 'Hermes Anywhere');
+      expect(WindowTitleService.formatWindowTitle('   '), 'Hermes Anywhere');
     });
 
-    test('占位标题 untitled / untitled session 大小写均返回 Hermes', () {
-      expect(WindowTitleService.formatWindowTitle('Untitled'), 'Hermes');
-      expect(WindowTitleService.formatWindowTitle('untitled'), 'Hermes');
+    test('占位标题 untitled / untitled session 大小写均返回 Hermes Anywhere', () {
+      expect(WindowTitleService.formatWindowTitle('Untitled'), 'Hermes Anywhere');
+      expect(WindowTitleService.formatWindowTitle('untitled'), 'Hermes Anywhere');
       expect(
         WindowTitleService.formatWindowTitle('Untitled Session'),
-        'Hermes',
+        'Hermes Anywhere',
       );
       expect(
         WindowTitleService.formatWindowTitle('untitled session'),
-        'Hermes',
+        'Hermes Anywhere',
       );
-      expect(WindowTitleService.formatWindowTitle('  UNTITLED  '), 'Hermes');
+      expect(WindowTitleService.formatWindowTitle('  UNTITLED  '), 'Hermes Anywhere');
     });
 
-    test('正常会话标题格式化为 "标题 - Hermes"', () {
+    test('正常会话标题格式化为 "标题 - Hermes Anywhere"', () {
       expect(
         WindowTitleService.formatWindowTitle('Flutter 桌面端开发'),
-        'Flutter 桌面端开发 - Hermes',
+        'Flutter 桌面端开发 - Hermes Anywhere',
       );
       expect(
         WindowTitleService.formatWindowTitle('  重构架构讨论  '),
-        '重构架构讨论 - Hermes',
+        '重构架构讨论 - Hermes Anywhere',
       );
       expect(
         WindowTitleService.formatWindowTitle('🚀 Release 1.0'),
-        '🚀 Release 1.0 - Hermes',
+        '🚀 Release 1.0 - Hermes Anywhere',
       );
     });
 
@@ -46,14 +46,14 @@ void main() {
       expect(exact40.length, 40);
       expect(
         WindowTitleService.formatWindowTitle(exact40),
-        '$exact40 - Hermes',
+        '$exact40 - Hermes Anywhere',
       );
 
       const longTitle = '这是一个非常非常非常非常非常非常非常非常非常长的一个会话标题用于测试窗口标题截断功能是否正确生效';
       final formatted = WindowTitleService.formatWindowTitle(longTitle);
-      expect(formatted.endsWith('... - Hermes'), isTrue);
+      expect(formatted.endsWith('... - Hermes Anywhere'), isTrue);
       // 截断后的主体长度应为 40 字符 + 3 个点
-      final prefix = formatted.split(' - Hermes').first;
+      final prefix = formatted.split(' - Hermes Anywhere').first;
       expect(prefix.length, 43);
       expect(prefix.endsWith('...'), isTrue);
     });
@@ -61,7 +61,7 @@ void main() {
     test('支持自定义 maxLength 截断', () {
       expect(
         WindowTitleService.formatWindowTitle('1234567890', maxTitleLength: 5),
-        '12345... - Hermes',
+        '12345... - Hermes Anywhere',
       );
     });
   });
@@ -79,11 +79,11 @@ void main() {
       expect(calledTitle, isNull);
 
       await service.updateSessionTitle('My Session');
-      expect(service.currentTitle, 'My Session - Hermes');
+      expect(service.currentTitle, 'My Session - Hermes Anywhere');
       expect(calledTitle, isNull);
 
       await service.resetTitle();
-      expect(service.currentTitle, 'Hermes');
+      expect(service.currentTitle, 'Hermes Anywhere');
       expect(calledTitle, isNull);
     });
 
@@ -96,17 +96,17 @@ void main() {
           onSetTitle: (t) => calledTitle = t,
         );
 
-        await service.setTitle('Hermes UI Client');
-        expect(calledTitle, 'Hermes UI Client');
+        await service.setTitle('Hermes Anywhere Client');
+        expect(calledTitle, 'Hermes Anywhere Client');
 
         await service.updateSessionTitle('调试网络模块');
-        expect(calledTitle, '调试网络模块 - Hermes');
+        expect(calledTitle, '调试网络模块 - Hermes Anywhere');
 
         await service.updateSessionTitle('Untitled');
-        expect(calledTitle, 'Hermes');
+        expect(calledTitle, 'Hermes Anywhere');
 
         await service.resetTitle();
-        expect(calledTitle, 'Hermes');
+        expect(calledTitle, 'Hermes Anywhere');
       },
     );
 

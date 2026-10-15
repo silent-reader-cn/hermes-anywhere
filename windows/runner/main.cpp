@@ -9,7 +9,7 @@
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
-  // Single-instance guard: if another HermesUI instance is running, ask it to
+  // Single-instance guard: if another Hermes Anywhere instance is running, ask it to
   // restore + focus its window and exit this process immediately. Must run
   // before any window/engine creation.
   if (!HermesAcquireSingleInstanceLock()) {
@@ -38,7 +38,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1280, 720);
-  if (!window.Create(L"Hermes", origin, size)) {
+  if (!window.Create(L"Hermes Anywhere", origin, size)) {
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);

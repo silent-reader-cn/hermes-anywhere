@@ -1,6 +1,6 @@
 <div align="center">
 
-# Hermes UI
+# Hermes Anywhere
 
 **多平台统一、流畅的 Hermes 体验。**
 
@@ -21,7 +21,7 @@
 
 **Windows 桌面** —— 左边是会话，右边是对话：流式 Markdown 回答、思考与工具卡片、回合中途 steer。
 
-<img src="docs/screenshots/wide-chat-dark.png" width="100%" alt="Hermes UI Windows 桌面：左会话列表 + 右流式回答（Markdown、表格、代码块与后续提问）"/>
+<img src="docs/screenshots/wide-chat-dark.png" width="100%" alt="Hermes Anywhere Windows 桌面：左会话列表 + 右流式回答（Markdown、表格、代码块与后续提问）"/>
 
 <div align="center">
 
@@ -72,8 +72,8 @@
 
 ### Windows
 
-1. 从 [Releases](https://github.com/silent-reader-cn/hermes-keep/releases) 页面下载最新安装包 `HermesUI-<版本号>-x64-setup.exe` 并运行。
-2. 启动 **Hermes UI**，在引导页选择 **内置服务** → **启动并连接**，完成——WebUI 后端自动拉起。
+1. 从 [Releases](https://github.com/silent-reader-cn/hermes-keep/releases) 页面下载最新安装包 `HermesAnywhere-<版本号>-x64-setup.exe` 并运行。
+2. 启动 **Hermes Anywhere**，在引导页选择 **内置服务** → **启动并连接**，完成——WebUI 后端自动拉起。
 
 聊天功能需要本机安装 [Hermes Agent](https://hermes-agent.nousresearch.com/docs)。未检测到时引导页会出现提示卡并附安装指南链接；此时 App 仍可用（会话历史只读），尝试聊天会明确提示缺少的内容。
 
@@ -83,7 +83,7 @@
 
 ### macOS
 
-从 [Releases](https://github.com/silent-reader-cn/hermes-keep/releases) 页面下载 `HermesUI-<版本号>-macos-arm64.zip`。当前包未签名、未公证，打开前先清隔离标记：
+从 [Releases](https://github.com/silent-reader-cn/hermes-keep/releases) 页面下载 `HermesAnywhere-<版本号>-macos-arm64.zip`。当前包未签名、未公证，打开前先清隔离标记：
 
 ```bash
 xattr -cr hermes_ui.app
@@ -94,10 +94,10 @@ open hermes_ui.app
 
 ### Linux
 
-下载 `HermesUI-<版本号>-linux-x64.tar.gz`，解包即用 —— 包内自带 mpv / ffmpeg 运行库，标准桌面无需额外安装：
+下载 `HermesAnywhere-<版本号>-linux-x64.tar.gz`，解包即用 —— 包内自带 mpv / ffmpeg 运行库，标准桌面无需额外安装：
 
 ```bash
-tar -xzf HermesUI-<版本号>-linux-x64.tar.gz
+tar -xzf HermesAnywhere-<版本号>-linux-x64.tar.gz
 ./hermes_ui
 ```
 

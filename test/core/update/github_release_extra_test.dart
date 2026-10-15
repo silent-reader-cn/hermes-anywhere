@@ -378,7 +378,7 @@ void main() {
         name: 'n',
         assets: <ReleaseAsset>[
           ReleaseAsset(
-            name: 'HermesUI-setup-x64.exe',
+            name: 'HermesAnywhere-setup-x64.exe',
             browserDownloadUrl: 'u',
           ),
         ],
@@ -386,7 +386,7 @@ void main() {
 
       expect(
         findPlatformAsset(release, platform: TargetPlatform.windows)?.name,
-        'HermesUI-setup-x64.exe',
+        'HermesAnywhere-setup-x64.exe',
       );
     });
 

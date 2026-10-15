@@ -3,7 +3,7 @@
 
 #include <windows.h>
 
-// Single-instance guard for HermesUI (project requirement: no duplicate
+// Single-instance guard for Hermes Anywhere (project requirement: no duplicate
 // instances; second launch must surface and focus the first window).
 //
 // Mechanism: a named mutex is created at process start. If creation reports
@@ -17,6 +17,9 @@
 // Custom message broadcast to the running instance. Registered at runtime to
 // avoid collisions with WM_APP ranges used by Flutter or plugins.
 inline UINT HermesSingleInstanceMessage() {
+  // FROZEN: window-message + mutex names keep the pre-rename spelling on purpose —
+  // they are the inter-process contract between a running instance and a new one.
+  // Renaming them would let an old build and a new build run side by side.
   static const UINT msg = ::RegisterWindowMessageW(L"HermesUI.SingleInstance.Activate");
   return msg;
 }

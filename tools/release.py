@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-step release automation for Hermes UI.
+"""One-step release automation for Hermes Anywhere.
 
 Pre-flight checks -> git tag & push -> gh release create -> verify (read-back 3 items).
 
@@ -130,7 +130,7 @@ def query_latest_release_tag(repo: str) -> str | None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="One-step release automation for Hermes UI.",
+        description="One-step release automation for Hermes Anywhere.",
     )
     parser.add_argument(
         "--apk",
@@ -158,7 +158,7 @@ def main() -> int:
         "--title",
         type=str,
         default=None,
-        help="Release title (defaults to 'Hermes UI v<version>')",
+        help="Release title (defaults to 'Hermes Anywhere v<version>')",
     )
     parser.add_argument(
         "--notes",
@@ -307,7 +307,7 @@ def main() -> int:
     exe_native_path = to_native_posix(exe_path)
     apk_byte_size = apk_path.stat().st_size
     exe_byte_size = exe_path.stat().st_size
-    title = args.title or f"Hermes UI {tag_name}"
+    title = args.title or f"Hermes Anywhere {tag_name}"
 
     if args.notes:
         notes_content = args.notes
@@ -315,7 +315,7 @@ def main() -> int:
         notes_content = Path(args.notes_file).read_text(encoding="utf-8")
     else:
         notes_content = (
-            f"## Hermes UI {tag_name}\n\n"
+            f"## Hermes Anywhere {tag_name}\n\n"
             f"### 安装\n"
             f"- **Android**：`{apk_path.name}` ({apk_byte_size:,} bytes)\n"
             f"- **Windows**：`{exe_path.name}` ({exe_byte_size:,} bytes)\n"
@@ -336,7 +336,7 @@ def main() -> int:
         print(f"  - Windows: {exe_native_path} ({exe_byte_size:,} bytes)")
         print("-" * 60)
         print("The following operations WOULD be executed (run with --yes to execute):")
-        print(f"  1. git tag -a {tag_name} -m \"Hermes UI {tag_name}\"")
+        print(f"  1. git tag -a {tag_name} -m \"Hermes Anywhere {tag_name}\"")
         print(f"  2. git push origin {tag_name}")
         print(
             f"  3. gh release create {tag_name} \\\n"
@@ -365,7 +365,7 @@ def main() -> int:
     print("=" * 60)
 
     # Step 1: git tag & push
-    tag_cmd = ["git", "tag", "-a", tag_name, "-m", f"Hermes UI {tag_name}"]
+    tag_cmd = ["git", "tag", "-a", tag_name, "-m", f"Hermes Anywhere {tag_name}"]
     print(f"[EXEC] {' '.join(tag_cmd)}")
     res_tag = run_cmd(tag_cmd, cwd=root)
     if res_tag.returncode != 0:

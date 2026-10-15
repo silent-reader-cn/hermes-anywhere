@@ -1,13 +1,13 @@
 # Third-Party Notices
 
-This document collects the license notices of third-party software that Hermes UI
+This document collects the license notices of third-party software that Hermes Anywhere
 incorporates or redistributes. Texts are reproduced from the original
-distributions. Hermes UI itself is MIT-licensed; see [LICENSE](LICENSE).
+distributions. Hermes Anywhere itself is MIT-licensed; see [LICENSE](LICENSE).
 
 The Windows installer bundles the hermes-webui server source tree and an
 embedded Python 3.11 runtime (with the Python packages listed below) inside its
 `webui/` directory. They run as a separate, unmodified server process and are
-not linked into Hermes UI.
+not linked into Hermes Anywhere.
 
 ## Contents
 
@@ -58,7 +58,7 @@ SOFTWARE.
 
 - Source: https://github.com/uzairansaruzi/hermex
 - License: MIT
-- Relationship: Hermes UI is a Flutter port derived from the Hermex iOS (SwiftUI)
+- Relationship: Hermes Anywhere is a Flutter port derived from the Hermex iOS (SwiftUI)
   client. Hermex source code is not redistributed in this repository or in its
   releases; its copyright notice is retained here as required by the MIT License.
 

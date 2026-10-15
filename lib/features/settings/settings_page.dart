@@ -2517,7 +2517,7 @@ class _AboutSectionState extends ConsumerState<_AboutSection> {
     var launched = false;
     try {
       launched = await launchUrl(
-        Uri.parse(kHermesUiRepoUrl),
+        Uri.parse(kHermesAnywhereRepoUrl),
         mode: LaunchMode.externalApplication,
       );
     } catch (_) {
@@ -2537,14 +2537,14 @@ class _AboutSectionState extends ConsumerState<_AboutSection> {
       context,
       kind: HermesDialogKind.confirm,
       title: (_) => Text(l10n.actionFailed),
-      content: (_) => const Text(kHermesUiRepoUrl),
+      content: (_) => const Text(kHermesAnywhereRepoUrl),
       actions: [
         HermesDialogAction(
           builder: (_) => Text(l10n.copy),
           textStyle: ink,
           onPressed: (dialogContext) {
             unawaited(
-              Clipboard.setData(const ClipboardData(text: kHermesUiRepoUrl)),
+              Clipboard.setData(const ClipboardData(text: kHermesAnywhereRepoUrl)),
             );
             Navigator.of(dialogContext).pop();
           },
@@ -2689,7 +2689,7 @@ class _AboutSectionState extends ConsumerState<_AboutSection> {
         children: [
           CupertinoListTile(
             key: const ValueKey('settings-repo-tile'),
-            title: const Text('Hermes UI'),
+            title: const Text('Hermes Anywhere'),
             subtitle: Text(l10n.hermesWebUIClient),
             trailing: const CupertinoListTileChevron(),
             onTap: () => unawaited(_openRepository()),

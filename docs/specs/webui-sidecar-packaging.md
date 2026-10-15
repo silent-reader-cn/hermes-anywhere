@@ -18,7 +18,7 @@
 
 ```
 +-------------------------------------------------------------------------+
-|                        Hermes UI (Flutter App)                          |
+|                        Hermes Anywhere (Flutter App)                          |
 |  - WebuiSidecarService (Process.start / Watchdog / Env / Log Tee)       |
 |  - Settings / Tray Manager ("在浏览器中打开 WebUI")                       |
 +-------------------------------------------------------------------------+
@@ -156,8 +156,12 @@ PYTHONDONTWRITEBYTECODE=1
 
 ### 5.1 核心配置属性
 - **脚本路径**：`installer/hermes-ui.iss`
-- **输出包命名规则**：`HermesUI-<version>-x64-setup.exe`（如 `HermesUI-0.1.17-x64-setup.exe`）
+- **输出包命名规则**：`HermesAnywhere-<version>-x64-setup.exe`（如 `HermesAnywhere-0.1.17-x64-setup.exe`）
 - **默认安装路径**：`{autopf}\HermesUI`（64 位 Program Files）
+  - 品牌已更名为 **Hermes Anywhere**，但安装目录与开始菜单组名**有意保持旧拼写**：
+    Inno Setup 的升级路径由 `AppId` + `DefaultDirName` 共同决定，改目录会让老用户
+    升级后落在第二个文件夹（旧目录残留、卸载项分裂）。因此 `installer/hermes-ui.iss`
+    里拆出 `MyAppDirName`（冻结 = `HermesUI`）与 `MyAppName`（显示 = `Hermes Anywhere`）。
 - **固定 GUID (`AppId`)**：`{{8B41253C-9A5C-4B74-8C37-A3C8B7E20E21}}`（锁死，保证版本平滑升级覆盖，不产生重复安装项）
 - **架构支持**：纯 64 位（`ArchitecturesAllowed=x64`, `ArchitecturesInstallIn64BitMode=x64`）
 - **图标与许可**：引用 `installer/app_icon.ico` 与 `installer/LICENSE.txt`
@@ -218,4 +222,4 @@ PYTHONDONTWRITEBYTECODE=1
    - 执行 `flutter build windows --release`；
    - 执行 `build_webui_bundle.ps1` 组装 Sidecar；
    - 执行 `build_installer.ps1` 输出安装包；
-   - 上传 `HermesUI-*-x64-setup.exe` 至 GitHub Artifacts。
+   - 上传 `HermesAnywhere-*-x64-setup.exe` 至 GitHub Artifacts。

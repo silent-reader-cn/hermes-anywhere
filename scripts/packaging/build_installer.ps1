@@ -1,5 +1,5 @@
 # build_installer.ps1
-# Helper script to compile Inno Setup installer for HermesUI.
+# Helper script to compile Inno Setup installer for Hermes Anywhere.
 # All characters in this file are strictly ASCII (project requirement).
 
 [CmdletBinding()]
@@ -120,7 +120,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # Check output artifact
-$expectedExe = Join-Path $resolvedOutputDir "HermesUI-$AppVersion-x64-setup.exe"
+$expectedExe = Join-Path $resolvedOutputDir "HermesAnywhere-$AppVersion-x64-setup.exe"
 if (-not (Test-Path $expectedExe)) {
     Log-Err "Expected installer not found at: $expectedExe"
     exit 1

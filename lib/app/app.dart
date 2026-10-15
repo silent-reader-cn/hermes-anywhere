@@ -23,7 +23,7 @@ import 'widgets/focus_gated_ticker_mode.dart';
 /// 根 Widget（app_shell_spec.md §2.2）。
 ///
 /// 纯 Cupertino 壳：深浅色主题（跟随系统 + 手动三态）、go_router 路由表、
-/// 中英本地化。桌面端窗口标题 'Hermes'，移动端状态栏样式随系统。
+/// 中英本地化。桌面端窗口标题 'Hermes Anywhere'，移动端状态栏样式随系统。
 ///
 /// 注：CupertinoApp 不支持 `darkTheme`/`themeMode` 参数（MaterialApp 专属），
 /// 深浅色在这里按三态模式 + 系统亮度手工解析出单一 [CupertinoThemeData]。
@@ -63,7 +63,7 @@ class HermesApp extends ConsumerWidget {
           // 底色变化即换 key ⇒ 整棵子树重建，新令牌值立刻生效。
           // routerConfig 是同一个 GoRouter 实例，路由位置不受影响。
           key: ValueKey<PageSurfaceState>(pageSurface),
-          title: 'Hermes',
+          title: 'Hermes Anywhere',
           theme: buildCupertinoTheme(brightness),
           routerConfig: router,
           locale: locale,

@@ -233,7 +233,7 @@ class TrayManagerService with TrayListener {
         iconPath = await prepareTrayIconFile();
       }
       await trayManager.setIcon(iconPath);
-      await trayManager.setToolTip('Hermes');
+      await trayManager.setToolTip('Hermes Anywhere');
     } catch (e, st) {
       developer.log(
         'Failed to set tray icon / tooltip',

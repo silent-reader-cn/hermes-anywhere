@@ -8,6 +8,26 @@
 > 逐版变更明细以 [GitHub Releases](https://github.com/silent-reader-cn/hermes-keep/releases) 的 Release notes 为准（每个 tag 一份）；
 > 本文件自 `0.1.0` 起未逐版维护，只保留里程碑与当前进行中的事项。
 
+### 品牌更名：Hermes UI → Hermes Anywhere
+
+- **对外名称**由 `Hermes UI` 改为 `Hermes Anywhere`：README（中英）、docs、CHANGELOG、第三方声明、
+  窗口标题（`<会话标题> - Hermes Anywhere`）、侧栏品牌条、引导页品牌字、托盘提示、系统通知
+  （Android 前台服务通知 / Windows Toast）、设置「关于」行、安装器显示名、发布资产名、Release 标题与 tag 说明
+- **发布资产名**：`HermesAnywhere-<version>-x64-setup.exe`、`-linux-x64.tar.gz`、`-macos-arm64.zip`
+  （应用内更新按**扩展名**匹配 `*.apk` / `*-setup.exe`，故已发布版本不受影响）
+- **应用标识一律冻结**（改名＝改身份，会断升级链或产生重复项）：
+  | 冻结项 | 值 | 原因 |
+  |---|---|---|
+  | Android `applicationId` / `namespace` | `com.silentreader.hermes_ui` | 换 id ⇒ 手机端变新应用，需卸载重装 |
+  | Inno Setup `AppId` GUID | `{8B41253C-…}` | 换 GUID ⇒ 老安装不再被识别为同一应用 |
+  | 安装目录 / 开始菜单组 | `{autopf}\HermesUI` | 换目录 ⇒ 升级落在第二个文件夹、旧目录残留 |
+  | Windows AUMID | `com.hermes.ui` | 通知图标与快捷方式绑定它 |
+  | 开机启动注册表值名 | `HKCU\…\Run` 的 `Hermes` | 改名 ⇒ 自启动出现重复项 + 旧项残留 |
+  | 单实例互斥名 / 窗口消息 | `Local\HermesUI.SingleInstance.Mutex` 等 | 进程间契约：改名 ⇒ 新旧版可同时启动 |
+  | Android 通知渠道 id | `hermes_foreground_service` | 换 id ⇒ 通知渠道重复 |
+  | Dart 包名 / 仓库 slug | `hermes_ui` / `hermes-keep` | 未在本次范围内（待定） |
+- 安装器脚本据此拆出 `MyAppName`（显示 = `Hermes Anywhere`）与 `MyAppDirName`（冻结 = `HermesUI`）
+
 ### 仓库与口径
 
 - 仓库更名为 `hermes-keep`（原 `hermes-ui`）。旧链接由 GitHub 自动重定向，**已发布版本的应用内检查更新不受影响**（实测旧 API 端点 301 → 正确返回最新 Release）

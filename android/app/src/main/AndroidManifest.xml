@@ -16,7 +16,7 @@
          设置中逐应用授予「安装未知应用」，此声明是前提资格） -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <application
-        android:label="Hermes"
+        android:label="Hermes Anywhere"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"

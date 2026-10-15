@@ -286,7 +286,7 @@ void main() {
       expect(find.byType(CupertinoAlertDialog), findsOneWidget);
       expect(find.text('需要安装权限'), findsOneWidget);
       expect(
-        find.text('安装 APK 需要在系统设置中允许 Hermes「安装未知应用」，授权后回来重新点「打开」即可。'),
+        find.text('安装 APK 需要在系统设置中允许 Hermes Anywhere「安装未知应用」，授权后回来重新点「打开」即可。'),
         findsOneWidget,
       );
       expect(find.text('去设置'), findsOneWidget);

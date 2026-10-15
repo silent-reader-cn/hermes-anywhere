@@ -11,7 +11,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
 
-/// 设置 →「关于」→「Hermes UI」行跳转 GitHub 仓库（点击行为回归）。
+/// 设置 →「关于」→「Hermes Anywhere」行跳转 GitHub 仓库（点击行为回归）。
 ///
 /// 锁死三件事：
 /// 1. 该行可点击（chevron 提示）→ 走 url_launcher 外部浏览器打开公开仓库；
@@ -125,7 +125,7 @@ void main() {
     return calls;
   }
 
-  group('设置「关于」→ Hermes UI 行跳转 GitHub 仓库', () {
+  group('设置「关于」→ Hermes Anywhere 行跳转 GitHub 仓库', () {
     testWidgets('该行可点击（带 chevron），点击后外部浏览器打开仓库地址', (tester) async {
       final fake = _FakeUrlLauncher();
       UrlLauncherPlatform.instance = fake;
@@ -147,14 +147,14 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.descendant(of: tileFinder, matching: find.text('Hermes UI')),
+        find.descendant(of: tileFinder, matching: find.text('Hermes Anywhere')),
         findsOneWidget,
       );
 
       await tester.tap(tileFinder);
       await tester.pumpAndSettle();
 
-      expect(fake.launchedUrls, [kHermesUiRepoUrl]);
+      expect(fake.launchedUrls, [kHermesAnywhereRepoUrl]);
       expect(
         fake.launchedOptions.single.mode,
         PreferredLaunchMode.externalApplication,
@@ -173,7 +173,7 @@ void main() {
 
       expect(find.byType(CupertinoAlertDialog), findsOneWidget);
       expect(find.text('操作失败'), findsOneWidget);
-      expect(find.text(kHermesUiRepoUrl), findsOneWidget);
+      expect(find.text(kHermesAnywhereRepoUrl), findsOneWidget);
       expect(find.text('复制'), findsOneWidget);
 
       await tester.tap(find.text('复制'));
@@ -185,7 +185,7 @@ void main() {
       expect(setDataCalls, hasLength(1));
       expect(
         (setDataCalls.single.arguments as Map<Object?, Object?>)['text'],
-        kHermesUiRepoUrl,
+        kHermesAnywhereRepoUrl,
       );
       expect(find.byType(CupertinoAlertDialog), findsNothing);
     });
@@ -198,7 +198,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(CupertinoAlertDialog), findsOneWidget);
-      expect(find.text(kHermesUiRepoUrl), findsOneWidget);
+      expect(find.text(kHermesAnywhereRepoUrl), findsOneWidget);
 
       await tester.tap(find.text('好'));
       await tester.pumpAndSettle();

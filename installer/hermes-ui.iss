@@ -1,8 +1,12 @@
 ; hermes-ui.iss
-; Inno Setup script for HermesUI Windows x64 Desktop Installer
+; Inno Setup script for Hermes Anywhere Windows x64 Desktop Installer
 ; All characters and comments in this file are strictly ASCII (project requirement).
 
-#define MyAppName "HermesUI"
+; Display name shown in wizard / Add-Remove Programs / shortcuts.
+#define MyAppName "Hermes Anywhere"
+; FROZEN: install dir + Start Menu group keep the pre-rename spelling so
+; existing installs upgrade in place instead of landing in a second folder.
+#define MyAppDirName "HermesUI"
 #ifndef MyAppVersion
 #define MyAppVersion "0.1.17"
 #endif
@@ -20,12 +24,12 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName={autopf}\{#MyAppName}
-DefaultGroupName={#MyAppName}
+DefaultDirName={autopf}\{#MyAppDirName}
+DefaultGroupName={#MyAppDirName}
 DisableProgramGroupPage=yes
 LicenseFile=LICENSE.txt
 OutputDir=..\build\installer
-OutputBaseFilename=HermesUI-{#MyAppVersion}-x64-setup
+OutputBaseFilename=HermesAnywhere-{#MyAppVersion}-x64-setup
 SetupIconFile=app_icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/max

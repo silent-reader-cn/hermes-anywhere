@@ -118,7 +118,7 @@ flowchart TD
    - 若本地已安装 Hermes，可临时重命名 `%LOCALAPPDATA%\hermes` 文件夹以模拟全新安装环境；
    - 清除应用已保存的连接缓存。
 2. **入口验证**：
-   - 启动 Hermes UI 应用，进入引导页 `OnboardingPage`；
+   - 启动 Hermes Anywhere 应用，进入引导页 `OnboardingPage`；
    - 确认在连接表单下方出现「本机部署」卡片，文案清晰，点击进入向导页 `/install-guide`。
 3. **流水线执行验证**：
    - 点击「开始一键安装」；

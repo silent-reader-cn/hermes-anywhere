@@ -17,7 +17,7 @@ import '../theme/status_colors.dart';
 /// 宽屏侧栏顶部品牌行（#149 案 A，对齐设计稿）。
 ///
 /// 结构（一行）：
-/// `[logo] Hermes …………………… [搜索] [刷新] [筛选]`
+/// `[logo] Hermes Anywhere …………………… [搜索] [刷新] [筛选]`
 /// 点搜索图标 → 品牌行下方展开一行搜索框（再次点击收起并清空查询）。
 ///
 /// 与列表页的分工（关键，避免双入口）：
@@ -154,7 +154,7 @@ class _SidebarBrandBarState extends ConsumerState<SidebarBrandBar> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Hermes',
+                            'Hermes Anywhere',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             // #153：字号对齐 markdown 正文基准（15），原 12.5 偏小。
