@@ -94,6 +94,34 @@ Future<void> _pumpList(
   );
   await tester.pump();
   await tester.pump();
+  await _pumpUntilRow(tester);
+}
+
+/// 等指定会话行真正构建出来（判据：`session-row-<id>` 出现在树里）。
+///
+/// 为什么必须等：`FakeSessionListApi.fetchSessions` 是**异步**的，固定 pump 两帧
+/// 只是「多数时候够用」——CI 上并行跑多个测试文件时帧调度抖动更大，实测同一提交
+/// 出现过 `Found 0 widgets with key [<'session-row-s1'>]` 的红（本地同文件连跑
+/// 8 轮也能复现 2 轮，失败形态与 CI 逐字相同）：那是**用例的加载/布局竞态**，不是
+/// 产品缺陷。
+///
+/// 为什么用**推进时钟**的 pump：先试过零时长帧循环，连等 30 帧仍等不到行
+/// （40 轮里仍红 6 轮）⇒ 加载链路里带计时器（`Timer` / `Future.delayed`），
+/// 零时长 pump 不推进时钟、计时器永不触发。这里每次推进 20ms（上限 30 帧 ≈ 600ms
+/// 假时钟），既覆盖微任务型加载也覆盖计时器型加载。
+/// 同一判据也用在 `jumpTo(maxScrollExtent)` 之后等末尾行构建（那里实测出现过
+/// `Found 0 widgets with key [<'session-row-s30'>]`）。
+Future<void> _pumpUntilRow(
+  WidgetTester tester, {
+  String rowId = 's1',
+  int maxFrames = 30,
+  Duration step = const Duration(milliseconds: 20),
+}) async {
+  final row = find.byKey(ValueKey('session-row-$rowId'));
+  for (var i = 0; i < maxFrames; i++) {
+    if (row.evaluate().isNotEmpty) return;
+    await tester.pump(step);
+  }
 }
 
 SessionListState _stateOf(WidgetTester tester) => ProviderScope.containerOf(
@@ -126,6 +154,9 @@ Future<void> _expectFooterInvariants(
   WidgetTester tester,
   String lastSessionId,
 ) async {
+  // 先等末尾行真被 Sliver 构建出来（`jumpTo(maxScrollExtent)` 后只 pump 一帧
+  // 在 CI 上偶发来不及布局 ⇒ 报 `Found 0 widgets with key [<'session-row-s30'>]`）。
+  await _pumpUntilRow(tester, rowId: lastSessionId);
   final barRect = tester.getRect(find.byKey(const ValueKey('batch-bar')));
   final listRect = tester.getRect(
     find.byKey(const ValueKey('session-list-scroll')),
