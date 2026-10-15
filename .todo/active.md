@@ -7,6 +7,25 @@
 
 ---
 
+## #202 窄屏筛选弹层：工作区段提到项目段之前（已落 main 并推送）
+
+**分类**：窄屏 UI 顺序　**状态**：已落 main（`6292a9a`）；**待主人真机复验观感**　**发现**：2026-10-15（主人：「顺便把窄屏会话项筛选中 工作区筛选放在项目筛选前面」）
+
+- 位置：`lib/features/session_list/session_list_page.dart` 的 `_SessionFilterSheet` 窄屏分支分段拼装处。
+- 现状 vs 预期：窄屏 sheet 原顺序「显示 → 会话 → 渠道 → **项目 → 工作区**」；预期「工作区」先于「项目」⇒ 现为「渠道 → **工作区 → 项目**」。
+- **宽屏不动**：右列仍按设计稿 §4「工作区 → 渠道 → 项目」（本轮只按主人口径调窄屏）。
+- 新增守卫用例：`session_filter_sheet_test.dart`「窄屏分区顺序」断言 `channels < workspaces < projects` —— 原用例只断言到 `channels < projects`，拦不住这次对调。
+- 验收：`analyze` 零告警；`session_filter_sheet_test.dart` 20 项全绿；该弹层不出现在任何金照 / README 截图里 ⇒ 无需重拍基线。
+
+## #203 #184 批量栏用例的加载竞态（flaky）修复 —— CI 已复验全绿
+
+**分类**：测试质量 / CI 稳定　**状态**：已落 main（`52b7744`）；CI run 38684210054 **全 job success**　**发现**：2026-10-15（CI 红：`analyze-test` failure）
+
+- 病灶：`session_list_batch_bar_footer_test.dart` 的 `_pumpList` 在 `pumpWidget` 后只 `pump()` 两帧就长按首行 / 断言末尾行，而列表加载链路由**计时器**驱动 ⇒ 偶发 `Found 0 widgets with key [<'session-row-s1'>]`。
+- **判读路径（三条，可复用）**：① `analyze-test` 红而 `coverage` 绿 ⇒ **不是金照**（金照失败会让两个 job 齐红）；② 用 jobs API 的 **step 级结论**定位到「Run tests」这一步，不必先拉日志；③ 本地连跑同一文件量化 flaky 率（8 轮红 2），失败原文与 CI **逐字比对** ⇒ 定性为用例竞态，不是产品缺陷、也不是本轮改动的回归。
+- **修法两轮迭代（别只信第一次）**：先把「固定两帧」改成零时长帧循环 → **40 轮仍红 6**（零时长不推进假时钟、计时器永不触发）；再改成每次推进 20ms ⇒ **40/40 全绿**。同一判据补在 `jumpTo(maxScrollExtent)` 之后等末尾行。
+- 已同步技能库：`references/flutter-test-pitfalls.md`（更正「零时长就够」的旧结论）、`references/ci-gates-and-local-hooks.md`（新增「哪类红」分诊 + 纯文档 push 会跳过 `analyze-test` 的基线陷阱）。
+
 ## #201 steer 不可用时不再自动转队列（失败即提示 + 原文回文本框）
 
 **分类**：行为修正 / 聊天输入（对齐服务端契约）　**状态**：已落地并过测（`flutter analyze` 零告警 + 全量 **5924 通过 / 238 skipped / 0 真实失败** + 改前翻红取证）；本机 Flutter 客户端已改，待主人真机复验手感　**发现**：2026-10-15（主人：「把 steer 不可用时信息自动转为 queue 的特性给完全去掉，steer 不可用就乖乖提示发送失败，然后要发的信息回到文本框」）
