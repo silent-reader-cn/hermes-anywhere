@@ -16,6 +16,7 @@
 - **宽屏不动**：右列仍按设计稿 §4「工作区 → 渠道 → 项目」（本轮只按主人口径调窄屏）。
 - 新增守卫用例：`session_filter_sheet_test.dart`「窄屏分区顺序」断言 `channels < workspaces < projects` —— 原用例只断言到 `channels < projects`，拦不住这次对调。
 - 验收：`analyze` 零告警；`session_filter_sheet_test.dart` 20 项全绿；该弹层不出现在任何金照 / README 截图里 ⇒ 无需重拍基线。
+- **CI 补验（本节要点）**：`6292a9a` 的 push 轮被紧随其后的推送按 `concurrency` 取消，而下一笔是纯文档提交 ⇒ `analyze-test` 会被 `changes` 闸门跳过，**这个代码改动会「看起来绿其实没验」**。故按仓库正规做法 `gh workflow run ci.yml --ref main` **派发全量 CI 补验**（run 38686297625）：7 job 全 success（含 `analyze-test` / `coverage` / `android-debug` / `windows-installer`）。
 
 ## #203 #184 批量栏用例的加载竞态（flaky）修复 —— CI 已复验全绿
 
