@@ -1577,7 +1577,7 @@ class _ErrorBanner extends StatelessWidget {
   }
 }
 
-/// 排队待发送横幅（queue 行为 / steer 失败入队）。
+/// 排队待发送横幅（仅 `queue` 行为显式入队；steer 失败不再入队）。
 class _QueuedBanner extends StatelessWidget {
   const _QueuedBanner({required this.count});
 

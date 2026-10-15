@@ -51,10 +51,11 @@ enum ActiveStreamRecoveryState {
 
 /// 流式期间发送新消息的行为（chat_spec.md §4.2，默认 steer）。
 enum StreamingSendBehavior {
-  /// POST /api/chat/steer：提示而非消息，不追加 user 气泡。
+  /// POST /api/chat/steer：提示而非消息，不追加 user 气泡；服务端不接受时
+  /// 只报发送失败（不入队、不停流），原文交还输入框。
   steer,
 
-  /// 入队（队首）+ cancelActiveStream。
+  /// 入队（队首）+ stop()：先停止当前响应，再作为新消息发出。
   interrupt,
 
   /// 仅入队 queuedSlashMessages，流结束后自动顺次发送。
@@ -449,7 +450,8 @@ class ChatState {
   /// 已归档推理段（按 assistant turn 分组）。
   final List<ReasoningGroup> completedReasoningGroups;
 
-  /// 排队待发送消息（queue 行为 / steer 失败入队 / pending_steer_leftover）。
+  /// 排队待发送消息（仅 `queue` / `interrupt` 显式入队；steer 失败与
+  /// `pending_steer_leftover` 一律不入队，原文交还输入框）。
   final List<String> queuedSlashMessages;
 
   /// 流进行中产生的本地 notice（流结束后 flush 进 transcript）。

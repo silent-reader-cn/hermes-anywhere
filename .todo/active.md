@@ -7,6 +7,34 @@
 
 ---
 
+## #201 steer 不可用时不再自动转队列（失败即提示 + 原文回文本框）
+
+**分类**：行为修正 / 聊天输入（对齐服务端契约）　**状态**：已落地并过测（`flutter analyze` 零告警 + 全量 **5924 通过 / 238 skipped / 0 真实失败** + 改前翻红取证）；本机 Flutter 客户端已改，待主人真机复验手感　**发现**：2026-10-15（主人：「把 steer 不可用时信息自动转为 queue 的特性给完全去掉，steer 不可用就乖乖提示发送失败，然后要发的信息回到文本框」）
+
+### 现状 vs 预期
+- **现状（两处自动转队列）**：
+  1. `chat_controller._steer()` 被拒（`accepted != true`）或抛 `ApiException` → `_queueSteerFailure(text)` 入队 `queuedSlashMessages` + 常驻英文 notice，并 `unawaited(cancelActiveStream())` 取消当前流。
+  2. SSE `pending_steer_leftover{text}`（steer 已受理但整轮结束前未被消费）→ 同样入队 + notice。
+- **问题不止「多一条排队」**：① 客户端行为**违反服务端契约** —— `api/streaming.py:_handle_chat_steer` 文档串明写「必须只暴露失败，不得取消活动流；steer 是活动流引导，不是转 Queue / Interrupt / Stop-and-send 的授权」；② 输入栏 `_submit` 在 `send()==false` 时本就回填原文，故同一条消息**既回填输入框又进了队列**，流结束还会自动当成新回合发出；③ 顺带把用户的当前回复取消了（steer 只是补一句提示，不该毁掉进行中的回答）。
+- **预期**：steer 不可用 → 只提示「发送失败」，原文回到输入框；不入队、不取消当前流、不自动发下一轮。
+
+### 落地（改动）
+- `_steer()` 失败分支：`_queueSteerFailure(text)` + `cancelActiveStream()` → `_reportSteerUnavailable()`，只 `_setSendError(l10n.steerUnavailable)`；返回 `false` 即由输入栏回填。
+- `_handlePendingSteerLeftover()`：入队 → `_pinNotice(l10n.steerLeftoverNotice)` + `prefillComposer(text)`（不入队）。
+- 删死码：`_queueSteerFailure`、`cancelActiveStream`（唯一调用方就是 steer 失败路径）。
+- 文案：facade 新增 `steerUnavailable` / `steerLeftoverNotice`（ARB 同步）；控制器无 context，走 `AppLocalizations(LocaleResolver.resolve())`（服务层标准接法，见 `docs/specs/l10n-exemptions.md`）。
+- 文档：`docs/specs/chat_spec.md` §4.2 / §4.4 / §4.5 / 验收清单同步；顺带修正 interrupt 行原写的 `cancelActiveStream`（实为 `stop()`）。
+- **保留不动**：`interrupt`（停止并发送）与 `queue`（显式排队）两种用户显式意图照旧入队 —— 本次只去掉「steer 失败被悄悄转成队列」。
+
+### 验收（实测取证）
+- **改前必红**（拿 `HEAD` 版控制器跑新用例）：`steer 被拒` 用例 `startChatCalls` 期望 1 实得 2（旧码自动发了下一轮）、`pending_steer_leftover` 用例 `queuedSlashMessages` 期望空实得 `['剩余提示']`、控件用例找不到「发送失败」文案；改后三例全绿。
+- **定向**：`chat_controller_test`（steer 子集 7 例）+ `chat_input_bar_composer_test` / `chat_input_bar_draft_test` / `chat_page_extra_test`（62 例）全绿。
+- **回归**：`test/features/chat/` + `test/l10n/` + `l10n_audit_test` = **1349 通过 / 4 skipped / 0 失败**。
+- **全量**：`flutter test` = **5924 通过 / 238 skipped / 3 失败**；3 条失败**全部**来自别会话留下的临时探针 `test/tmp_insights_probe/probe_test.dart`（未跟踪、自注「TEMPORARY PROBE — delete after use」，渲染 `InsightsPage` 宽屏金照，与本改零交集）——本次改动相关测试**零失败**。
+- **服务端契约复核**：`.reference/hermes-webui/api/streaming.py:10631-10635`（`_handle_chat_steer` 文档串）为唯一权威口径，客户端已按「只报失败」对齐。
+
+---
+
 ## #200 品牌更名：Hermes UI → Hermes Anywhere（显示层已落；标识层与仓库名待拍板）
 
 **分类**：品牌 / 对外口径　**状态**：显示层已落地并过测（`analyze` 零告警 + 全量 **5922 通过 / 238 skipped / 0 失败** + 金照 8 张重拍 + README 截图 16 张重出）；**标识层 2 项 + 仓库名 1 项待主人拍板**　**发现**：2026-10-15（主人：「项目改叫 Hermes anywhere 吧」）
@@ -2943,3 +2971,14 @@ return MediaQuery(
 - 修法（①）：菜单项 key `session-action-copy-id`（第二族，紧随「分支」；ID 为空不给入口），复制走 `SafeClipboard.copyOrSave`，成功给底部轻提示（复用 #174 胶囊，抽出 `_buildNoticeCapsule`），落盘降级按真值提示不谎报。
 - 验收：`analyze` 零告警；`session_list_fab_workspace_test` + `session_action_menu_test` 31 例全绿（新增 4 例）；RED 校验通过（回退页面改动即红）；全量 `flutter test` **5674 通过 / 230 skipped / 0 失败**；真渲染目检图 `.shots/fix185/`。**已合入 main（`d31c6cb`）**。
 - 备注：`FakeSessionListApi` 新增 `workspacesGate`（测「弱网不干等」，镜像既有 `fetchGate`）；宽屏菜单行数守卫同步 8→9 / 9→10。
+
+### #201 统计页柱状图两问题：① 时间线方向反了（从右往左）② 宽屏柱状图下方一大片空白
+- 位置：`lib/features/insights/insights_page.dart`（`_recentDailyTokens` / `_buildWideBodySlivers`）+ `lib/core/models/insights.dart` 注释。
+- 现象（主人 2026-10-15 报）：① 柱状图 X 轴日期**左新右旧**（时间线要反过来读）；② 宽屏（≥900）柱状图卡下方有一大片空白。
+- 根因（①）：服务端 `/api/insights` 的 `daily_tokens` 是**时间正序**（`first_day_ts + i * day_secs` 递增，最新在尾部，实测 30 天数据 09-16 → 10-15），客户端 `_recentDailyTokens` 取尾部（= 最近 14 天，正确）后**又 `reversed` 一次** ⇒ 轴上变成左新右旧。原注释「服务器按最新在前返回」为错误契约。
+- 修法（①）：删掉多余反转（`return recent.toList(growable: false)`），同步订正 `insights.dart` 的字段注释；订正三处**带着错误契约的测试数据**（`insights_test.dart` 的 `sampleResponse` 与 14 柱用例、`golden_screens_test.dart` 的金照数据）为时间正序；新增守卫用例「柱状图时间线从左往右：最旧在最左」（标签几何 + `barGroups` x 序双判据）。
+- 现象/根因（②）：宽屏第二行是 `Row[左:柱状图卡, 右:活动卡+模型卡]`，`crossAxisAlignment.start` 且左列内容固定高（标题 + 180pt 图表 = 249pt）⇒ 行高由右列（活动 155.5 + 12 + 模型 295 = 462.5pt）决定，左列下方实测留白 **618 × 213.5pt**（真实数据 1920×1080 同值）。
+- 状态（①）：**已修**（提交见下）；真实数据探针截图（.shots 见备注）显示修复前左新右旧、修复后左旧右新。
+- 状态（②）：**待主人拍板方案**（2 案真渲染对比稿已出：A 柱状图卡纵向拉伸填满左列、图表随之变高；B 柱状图整宽置顶 + 活动/模型下排两列等高）。拍板后再动码。
+- 验收（②）：`analyze` 零告警；`insights_wide_bento_test.dart` 几何守卫按拍板方案改写；窄屏逐像素不变（硬约束）；全量 `flutter test` 全绿。
+- 备注：真实数据取证（`/api/insights?days=30` 实测 5 模型 / 30 天）与临时候选稿渲染流水线在本轮 scratch 下完成，探针测试 `test/tmp_insights_probe/` 用完即焚。

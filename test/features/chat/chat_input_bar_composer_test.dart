@@ -18,6 +18,7 @@ import 'package:hermes_ui/features/chat/chat_providers.dart';
 import 'package:hermes_ui/features/prompts/prompts_providers.dart';
 import 'package:hermes_ui/features/settings/composer_settings.dart';
 import 'package:hermes_ui/features/settings/perf_monitor_settings.dart';
+import 'package:hermes_ui/l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/fake_chat_api.dart';
@@ -257,6 +258,50 @@ void main() {
       await tester.tap(find.text('停止生成'));
       await tester.pumpAndSettle();
       expect(chatApi.cancelCalls, 1);
+
+      await _unmount(tester);
+    });
+
+    testWidgets('steer 被拒：提示发送失败，原文回填输入框（不入队、不停流）', (tester) async {
+      final chatApi = FakeChatApi();
+      chatApi.sessionResult = {
+        'session': {'session_id': 's1', 'messages': const []},
+      };
+      chatApi.steerAccepted = false;
+      await _pumpComposer(tester, chatApi: chatApi);
+
+      // 进入流式
+      final inputFinder = find.byKey(const ValueKey('chat-input-field'));
+      await tester.enterText(inputFinder, '测试问题');
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('chat-send-button')));
+      await tester.pump();
+      await tester.pump();
+
+      // 流式中点 steer → 服务端 accepted:false
+      await tester.enterText(inputFinder, '被拒的中途提示');
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('chat-steer-button')));
+      await tester.pump();
+      await tester.pump();
+
+      // ① 原文回到输入框（而不是被悄悄排进下一轮）
+      expect(
+        tester.widget<CupertinoTextField>(inputFinder).controller!.text,
+        '被拒的中途提示',
+      );
+      // ② 提示发送失败
+      expect(
+        find.text(
+          AppLocalizations.of(tester.element(inputFinder)).steerUnavailable,
+        ),
+        findsOneWidget,
+      );
+      // ③ 不入队 / 不停流 / 不新开回合
+      expect(find.textContaining('已排队'), findsNothing);
+      expect(chatApi.cancelCalls, 0);
+      expect(chatApi.startChatCalls, 1);
+      expect(find.byKey(const ValueKey('chat-steer-button')), findsOneWidget);
 
       await _unmount(tester);
     });

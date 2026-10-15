@@ -18,6 +18,8 @@ import '../../core/models/tool_call.dart';
 import '../../core/models/upload_response.dart';
 import '../../core/utils/uuid.dart';
 import '../../core/connections/connection_providers.dart';
+import '../../app/locale/locale_resolver.dart';
+import '../../l10n/app_localizations.dart';
 import '../desktop/desktop_settings.dart';
 import '../diagnostics/diagnostics_models.dart';
 import '../diagnostics/diagnostics_service.dart';
@@ -1663,6 +1665,7 @@ class ChatController extends FamilyNotifier<ChatState, String> {
   ) async {
     switch (behavior) {
       case StreamingSendBehavior.steer:
+        // 失败即报错 + 交还原文，绝不入队（见 _steer）。
         return _steer(text);
       case StreamingSendBehavior.interrupt:
         state = state.copyWith(
@@ -1686,6 +1689,13 @@ class ChatController extends FamilyNotifier<ChatState, String> {
     }
   }
 
+  /// 中途提示（steer）：提示而非消息，不追加 user 气泡、绝不入队。
+  ///
+  /// 服务端契约（`api/streaming.py:_handle_chat_steer` 文档串）：无缓存 agent /
+  /// agent 过旧 / 无活动流时返回 `accepted:false`，并要求前端**只暴露失败** ——
+  /// steer 是活动流引导，不是「转队列 / 中断 / 停止再发送」的授权。故此处既不
+  /// 入队、也不取消当前流；返回 false，由调用方（输入栏 `_submit`）把原文交还
+  /// 输入框。
   Future<bool> _steer(String text) async {
     final gen = _generation;
     try {
@@ -1702,35 +1712,18 @@ class ChatController extends FamilyNotifier<ChatState, String> {
         );
         return true;
       }
-      _queueSteerFailure(text);
-      unawaited(cancelActiveStream());
+      _reportSteerUnavailable();
       return false;
     } on ApiException {
       if (_disposed || gen != _generation) return false;
-      _queueSteerFailure(text);
-      unawaited(cancelActiveStream());
+      _reportSteerUnavailable();
       return false;
     }
   }
 
-  void _queueSteerFailure(String text) {
-    state = state.copyWith(
-      queuedSlashMessages: [...state.queuedSlashMessages, text],
-      pinnedLocalNotices: [
-        ...state.pinnedLocalNotices,
-        'Steer was unavailable — your message has been queued for the next turn.',
-      ],
-    );
-  }
-
-  /// 停止当前流（steer 失败路径；finishStream 会顺次发送队列）。
-  Future<void> cancelActiveStream() async {
-    final streamId = state.stream.activeStreamId;
-    if (streamId == null) return;
-    await _api?.cancelChat(streamId);
-    if (_disposed) return;
-    _notifySessionError('响应已取消', state.displayTitle);
-    _finishStream(endPhase: ChatPhase.cancelled);
+  /// steer 未被接受：只报发送失败，当前流继续跑。
+  void _reportSteerUnavailable() {
+    _setSendError(_l10n.steerUnavailable);
   }
 
   /// 流结束后顺次发送队列首条（发送失败回队首并停止连锁，防死循环）。
@@ -3289,15 +3282,12 @@ class ChatController extends FamilyNotifier<ChatState, String> {
     }
   }
 
+  /// steer 已受理但整轮结束前未被消费：**不入队**，把原文交还输入框。
   void _handlePendingSteerLeftover(String text) {
     if (text.trim().isEmpty) return;
-    state = state.copyWith(
-      queuedSlashMessages: [...state.queuedSlashMessages, text],
-      pinnedLocalNotices: [
-        ...state.pinnedLocalNotices,
-        'Steering hint was not consumed — it has been queued for the next message.',
-      ],
-    );
+    // 不转队列：steer 文本不得自动变成下一轮的新消息（用户没点过发送）。
+    _pinNotice(_l10n.steerLeftoverNotice);
+    prefillComposer(text);
     _markProgress();
   }
 
@@ -6122,6 +6112,10 @@ class ChatController extends FamilyNotifier<ChatState, String> {
   void _setSendError(String message) {
     state = state.copyWith(sendErrorMessage: message);
   }
+
+  /// 服务层文案目录（无 context：走 LocaleResolver，接法见
+  /// docs/specs/l10n-exemptions.md）。
+  AppLocalizations get _l10n => AppLocalizations(LocaleResolver.resolve());
 
   /// 轻提示（成功类会话操作结果）。
   void setNotice(String message) {

@@ -1622,7 +1622,7 @@ void main() {
       });
     });
 
-    test('steer 被拒 → 入队 + notice + cancelActiveStream → 队列顺次发送', () {
+    test('steer 被拒 → 只报发送失败：不入队、不停流、原文交还输入框', () {
       fakeAsync((async) {
         final api = _FakeChatApi();
         api.steerAccepted = false;
@@ -1631,19 +1631,20 @@ void main() {
         unawaited(controller.send('hi'));
         async.flushMicrotasks();
 
-        unawaited(controller.send('被拒的消息'));
+        // send 返回 false 即「原文交还输入框」契约：输入栏据此回填 _textController。
+        bool? returned;
+        unawaited(controller.send('被拒的消息').then((v) => returned = v));
         async.flushMicrotasks();
-        expect(api.cancelCalls, 1);
+
+        expect(returned, isFalse);
+        expect(api.steerCalls, 1);
+        expect(api.startChatCalls, 1, reason: 'steer 被拒不得转成新回合');
+        expect(api.cancelCalls, 0, reason: 'steer 被拒不得取消当前流');
         final state = container.read(chatControllerProvider(''));
-        // cancel ok → finishStream → pinned notice flush 进 transcript
-        expect(
-          state.messages.where((m) => m.role == 'local_notice'),
-          isNotEmpty,
-        );
-        expect(api.startChatCalls, 2);
-        expect(api.lastSentText, '被拒的消息');
-        expect(state.queuedSlashMessages, isEmpty);
-        expect(state.phase, ChatPhase.streaming);
+        expect(state.queuedSlashMessages, isEmpty, reason: 'steer 被拒不得入队');
+        expect(state.sendErrorMessage, isNotNull, reason: '须提示发送失败');
+        expect(state.steerHints, isEmpty);
+        expect(state.phase, ChatPhase.streaming, reason: '当前流继续跑');
       });
     });
 
@@ -1676,7 +1677,7 @@ void main() {
       });
     });
 
-    test('pending_steer_leftover → 入队 + notice', () {
+    test('pending_steer_leftover → 不入队，原文交还输入框 + notice', () {
       fakeAsync((async) {
         final api = _FakeChatApi();
         final container = _buildContainer(api, _FakeClock());
@@ -1686,7 +1687,8 @@ void main() {
 
         api.emit(const PendingSteerLeftoverSseEvent('剩余提示'));
         final state = container.read(chatControllerProvider(''));
-        expect(state.queuedSlashMessages, ['剩余提示']);
+        expect(state.queuedSlashMessages, isEmpty, reason: '不得自动转队列');
+        expect(state.composerPrefill, '剩余提示', reason: '原文交还输入框');
         expect(state.pinnedLocalNotices, hasLength(1));
       });
     });

@@ -38,5 +38,7 @@
   "bgWorkManagerStatusFailed": "Not ready: {reason}",
   "bgWorkManagerStatusFailedShort": "Not ready",
   "refreshImage": "Refresh image",
-  "refreshPreview": "Refresh preview"
+  "refreshPreview": "Refresh preview",
+  "steerUnavailable": "Send failed: steering is unavailable for this reply — your message is back in the input box.",
+  "steerLeftoverNotice": "Steering hint was not used — your message is back in the input box."
 }

@@ -110,7 +110,7 @@ SSE 事件 → `ChatStreamController` 处理 → 状态/数据变化。**列在"
 | `initial` | 解码分流：含澄清标记 → `clarificationPending`，否则 `approvalPending`（注意：**approval/clarify 是主流的报警事件，不结束流**） | streaming → approvalPending / clarifyPending（若当前会话且 prompt 非空）；`markProgress()` |
 | `approval` | `applyApprovalUpdate`：pending 非空 → 设卡片；空 → 清卡片 | 同上 |
 | `clarify` | `applyClarificationUpdate` | 同上 |
-| `pending_steer_leftover{text}` | 入队 `queuedSlashMessages`（下轮发送）+ 追加本地 notice "Steering hint was not consumed…" | 无状态变化；有内容 → `markProgress()` |
+| `pending_steer_leftover{text}` | **不入队**：`prefillComposer(text)` 把原文交还输入框 + 追加本地 notice "中途提示未被采用…" | 有内容 → `markProgress()` |
 | `stream_end` | 若 `hasCompletedResponse==false` → 结束 Live Activity(complete)；`finishStream()` | streaming → idle；清 auxiliary monitoring、flush pinned notices、解除队列 |
 | `cancel` | `finishStream()`，结束为 cancelled | streaming → cancelled（瞬时）→ idle |
 | `error`/`apperror{error\|message}` | 若 `hasCompletedResponse==false` → `sendErrorMessage = message`；`finishStream()` | streaming → error（瞬时）→ idle |
@@ -246,9 +246,9 @@ ChatController.send(text):
 - 视图层规则：`activeStreamId != null` 时输入框提交不再走 send，而走 `submitStreamingMessage(text, behavior)`；behavior 是用户设置 `streamingSendBehavior`（默认 **steer**），三选一：
   - **steer**：`POST /api/chat/steer {session_id, text}`。
     - `accepted==true` → 流继续；**不追加 user 气泡**（steer 是提示不是消息），UI 可短暂显示 "steered" 相位。
-    - 失败/被拒 → 入队该消息 + `cancelActiveStream()`（先入队后停止，见 4.4），并本地 notice "Steer was unavailable…"。
-    - **steer 未消费完就收到 done/stream_end** → 服务端会发 `pending_steer_leftover{text}`：入队 + 本地 notice。
-  - **interrupt**：入队（队首）+ `cancelActiveStream()`；若停止失败（流还在）→ notice "could not stop…queued for the next turn"。
+    - 失败/被拒（`accepted:false`）→ **只报发送失败**：`sendErrorMessage`，**不入队、不取消当前流**（服务端契约见 `api/streaming.py:_handle_chat_steer` 文档串），原文由输入栏回填输入框。
+    - **steer 未消费完就收到 done/stream_end** → 服务端会发 `pending_steer_leftover{text}`：**不入队**，原文回填输入框 + 本地 notice。
+  - **interrupt**：入队（队首）+ `stop()`；若停止失败（流还在）→ notice "could not stop…queued for the next turn"。
   - **queue**：仅入队 `queuedSlashMessages`，显示 "Queued for next turn (#N)"；流结束后自动顺次发送（`drainQueuedSlashMessageIfIdle`，发送失败时**回队首并停止连锁**，防死循环重试）。
 - 队列行为：`activeStreamId == null` 时 queue/steer/interrupt 退化为普通 `sendMessage`。
 
@@ -268,7 +268,7 @@ ChatController.stop():
 | 动作 | API（method + path + 参数） | 前置条件 | 状态变化 |
 |---|---|---|---|
 | 发送（send） | `POST /api/chat/start` body 见 4.1 | idle；非缓存模式 | sending → streaming |
-| 流式中发送 | steer: `POST /api/chat/steer {session_id,text}`；interrupt/queue: 纯本地队列 + cancel | streaming | 见 4.2 |
+| 流式中发送 | steer: `POST /api/chat/steer {session_id,text}`；interrupt/queue: 纯本地队列 + stop | streaming | 见 4.2 |
 | 停止（stop） | `GET /api/chat/cancel?stream_id=` | streaming | streaming → cancelled → idle |
 | steer（单独） | `POST /api/chat/steer {session_id,text}` | streaming | streaming → steered（流继续） |
 | retry（重试上轮） | `POST /api/session/retry` → `GET /api/session?session_id=&messages=1&msg_limit=50` → `POST /api/chat/start{message: last_user_text}` | idle | 重载 transcript → 追加 user 消息 → streaming |
@@ -286,7 +286,7 @@ ChatController.stop():
 | role | 产生场景 | 渲染 |
 |---|---|---|
 | `local_assistant`（`local-slash-<uuid>`） | slash 命令执行结果（如 /status） | 普通 assistant 气泡 |
-| `local_notice`（`local-notice-<uuid>`） | 系统提示（queue 位置、steer 失败、背景任务完成） | 深色 notice 卡片，不等同用户消息 |
+| `local_notice`（`local-notice-<uuid>`） | 系统提示（queue 位置、中途提示未被采用、背景任务完成） | 深色 notice 卡片，不等同用户消息 |
 | pinned 本地 notice | 流进行中产生的 notice 先 pin，流结束后 flush 进 transcript | 同上 |
 
 ---
@@ -464,7 +464,7 @@ lib/features/chat/
 - [ ] done → applyCompletedStreamSession → completeCurrentResponse 顺序正确；`needsTranscriptRefresh` 兜底
 - [ ] transportError → suspend → status 检查 → 重连/replay/finalize 三路分支；1s 看门狗与 5s/12s/18s/(工具 25s) 阈值
 - [ ] replay 去重算法（5.4/5.6）逐分支实现并有单测
-- [ ] 流中发送三行为（steer/interrupt/queue）+ `pending_steer_leftover` 入队
+- [ ] 流中发送三行为（steer/interrupt/queue）+ `pending_steer_leftover` 回填输入框（不入队）
 - [ ] ChatMessage 容错解码全部 lossy 规则；`messages` 整列表替换；renderId 稳定
 - [ ] `flutter analyze` 零告警；Controller 状态机单测（流式追加、错误恢复、重连、去重）全绿
 

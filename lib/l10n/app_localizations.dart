@@ -417,6 +417,14 @@ class AppLocalizations {
   String get sendMessagePlaceholder => isEnglish ? 'Send a message…' : '发送消息…';
   String get steerCurrentReply => isEnglish ? 'Steer current reply' : '提示当前回复';
   String get steerPrompt => isEnglish ? 'Steer current reply' : '提示当前回复';
+  // #201 steer 不可用 / 未被采用：只报失败，原文交还输入框（不自动转队列）。
+  String get steerUnavailable => isEnglish
+      ? 'Send failed: steering is unavailable for this reply — your message '
+            'is back in the input box.'
+      : '发送失败：当前回复无法中途提示，内容已回到输入框。';
+  String get steerLeftoverNotice => isEnglish
+      ? 'Steering hint was not used — your message is back in the input box.'
+      : '中途提示未被采用，内容已回到输入框。';
   String get stopGenerating => isEnglish ? 'Stop generating' : '停止生成';
   // todo #19 停止生成二次确认框（拍板稿：标题「停止生成？」+ 正文
   // 「确定要停止当前回复吗？已生成的内容会保留。」+ 取消/停止）
