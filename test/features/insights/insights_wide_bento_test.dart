@@ -37,8 +37,15 @@ InsightsResponse _response() => const InsightsResponse(
   totalCost: 4.8642,
   totalCacheReadTokens: 2400000,
   totalCacheHitPercent: 62.5,
+  // 6 个模型：右列（活动 + 模型）要有足够高度，「图表填满 vs 只拉外框」
+  // 的差异才可鉴别（1 个模型时右列仅 ~265pt，两形态差不到 40pt）。
   models: [
     InsightsModelBreakdown(model: 'gpt-5.2-codex', totalTokens: 1000, tokenShare: 42),
+    InsightsModelBreakdown(model: 'claude-sonnet-4', totalTokens: 900, tokenShare: 21),
+    InsightsModelBreakdown(model: 'deepseek-v4-flash', totalTokens: 800, tokenShare: 14),
+    InsightsModelBreakdown(model: 'kimi-k3', totalTokens: 700, tokenShare: 9),
+    InsightsModelBreakdown(model: 'muse-spark-1.2', totalTokens: 600, tokenShare: 8),
+    InsightsModelBreakdown(model: 'gpt-4o', totalTokens: 500, tokenShare: 6),
   ],
   dailyTokens: [
     InsightsDailyToken(
@@ -209,6 +216,27 @@ void main() {
       // 空白被吸收成图表高度：图表高于窄屏基线 180。
       final chart = tester.getRect(find.byType(BarChart));
       expect(chart.height, greaterThan(180));
+      expect(
+        chart.height,
+        greaterThan(chartCard.height - 90),
+        reason: '图表高度应接近卡片高度（空白转成图表，不是留在卡内）',
+      );
+
+      // **内容**也填满卡片，不只是外框被拉伸：最下排轴标签贴卡片底部。
+      // 这条判据专为拦「框大了、里面还是空的」那一形态 —— 只拉伸外框而图表
+      // 固定 180 时，标签会停在卡片中部（实测 462.5pt 卡片里标签底 ≈ 528）。
+      final label = find.byWidgetPredicate(
+        (w) =>
+            w is Text &&
+            w.data is String &&
+            RegExp(r'^\d{2}-\d{2}$').hasMatch(w.data as String),
+      );
+      expect(label, findsWidgets, reason: '轴标签应渲染出来');
+      expect(
+        tester.getRect(label.last).bottom,
+        greaterThan(chartCard.bottom - 40),
+        reason: '轴标签应贴近卡片底边（图表内容填满卡片）',
+      );
 
       // 宽屏大卡上柱宽自适应放大（窄屏恒 10pt，逐像素不变）。
       final barChart = tester.widget<BarChart>(find.byType(BarChart));
