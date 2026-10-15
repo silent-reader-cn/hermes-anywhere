@@ -2972,13 +2972,17 @@ return MediaQuery(
 - 验收：`analyze` 零告警；`session_list_fab_workspace_test` + `session_action_menu_test` 31 例全绿（新增 4 例）；RED 校验通过（回退页面改动即红）；全量 `flutter test` **5674 通过 / 230 skipped / 0 失败**；真渲染目检图 `.shots/fix185/`。**已合入 main（`d31c6cb`）**。
 - 备注：`FakeSessionListApi` 新增 `workspacesGate`（测「弱网不干等」，镜像既有 `fetchGate`）；宽屏菜单行数守卫同步 8→9 / 9→10。
 
-### #201 统计页柱状图两问题：① 时间线方向反了（从右往左）② 宽屏柱状图下方一大片空白
+### #201 统计页柱状图两问题：① 时间线方向反了（从右往左）② 宽屏柱状图下方一大片空白（已实现）
 - 位置：`lib/features/insights/insights_page.dart`（`_recentDailyTokens` / `_buildWideBodySlivers`）+ `lib/core/models/insights.dart` 注释。
 - 现象（主人 2026-10-15 报）：① 柱状图 X 轴日期**左新右旧**（时间线要反过来读）；② 宽屏（≥900）柱状图卡下方有一大片空白。
 - 根因（①）：服务端 `/api/insights` 的 `daily_tokens` 是**时间正序**（`first_day_ts + i * day_secs` 递增，最新在尾部，实测 30 天数据 09-16 → 10-15），客户端 `_recentDailyTokens` 取尾部（= 最近 14 天，正确）后**又 `reversed` 一次** ⇒ 轴上变成左新右旧。原注释「服务器按最新在前返回」为错误契约。
 - 修法（①）：删掉多余反转（`return recent.toList(growable: false)`），同步订正 `insights.dart` 的字段注释；订正三处**带着错误契约的测试数据**（`insights_test.dart` 的 `sampleResponse` 与 14 柱用例、`golden_screens_test.dart` 的金照数据）为时间正序；新增守卫用例「柱状图时间线从左往右：最旧在最左」（标签几何 + `barGroups` x 序双判据）。
 - 现象/根因（②）：宽屏第二行是 `Row[左:柱状图卡, 右:活动卡+模型卡]`，`crossAxisAlignment.start` 且左列内容固定高（标题 + 180pt 图表 = 249pt）⇒ 行高由右列（活动 155.5 + 12 + 模型 295 = 462.5pt）决定，左列下方实测留白 **618 × 213.5pt**（真实数据 1920×1080 同值）。
 - 状态（①）：**已修**（提交见下）；真实数据探针截图（.shots 见备注）显示修复前左新右旧、修复后左旧右新。
-- 状态（②）：**待主人拍板方案**（2 案真渲染对比稿已出：A 柱状图卡纵向拉伸填满左列、图表随之变高；B 柱状图整宽置顶 + 活动/模型下排两列等高）。拍板后再动码。
-- 验收（②）：`analyze` 零告警；`insights_wide_bento_test.dart` 几何守卫按拍板方案改写；窄屏逐像素不变（硬约束）；全量 `flutter test` 全绿。
-- 备注：真实数据取证（`/api/insights?days=30` 实测 5 模型 / 30 天）与临时候选稿渲染流水线在本轮 scratch 下完成，探针测试 `test/tmp_insights_probe/` 用完即焚。
+- 修法（②）：宽屏第二行改「两列**等高**」——`IntrinsicHeight` + `CrossAxisAlignment.stretch`，左列柱状图卡拉伸占满整行、图表高度弹性（`_DailyTokensBarChart.height = null` 时由父约束决定），右列（活动 + 模型）保持原样，行高仍由右列内容决定 ⇒ 空白全部转为图表高度。
+  - 坑：`fl_chart` 的 `BarChart` 内部是 `LayoutBuilder`，**不支持内禀尺寸**，被 `IntrinsicHeight` 探测即抛 `LayoutBuilder does not support returning intrinsic dimensions` + `Null check operator used on a null value` ⇒ 新增 `_IntrinsicHeightProxy`（`SingleChildRenderObjectWidget` + `RenderProxyBox` 覆写内禀方法）短路探测，运行时高度仍由拉伸后的卡片剩余空间决定。
+  - 附带：宽屏大卡上柱宽随可用宽度自适应（`_rodWidth`，10–26pt），只在宽屏生效（`adaptiveRodWidth: true`）——窄屏柱宽**锁死 10pt**。
+- 状态（②）：**已实现**（方案 A1：两列等高 + 图表弹性 + 柱宽自适应）。
+- 验收（②）：`analyze` 零告警；`insights_wide_bento_test.dart` 新增守卫「宽屏：柱状图卡与右列等高（下方空白归零）+ 图表随之变高」（底边齐平 `closeTo` + 图表高 > 180 + 柱宽 > 10 三判据）；`insights_test.dart` 新增「时间线从左往右」守卫；窄屏金照 `insights_light/dark` **0 像素差异**（逐像素硬约束守住）；`test/features/insights/` 52 例全绿。
+- 备注：真实数据取证（`/api/insights?days=30` 实测 5 模型 / 30 天）与真渲染对比稿在本轮完成；改前/改后对比图 `.shots/tmp201/insights-wide-before-after.png`；探针测试 `test/tmp_insights_probe/`（临时）用完即焚。
+- 备注（并行冲突）：本轮提交时撞上并行会话改写 main 历史，首次提交被其打包又回退，最终以工作区+index 内容为准重新提交；**只 `git add` 本条目点名的文件**。

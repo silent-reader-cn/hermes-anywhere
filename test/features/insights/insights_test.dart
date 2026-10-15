@@ -53,18 +53,19 @@ InsightsResponse sampleResponse() {
       InsightsModelBreakdown(model: 'claude', totalTokens: 500, tokenShare: 40),
     ],
     dailyTokens: [
+      // 服务器真实顺序：时间正序（最早在前）。
+      InsightsDailyToken(
+        date: '2026-08-15',
+        inputTokens: 60,
+        outputTokens: 30,
+        sessions: 1,
+      ),
       InsightsDailyToken(
         date: '2026-08-16',
         inputTokens: 100,
         outputTokens: 50,
         sessions: 2,
         cost: 0.01,
-      ),
-      InsightsDailyToken(
-        date: '2026-08-15',
-        inputTokens: 60,
-        outputTokens: 30,
-        sessions: 1,
       ),
     ],
     activityByDay: [InsightsActivityByDay(day: '2026-08-16', sessions: 5)],
@@ -498,9 +499,10 @@ void main() {
           totalMessages: 1234,
           totalTokens: 1250000,
           dailyTokens: [
+            // 服务器真实顺序：时间正序（08-14 最早 → 08-27 最新）。
             for (var i = 0; i < 14; i++)
               InsightsDailyToken(
-                date: '2026-08-${(27 - i).toString().padLeft(2, '0')}',
+                date: '2026-08-${(14 + i).toString().padLeft(2, '0')}',
                 inputTokens: 100 - i,
                 outputTokens: 50,
               ),
@@ -518,8 +520,8 @@ void main() {
             RegExp(r'^\d{2}-\d{2}$').hasMatch(w.data as String),
       );
       final labels = tester.widgetList<Text>(labelFinder).toList();
-      // 自适应抽稀后至少 2 个标签；末位 = 最新一天（服务器最新在前，
-      // 页面反转为时间正序绘制，故最后一根柱是 08-27）必显。
+      // 自适应抽稀后至少 2 个标签；抽稀以**末位为锚点**，末位 = 最新一天
+      // 08-27（服务器正序返回，最后一根柱即最近一天）必显。
       expect(labels.length, greaterThan(1));
       expect(labels.any((t) => t.data == '08-27'), isTrue);
 
@@ -537,6 +539,61 @@ void main() {
           );
         }
       }
+    });
+
+    testWidgets('柱状图时间线从左往右：最旧在最左（服务端按时间正序返回）', (tester) async {
+      // 回归：服务端 daily_tokens 是**时间正序**（最早在前、最新在尾部），
+      // 页面曾再 reverse 一次 ⇒ 轴上变成「左新右旧」（时间线从右往左读）。
+      const surface = Size(390, 844);
+      await tester.binding.setSurfaceSize(surface);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      tester.view.physicalSize = surface;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+      addTearDown(() => tester.view.resetDevicePixelRatio());
+
+      final api = FakeInsightsApi(
+        response: const InsightsResponse(
+          periodDays: 30,
+          totalSessions: 12,
+          totalTokens: 1250000,
+          dailyTokens: [
+            InsightsDailyToken(
+              date: '2026-09-01',
+              inputTokens: 100,
+              outputTokens: 50,
+            ),
+            InsightsDailyToken(
+              date: '2026-09-02',
+              inputTokens: 200,
+              outputTokens: 50,
+            ),
+            InsightsDailyToken(
+              date: '2026-09-03',
+              inputTokens: 300,
+              outputTokens: 50,
+            ),
+          ],
+        ),
+      );
+      await pumpInsightsPage(tester, api);
+      await tester.scrollUntilVisible(find.byType(BarChart), 200);
+
+      // 轴标签：最早一天在最左（3 根柱时抽稀步长为 1，三个标签全显）。
+      final oldest = tester.getRect(find.text('09-01'));
+      final newest = tester.getRect(find.text('09-03'));
+      expect(
+        oldest.left,
+        lessThan(newest.left),
+        reason: '时间线应从左往右（左旧右新）',
+      );
+
+      // 柱组顺序同理：x=0 就是最早一天（09-01 = 100 + 50 = 150）。
+      final chart = tester.widget<BarChart>(find.byType(BarChart));
+      expect(
+        chart.data.barGroups.map((g) => g.barRods.first.toY).toList(),
+        [150.0, 250.0, 350.0],
+      );
     });
   });
 

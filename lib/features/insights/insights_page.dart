@@ -4,6 +4,7 @@ import 'package:hermes_ui/app/theme/typography_tokens.dart';
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/shell/adaptive_shell.dart' show kAdaptiveBreakpoint;
@@ -26,6 +27,17 @@ import '../../app/widgets/app_refresh_control.dart';
 // `sketches/wide-pages-batch2-decision.html` 的 .bento/.cell/.cols2 规格）。
 const double _kWideGridGap = 12;
 const double _kWideCardRadius = 10;
+
+/// 柱宽下限（= 窄屏历史基线，必须逐像素保持）。
+const double _kMinRodWidth = 10;
+
+/// 柱宽上限（宽屏大卡上不再继续变粗）。
+const double _kMaxRodWidth = 26;
+
+/// 柱状图在宽屏「两列等高」布局里的**内禀代理高度**：仅用于
+/// `IntrinsicHeight` 探测左列高度（等于窄屏图表高度，左右列高差由图表
+/// 弹性吸收）；实际绘制高度由父级约束决定。
+const double _kDailyChartIntrinsicHeight = 180;
 
 /// 用量统计页（对齐 Hermex InsightsView 的展示形态）。
 ///
@@ -366,48 +378,70 @@ class InsightsPage extends ConsumerWidget {
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, _kWideGridGap, 16, 0),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: daily.isEmpty
-                      ? const SizedBox.shrink()
-                      : _wideCard(
-                          context,
-                          title: _dailyChartTitle(context, timeframe, response),
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(2, 12, 2, 2),
-                            child: _DailyTokensBarChart(days: daily),
+            // 两列**等高**：行高由右列（活动 + 模型）内容决定，左列柱状图卡
+            // 拉伸占满整行、图表随之变高（旧实现左列固定 249pt ⇒ 下方留白
+            // 实测 618 × 213.5pt）。
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: daily.isEmpty
+                        ? const SizedBox.shrink()
+                        : _wideCard(
+                            context,
+                            title: _dailyChartTitle(
+                              context,
+                              timeframe,
+                              response,
+                            ),
+                            stretchChild: true,
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(2, 12, 2, 2),
+                              // 内禀代理：fl_chart 的 BarChart 内部是
+                              // LayoutBuilder（**不支持内禀尺寸**），被
+                              // IntrinsicHeight 探测即抛错；代理短路探测，
+                              // 运行时高度仍由拉伸后的卡片剩余空间决定。
+                              child: _IntrinsicHeightProxy(
+                                intrinsicHeight: _kDailyChartIntrinsicHeight,
+                                child: _DailyTokensBarChart(
+                                  days: daily,
+                                  // null = 高度由卡片剩余空间决定。
+                                  height: null,
+                                  adaptiveRodWidth: true,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                ),
-                const SizedBox(width: _kWideGridGap),
-                Expanded(
-                  child: Column(
-                    children: [
-                      if (hasActivity)
-                        _wideCard(
-                          context,
-                          title: l10n.activity,
-                          child: _wideActivityRows(context, response),
-                        ),
-                      if (hasActivity && models.isNotEmpty)
-                        const SizedBox(height: _kWideGridGap),
-                      if (models.isNotEmpty)
-                        _wideCard(
-                          context,
-                          title: l10n.models,
-                          child: Column(
-                            children: [
-                              for (final model in models)
-                                _ModelBreakdownTile(model: model),
-                            ],
-                          ),
-                        ),
-                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(width: _kWideGridGap),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        if (hasActivity)
+                          _wideCard(
+                            context,
+                            title: l10n.activity,
+                            child: _wideActivityRows(context, response),
+                          ),
+                        if (hasActivity && models.isNotEmpty)
+                          const SizedBox(height: _kWideGridGap),
+                        if (models.isNotEmpty)
+                          _wideCard(
+                            context,
+                            title: l10n.models,
+                            child: Column(
+                              children: [
+                                for (final model in models)
+                                  _ModelBreakdownTile(model: model),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -470,6 +504,7 @@ class InsightsPage extends ConsumerWidget {
     BuildContext context, {
     required String title,
     required Widget child,
+    bool stretchChild = false,
   }) {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
@@ -496,7 +531,7 @@ class InsightsPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 8),
-          child,
+          if (stretchChild) Expanded(child: child) else child,
         ],
       ),
     );
@@ -771,8 +806,10 @@ class InsightsPage extends ConsumerWidget {
     final recent = tokens.length <= 14
         ? tokens
         : tokens.sublist(tokens.length - 14);
-    // 服务器按最新在前返回，图表按时间正序绘制。
-    return recent.reversed.toList(growable: false);
+    // 服务器按**时间正序**返回（最早在前、最新在尾部，见 hermes-webui
+    // `_handle_insights` 的 `first_day_ts + i * day_secs`），故取尾部即最近
+    // 14 天、且**不得再反转**：图表从左往右就是时间正序（左旧右新）。
+    return recent.toList(growable: false);
   }
 
   bool _hasActivity(InsightsResponse response) =>
@@ -1002,9 +1039,20 @@ class _ModelBreakdownTile extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _DailyTokensBarChart extends StatefulWidget {
-  const _DailyTokensBarChart({required this.days});
+  const _DailyTokensBarChart({
+    required this.days,
+    this.height = 180,
+    this.adaptiveRodWidth = false,
+  });
 
   final List<InsightsDailyToken> days;
+
+  /// 图表高度；`null` = 高度由父级约束决定（宽屏左列与右列等高时用）。
+  final double? height;
+
+  /// 柱宽是否随可用宽度自适应。**仅宽屏**拉伸后的大卡为 true；窄屏恒
+  /// false（柱宽锁死 [_kMinRodWidth]，历史基线逐像素不变 —— 硬约束）。
+  final bool adaptiveRodWidth;
 
   @override
   State<_DailyTokensBarChart> createState() => _DailyTokensBarChartState();
@@ -1023,72 +1071,83 @@ class _DailyTokensBarChartState extends State<_DailyTokensBarChart> {
     final safeMax = maxTokens <= 0 ? 1.0 : maxTokens * 1.15;
 
     return SizedBox(
-      height: 180,
+      height: widget.height,
       width: double.infinity,
-      child: BarChart(
-        BarChartData(
-          alignment: BarChartAlignment.spaceAround,
-          maxY: safeMax.toDouble(),
-          minY: 0,
-          barTouchData: BarTouchData(
-            enabled: true,
-            handleBuiltInTouches: false,
-            touchCallback: (event, response) {
-              final spot = response?.spot;
-              final newIndex = spot?.touchedBarGroupIndex ?? -1;
-              if (newIndex != _touchedIndex) {
-                setState(() => _touchedIndex = newIndex);
-              }
-              if (event is FlTapUpEvent && spot != null) {
-                final idx = spot.touchedBarGroupIndex;
-                if (idx >= 0 && idx < days.length) {
-                  _showDayDetail(days[idx]);
+      child: LayoutBuilder(
+        builder: (context, constraints) => BarChart(
+          BarChartData(
+            alignment: BarChartAlignment.spaceAround,
+            maxY: safeMax.toDouble(),
+            minY: 0,
+            barTouchData: BarTouchData(
+              enabled: true,
+              handleBuiltInTouches: false,
+              touchCallback: (event, response) {
+                final spot = response?.spot;
+                final newIndex = spot?.touchedBarGroupIndex ?? -1;
+                if (newIndex != _touchedIndex) {
+                  setState(() => _touchedIndex = newIndex);
                 }
-              }
-            },
-          ),
-          gridData: const FlGridData(show: false),
-          borderData: FlBorderData(show: false),
-          titlesData: FlTitlesData(
-            topTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
+                if (event is FlTapUpEvent && spot != null) {
+                  final idx = spot.touchedBarGroupIndex;
+                  if (idx >= 0 && idx < days.length) {
+                    _showDayDetail(days[idx]);
+                  }
+                }
+              },
             ),
-            leftTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
-            rightTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false),
-            ),
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                reservedSize: 28,
-                getTitlesWidget: (value, meta) =>
-                    _bottomTitle(value, meta, context),
+            gridData: const FlGridData(show: false),
+            borderData: FlBorderData(show: false),
+            titlesData: FlTitlesData(
+              topTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              leftTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              rightTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              bottomTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 28,
+                  getTitlesWidget: (value, meta) =>
+                      _bottomTitle(value, meta, context),
+                ),
               ),
             ),
-          ),
-          barGroups: [
-            for (var i = 0; i < days.length; i++)
-              BarChartGroupData(
-                x: i,
-                barRods: [
-                  BarChartRodData(
-                    toY: days[i].totalTokens.toDouble(),
-                    color: i == _touchedIndex
-                        ? const Color(0xFF004999)
-                        : CupertinoColors.systemBlue,
-                    width: 10,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(3),
+            barGroups: [
+              for (var i = 0; i < days.length; i++)
+                BarChartGroupData(
+                  x: i,
+                  barRods: [
+                    BarChartRodData(
+                      toY: days[i].totalTokens.toDouble(),
+                      color: i == _touchedIndex
+                          ? const Color(0xFF004999)
+                          : CupertinoColors.systemBlue,
+                      width: widget.adaptiveRodWidth
+                          ? _rodWidth(days.length, constraints.maxWidth)
+                          : _kMinRodWidth,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(3),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-          ],
+                  ],
+                ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  /// 柱宽自适应：窄屏维持历史基线 10pt（逐像素不变），宽屏拉伸后的大卡上
+  /// 按可用宽度与柱数放大（上限 [_kMaxRodWidth]），避免高图表里柱子细如牙签。
+  static double _rodWidth(int count, double width) {
+    if (count <= 0 || !width.isFinite || width <= 0) return _kMinRodWidth;
+    return (width / count * 0.34).clamp(_kMinRodWidth, _kMaxRodWidth);
   }
 
   Widget _bottomTitle(double value, TitleMeta meta, BuildContext context) {
@@ -1279,4 +1338,54 @@ String _formatPercent(double? value) => formatInsightsPercent(value);
 String _formatHour(BuildContext context, int? hour) {
   if (hour == null) return AppLocalizations.of(context).unknown;
   return '${hour.toString().padLeft(2, '0')}:00';
+}
+
+// ---------------------------------------------------------------------------
+// 内禀高度代理（宽屏两列等高用）
+// ---------------------------------------------------------------------------
+
+/// 让子树在 `IntrinsicHeight` 探测时报告一个**代理内禀高度**，其余一切照常。
+///
+/// 存在的理由：宽屏两列等高用 `IntrinsicHeight` + `CrossAxisAlignment.stretch`
+/// 实现，而左列柱状图内部是 `fl_chart` 的 `BarChart` —— 它内部用
+/// `LayoutBuilder`，**不支持返回内禀尺寸**（一旦被探测就抛
+/// `LayoutBuilder does not support returning intrinsic dimensions` +
+/// `Null check operator used on a null value`）。
+/// 本包装把内禀探测短路成固定值；正常布局时 [RenderProxyBox] 原样透传父约束，
+/// 故运行时尺寸不受影响。
+class _IntrinsicHeightProxy extends SingleChildRenderObjectWidget {
+  const _IntrinsicHeightProxy({required this.intrinsicHeight, super.child});
+
+  /// 内禀探测时报告的高度。
+  final double intrinsicHeight;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderIntrinsicHeightProxy(intrinsicHeight);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderIntrinsicHeightProxy renderObject,
+  ) {
+    renderObject.intrinsicHeight = intrinsicHeight;
+  }
+}
+
+class _RenderIntrinsicHeightProxy extends RenderProxyBox {
+  _RenderIntrinsicHeightProxy(this.intrinsicHeight);
+
+  double intrinsicHeight;
+
+  @override
+  double computeMinIntrinsicHeight(double width) => intrinsicHeight;
+
+  @override
+  double computeMaxIntrinsicHeight(double width) => intrinsicHeight;
+
+  @override
+  double computeMinIntrinsicWidth(double height) => 0;
+
+  @override
+  double computeMaxIntrinsicWidth(double height) => 0;
 }

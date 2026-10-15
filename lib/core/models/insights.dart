@@ -102,7 +102,7 @@ class InsightsResponse {
   /// 按模型拆分。
   final List<InsightsModelBreakdown>? models;
 
-  /// 逐日令牌（最新在前）。
+  /// 逐日令牌（服务器按**时间正序**返回：最早在前，最新在尾部）。
   final List<InsightsDailyToken>? dailyTokens;
 
   /// 逐日活动（按天）。

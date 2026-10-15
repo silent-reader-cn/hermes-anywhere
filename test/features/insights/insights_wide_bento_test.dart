@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -107,6 +108,23 @@ Rect _cellRect(WidgetTester tester, String value) {
   return tester.getRect(cell);
 }
 
+/// 标题所属的宽屏白卡矩形（半径 10 的卡片容器）。
+Rect _cardRectByTitle(WidgetTester tester, String title) {
+  final card = find
+      .ancestor(
+        of: find.text(title),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Container &&
+              widget.decoration is BoxDecoration &&
+              (widget.decoration! as BoxDecoration).borderRadius ==
+                  BorderRadius.circular(10),
+        ),
+      )
+      .first;
+  return tester.getRect(card);
+}
+
 /// 页面顶部内容宽度（无外壳，与视口同宽，左右各 16 留白）。
 double _contentWidth(Size viewport) => viewport.width - 32;
 
@@ -174,6 +192,30 @@ void main() {
       expect(activityTitle.top, closeTo(chartTitle.top, 1));
       expect(modelsTitle.left, closeTo(activityTitle.left, 0.6));
       expect(modelsTitle.top, greaterThan(activityTitle.top));
+    });
+
+    testWidgets('宽屏：柱状图卡与右列等高（下方空白归零）+ 图表随之变高', (tester) async {
+      await _pump(tester, _wideViewport);
+
+      // 行内两列等高：柱状图卡底边与右列最下卡（模型）底边齐平。
+      final chartCard = _cardRectByTitle(tester, '近 30 天令牌');
+      final modelsCard = _cardRectByTitle(tester, '模型');
+      expect(
+        chartCard.bottom,
+        closeTo(modelsCard.bottom, 0.6),
+        reason: '柱状图卡应与右列等高（旧实现左列下方留白 618 x 213.5pt）',
+      );
+
+      // 空白被吸收成图表高度：图表高于窄屏基线 180。
+      final chart = tester.getRect(find.byType(BarChart));
+      expect(chart.height, greaterThan(180));
+
+      // 宽屏大卡上柱宽自适应放大（窄屏恒 10pt，逐像素不变）。
+      final barChart = tester.widget<BarChart>(find.byType(BarChart));
+      expect(
+        barChart.data.barGroups.first.barRods.first.width,
+        greaterThan(10),
+      );
     });
 
     testWidgets('窄屏：单列结构不变（一行一格 + 值在行尾 + 图表在上）', (tester) async {

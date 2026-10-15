@@ -605,13 +605,14 @@ void main() {
                 tokenShare: 40,
               ),
             ],
+            // 服务器真实顺序：时间正序（最早在前、最新在尾部）；柱状图
+            // 从左往右即时间正序，故最左柱最矮（08-14）、最右柱最高（08-16）。
             dailyTokens: [
               InsightsDailyToken(
-                date: '08-16',
-                inputTokens: 100,
-                outputTokens: 50,
-                sessions: 2,
-                cost: 0.01,
+                date: '08-14',
+                inputTokens: 40,
+                outputTokens: 20,
+                sessions: 1,
               ),
               InsightsDailyToken(
                 date: '08-15',
@@ -620,10 +621,11 @@ void main() {
                 sessions: 1,
               ),
               InsightsDailyToken(
-                date: '08-14',
-                inputTokens: 40,
-                outputTokens: 20,
-                sessions: 1,
+                date: '08-16',
+                inputTokens: 100,
+                outputTokens: 50,
+                sessions: 2,
+                cost: 0.01,
               ),
             ],
             activityByDay: [
