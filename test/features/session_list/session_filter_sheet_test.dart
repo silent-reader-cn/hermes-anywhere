@@ -726,6 +726,42 @@ void main() {
       );
     });
 
+    testWidgets('窄屏分区顺序：工作区段在项目段之前（主人 2026-10-15 要求）', (tester) async {
+      // 不设视口 → 800×600 属窄屏。
+      final api = FakeSessionListApi(
+        sessions: [session('s1', '会话一', sourceLabel: 'telegram', projectId: 'p1')],
+      );
+      final projectApi = _FakeProjectApi(
+        projects: const [ProjectSummary(projectId: 'p1', name: '项目一')],
+      );
+      await pumpList(
+        tester,
+        api,
+        projectApi: projectApi,
+        workspaces: const [
+          WorkspaceRoot(path: r'D:\projects\alpha', name: 'alpha'),
+        ],
+      );
+      await openFilter(tester);
+
+      final channels = tester.getRect(
+        find.byKey(const ValueKey('filter-section-channels')),
+      );
+      final workspaces = tester.getRect(
+        find.byKey(const ValueKey('filter-section-workspaces')),
+      );
+      final projects = tester.getRect(
+        find.byKey(const ValueKey('filter-section-projects')),
+      );
+
+      expect(channels.top, lessThan(workspaces.top), reason: '渠道 → 工作区');
+      expect(
+        workspaces.top,
+        lessThan(projects.top),
+        reason: '窄屏顺序要求：工作区筛选必须排在项目筛选之前',
+      );
+    });
+
     /// 段卡片 1px 描边必须**真的画出来**（不被行底盖掉）。
     ///
     /// 回归背景（主人 2026-10-08 实机反馈「为什么只有两个全部项的外框正常？

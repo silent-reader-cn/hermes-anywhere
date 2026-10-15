@@ -3589,10 +3589,12 @@ class _SessionFilterSheet extends ConsumerWidget {
                           sessionsSection(_narrowSectionMargin),
                           if (current.sourceLabels.isNotEmpty)
                             channelsSection(_narrowSectionMargin),
-                          if (projects.isNotEmpty)
-                            projectsSection(_narrowSectionMargin),
+                          // 2026-10-15 主人要求：窄屏把**工作区**提到**项目**之前
+                          // （宽屏右列仍按设计稿「工作区 → 渠道 → 项目」不动）。
                           if (workspaces.isNotEmpty)
                             workspacesSection(_narrowSectionMargin),
+                          if (projects.isNotEmpty)
+                            projectsSection(_narrowSectionMargin),
                           const SizedBox(height: 8),
                         ],
                       ),
