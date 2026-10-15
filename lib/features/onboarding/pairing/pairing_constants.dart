@@ -12,7 +12,7 @@ import '../../../l10n/app_localizations.dart';
 
 /// 复制进剪贴板的完整下载地址（非文案：跨设备可打开的 URL，不参与 l10n）。
 const String hermesDownloadUrl =
-    'https://github.com/silent-reader-cn/hermes-keep/releases/latest';
+    'https://github.com/silent-reader-cn/hermes-anywhere/releases/latest';
 
 /// [PairingFailure] → 分档文案；[PairingFailure.cancelled] 返回空串（静默）。
 String pairingFailureText(AppLocalizations l10n, PairingFailure reason) {

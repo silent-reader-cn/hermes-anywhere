@@ -118,7 +118,7 @@ Future<ConnectionStore> demoConnectionStore() async {
 final demoWorkspaceOverrides = <Override>[
   workspaceRootsProvider.overrideWith(
     (ref) => Future.value(const [
-      WorkspaceRoot(path: r'D:\projects\hermes-ui', name: 'hermes-ui'),
+      WorkspaceRoot(path: r'D:\projects\hermes-anywhere', name: 'hermes-anywhere'),
       WorkspaceRoot(path: r'D:\projects\book-hub', name: 'book-hub'),
     ]),
   ),
@@ -139,7 +139,7 @@ FakeSessionListApi demoSessionApi() {
         pinned: true,
         messageCount: 23,
         projectId: 'p-demo-hermes',
-        workspace: r'D:\projects\hermes-ui',
+        workspace: r'D:\projects\hermes-anywhere',
         lastMessageAt: at(const Duration(minutes: 30)),
       ),
       SessionSummary(
@@ -161,7 +161,7 @@ FakeSessionListApi demoSessionApi() {
         title: _demoTitles[3],
         messageCount: 41,
         projectId: 'p-demo-hermes',
-        workspace: r'D:\projects\hermes-ui',
+        workspace: r'D:\projects\hermes-anywhere',
         lastMessageAt: at(const Duration(days: 1, hours: 2)),
       ),
       SessionSummary(
@@ -194,7 +194,7 @@ Map<String, Object?> demoChatSessionJson({required bool en}) {
       'session_id': 's-demo-1',
       'title': _demoTitles[0],
       // 让输入区 chip 显示真实值（而非虚线空态）。
-      'workspace': r'D:\projects\hermes-ui',
+      'workspace': r'D:\projects\hermes-anywhere',
       'model': 'claude-opus-4.6',
       // 上下文用量：62%（指示器环上直接可见）。
       'context_length': 200000,

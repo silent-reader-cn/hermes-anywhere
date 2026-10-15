@@ -21,10 +21,12 @@
 - **内部标识符**：`kHermesUiRepoUrl` → `kHermesAnywhereRepoUrl`
 
 ### 有意冻结（改名＝改身份，会断升级链或产生重复项；CHANGELOG 已列表）
-Android `applicationId`/`namespace`、Inno `AppId` GUID、安装目录 + 开始菜单组 `HermesUI`（脚本拆出 `MyAppDirName` 冻结 / `MyAppName` 显示）、AUMID `com.hermes.ui`、开机启动注册表值名 `Hermes`、单实例互斥名与窗口消息、Android 通知渠道 id、Dart 包名 `hermes_ui`、仓库 slug `hermes-keep`
+Android `applicationId`/`namespace`、Inno `AppId` GUID、安装目录 + 开始菜单组 `HermesUI`（脚本拆出 `MyAppDirName` 冻结 / `MyAppName` 显示）、AUMID `com.hermes.ui`、开机启动注册表值名 `Hermes`、单实例互斥名与窗口消息、Android 通知渠道 id、Dart 包名 `hermes_ui`
 
-### 待主人拍板（本喵逐条推荐）
-1. **GitHub 仓库名** `hermes-keep` → `hermes-anywhere`？**推荐改**（对外一致；GitHub 对旧名自动 301，已装版本的更新检查不受影响）
+### 已拍板并执行
+1. **GitHub 仓库名**已改为 `silent-reader-cn/hermes-anywhere`（2026-10-15；旧名 `hermes-keep` 301 重定向实测有效）；本地 `origin` 已对齐。README（中英）/ AGENTS.md / 分析配置注释 / 安装器 `MyAppURL` / 更新器端点 / 配对页下载链接 / `tools/release.py` / CI 产物名 / 相关测试夹具一并换新
+
+### 待主人拍板
 2. **Dart 包名** `hermes_ui` → `hermes_anywhere`？**推荐暂不改**（牵连 611 文件 + exe/Linux/macOS 二进制名 + `AppExeName`；收益仅是内部一致）
 3. **包标识** `com.silentreader.hermes_ui` / `AppId`：**推荐永久冻结**
 4. 本地目录 `D:\projects\hermes-ui`：**推荐保留**（worktree、CI 脚本、技能库路径都在引用）

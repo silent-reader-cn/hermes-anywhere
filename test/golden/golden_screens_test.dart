@@ -349,16 +349,16 @@ void main() {
           response: const MemoryResponse(
             memory:
                 '用户偏好：界面使用中文，喜欢 iOS 风格设计；'
-                '正在推进 hermes-ui 客户端移植，关注主题对比度与文字溢出问题。\n'
+                '正在推进 hermes-anywhere 客户端移植，关注主题对比度与文字溢出问题。\n'
                 '常用命令通过 f.bat 封装执行 Flutter 命令。',
             user: '用户名：Admin\n偏好：深色模式\n活跃时间：夜间',
             soul:
                 '你是一个乐于助人的 AI 助手，回答使用中文，'
                 '注重可读性与排版细节。',
             projectContext:
-                '当前项目 hermes-ui（Flutter + Cupertino 移植 iOS Hermex '
+                '当前项目 hermes-anywhere（Flutter + Cupertino 移植 iOS Hermex '
                 '客户端）。并行推进：主题对比度修复、golden 截图回归基建。',
-            projectContextName: 'hermes-ui (D:/projects/hermes-ui)',
+            projectContextName: 'hermes-anywhere (D:/projects/hermes-anywhere)',
           ),
         ),
       ),

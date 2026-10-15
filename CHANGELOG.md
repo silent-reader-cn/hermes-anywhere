@@ -5,7 +5,7 @@
 
 ## [Unreleased]
 
-> 逐版变更明细以 [GitHub Releases](https://github.com/silent-reader-cn/hermes-keep/releases) 的 Release notes 为准（每个 tag 一份）；
+> 逐版变更明细以 [GitHub Releases](https://github.com/silent-reader-cn/hermes-anywhere/releases) 的 Release notes 为准（每个 tag 一份）；
 > 本文件自 `0.1.0` 起未逐版维护，只保留里程碑与当前进行中的事项。
 
 ### 品牌更名：Hermes UI → Hermes Anywhere
@@ -25,11 +25,12 @@
   | 开机启动注册表值名 | `HKCU\…\Run` 的 `Hermes` | 改名 ⇒ 自启动出现重复项 + 旧项残留 |
   | 单实例互斥名 / 窗口消息 | `Local\HermesUI.SingleInstance.Mutex` 等 | 进程间契约：改名 ⇒ 新旧版可同时启动 |
   | Android 通知渠道 id | `hermes_foreground_service` | 换 id ⇒ 通知渠道重复 |
-  | Dart 包名 / 仓库 slug | `hermes_ui` / `hermes-keep` | 未在本次范围内（待定） |
+  | Dart 包名 | `hermes_ui` | 未在本次范围内（待定） |
 - 安装器脚本据此拆出 `MyAppName`（显示 = `Hermes Anywhere`）与 `MyAppDirName`（冻结 = `HermesUI`）
 
 ### 仓库与口径
 
+- 仓库更名为 `hermes-anywhere`（2026-10-15；原 `hermes-keep`，再原 `hermes-ui`）。旧链接由 GitHub 自动 301：实测旧 API 端点与旧资产下载 URL 仍重定向到新仓库，**已发布版本的检查更新与配对页下载链接不受影响**；更新器端点 / `tools/release.py` / 安装器 `MyAppURL` / README 徽章与 clone 指令 / AGENTS.md / 分析配置注释已全部对齐新名
 - 仓库更名为 `hermes-keep`（原 `hermes-ui`）。旧链接由 GitHub 自动重定向，**已发布版本的应用内检查更新不受影响**（实测旧 API 端点 301 → 正确返回最新 Release）
 - README：Android 下载资产名与实物对齐（`app-release.apk`，原误写 `*-arm64.apk`）；新增「为什么选它 / Why this one」定位段
 - README：测试规模口径更新为实测值（原写 2,400+，现 4,800+）

@@ -83,7 +83,7 @@ ServerConnection _conn(String id, String name, String url) => ServerConnection(
 const GithubRelease _demoRelease = GithubRelease(
   tagName: 'v0.1.99',
   htmlUrl:
-      'https://github.com/silent-reader-cn/hermes-keep/releases/tag/v0.1.99',
+      'https://github.com/silent-reader-cn/hermes-anywhere/releases/tag/v0.1.99',
   name: 'v0.1.99',
   body:
       '新增\n'

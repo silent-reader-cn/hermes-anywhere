@@ -6,9 +6,9 @@
 
 A Flutter + Cupertino client for [Hermes Agent](https://hermes-agent.nousresearch.com/docs) — one codebase, consistent chat on desktop and phone.
 
-[![CI](https://github.com/silent-reader-cn/hermes-keep/actions/workflows/ci.yml/badge.svg)](https://github.com/silent-reader-cn/hermes-keep/actions/workflows/ci.yml)
+[![CI](https://github.com/silent-reader-cn/hermes-anywhere/actions/workflows/ci.yml/badge.svg)](https://github.com/silent-reader-cn/hermes-anywhere/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/silent-reader-cn/hermes-keep)](https://github.com/silent-reader-cn/hermes-keep/releases)
+[![Release](https://img.shields.io/github/v/release/silent-reader-cn/hermes-anywhere)](https://github.com/silent-reader-cn/hermes-anywhere/releases)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-lightgrey)
 
 **English** | [简体中文](README.zh-CN.md)
@@ -75,18 +75,18 @@ behaves the same everywhere it runs.
 
 ### Windows
 
-1. Grab the latest installer `HermesAnywhere-<version>-x64-setup.exe` from the [Releases](https://github.com/silent-reader-cn/hermes-keep/releases) page and run it.
+1. Grab the latest installer `HermesAnywhere-<version>-x64-setup.exe` from the [Releases](https://github.com/silent-reader-cn/hermes-anywhere/releases) page and run it.
 2. Launch **Hermes Anywhere**. On the onboarding screen pick **Built-in service** → **Start & Connect**. That's it — the WebUI backend starts automatically.
 
 Chat requires a [Hermes Agent](https://hermes-agent.nousresearch.com/docs) installation. If none is detected, the onboarding screen shows a card linking to the install guide; without it the app still works in read-only mode (session history), and attempting to chat will tell you what's missing.
 
 ### Android
 
-Download `app-release.apk` from the [Releases](https://github.com/silent-reader-cn/hermes-keep/releases) page (Android 7.0+, arm64) and connect it to your Hermes server on the network.
+Download `app-release.apk` from the [Releases](https://github.com/silent-reader-cn/hermes-anywhere/releases) page (Android 7.0+, arm64) and connect it to your Hermes server on the network.
 
 ### macOS
 
-Download `HermesAnywhere-<version>-macos-arm64.zip` from the [Releases](https://github.com/silent-reader-cn/hermes-keep/releases) page. The app is not signed or notarized yet, so clear the quarantine flag before opening it:
+Download `HermesAnywhere-<version>-macos-arm64.zip` from the [Releases](https://github.com/silent-reader-cn/hermes-anywhere/releases) page. The app is not signed or notarized yet, so clear the quarantine flag before opening it:
 
 ```bash
 xattr -cr hermes_ui.app
@@ -111,8 +111,8 @@ Built on Ubuntu 22.04 (glibc 2.35+) to cover both 22.04 and 24.04.
 ### Build from source
 
 ```bash
-git clone https://github.com/silent-reader-cn/hermes-keep.git
-cd hermes-keep
+git clone https://github.com/silent-reader-cn/hermes-anywhere.git
+cd hermes-anywhere
 flutter pub get
 
 # Windows desktop
