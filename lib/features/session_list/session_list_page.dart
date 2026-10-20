@@ -1008,15 +1008,26 @@ class _SessionListPageState extends ConsumerState<SessionListPage> {
                           borderRadius: const BorderRadius.all(
                             Radius.circular(10.0),
                           ),
-                          side:
-                              CupertinoTheme.brightnessOf(context) ==
-                                  Brightness.light
-                              ? BorderSide(
-                                  color: LightSurfaces.cardBorder,
-                                  width: 0.5,
-                                  strokeAlign: BorderSide.strokeAlignOutside,
-                                )
-                              : BorderSide.none,
+                          // #210：窄屏会话卡片**两主题都描边**，与设置页分区卡
+                          // （`SettingsSurfaces.section()` 的 0.5pt 前景描边）对齐。
+                          // 此前暗色走 `BorderSide.none` ⇒ 深色下卡片只剩底色
+                          // （`secondarySystemGroupedBackground` #1C1C1E）、
+                          // 没有任何轮廓线，与设置页「每项都有外框」并排看时
+                          // 明显不像同一套控件（金照 session_list_dark.png
+                          // 像素实测：卡片左缘无 1px 线；settings_dark.png
+                          // 左缘 x=32 处有 1px separator #3E3E42）。
+                          // 描边色沿用设置页深色口径 `CupertinoColors.separator`
+                          // （动态语义色，保留高对比度 / elevated 变体），
+                          // 浅色沿用既有 `LightSurfaces.cardBorder`。
+                          side: BorderSide(
+                            color: LightSurfaces.resolve(
+                              context,
+                              LightSurfaces.cardBorder,
+                              dark: CupertinoColors.separator,
+                            ),
+                            width: 0.5,
+                            strokeAlign: BorderSide.strokeAlignOutside,
+                          ),
                         ),
                       ),
                       // #160：窄屏（卡片形态）**保留项与项之间的分隔线** ——

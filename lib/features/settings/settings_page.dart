@@ -5,6 +5,7 @@ import 'package:hermes_ui/app/theme/typography_tokens.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/locale/locale_provider.dart';
@@ -1653,10 +1654,36 @@ class _ServerSectionState extends ConsumerState<_ServerSection> {
     WidgetRef ref, {
     ServerConnection? connection,
   }) {
-    return Navigator.of(context).push(
-      HermesPageRoute<void>(
-        builder: (context) => _ServerEditorPage(connection: connection),
-      ),
+    // #211：编辑页改走 **go_router 栈**（`context.push('/settings/server')`），
+    // 不再用 `Navigator.of(context).push`。
+    //
+    // 为什么要改（双栈分裂是真凶）：
+    //   · 设置页本身在 go_router 栈里（从会话列表进 ⇒ 栈 = [/, /settings]）；
+    //   · 编辑页若用原生 `Navigator.push` 推入，两套栈**分裂**：
+    //     go_router 只认它自己声明的路由，`AppBackButton` 的 `context.canPop()`
+    //     判据因此失真 —— 编辑器页 pop 后，`canPop()==false` ⇒ 走
+    //     `context.go('/')` ⇒ **直接退到主页**，用户回不到服务器列表、
+    //     点不了「激活」（主人实机报告的现象）。
+    //   · 走同一条 go_router 栈后，编辑器页的返回 = pop 掉自己 ⇒
+    //     落点必然是 `/settings`（服务器列表所在页），与其它功能页
+    //     （技能/任务/记忆…）的行为一致。
+    //
+    // 连接对象走 `extra` 传递（编辑态才需要）；新增态不传 ⇒ null。
+    //
+    // ⚠️ 无 go_router 的环境（单页挂载的 widget 测试）走原生 push 兜底：
+    // `GoRouter.of` 在没有 GoRouter 的 context 上会抛 `No GoRouter found
+    // in context`。真实 App 永远有 go_router ⇒ 走上面的 `/settings/server`。
+    final router = GoRouter.maybeOf(context);
+    if (router == null) {
+      return Navigator.of(context).push(
+        HermesPageRoute<void>(
+          builder: (context) => ServerEditorPage(connection: connection),
+        ),
+      );
+    }
+    return router.push<void>(
+      '/settings/server',
+      extra: connection,
     );
   }
 
@@ -1710,17 +1737,22 @@ class _ServerSectionState extends ConsumerState<_ServerSection> {
 }
 
 /// 服务器新增 / 编辑表单（复用 onboarding 的连接字段：名称 / 地址 / 密码 + Profile 管理）。
-class _ServerEditorPage extends ConsumerStatefulWidget {
-  const _ServerEditorPage({this.connection});
+/// 服务器编辑页（新增 / 编辑）。
+///
+/// #211：由 `router.dart` 的 `/settings/server` 路由承载（go_router 栈），
+/// 不再由设置页用原生 `Navigator.push` 推入 —— 详见 [_ServerSectionState
+/// ._openServerEditor] 的双栈分裂说明。
+class ServerEditorPage extends ConsumerStatefulWidget {
+  const ServerEditorPage({super.key, this.connection});
 
   /// 非 null = 编辑模式（保留 id / username / customHeaders / createdAt）。
   final ServerConnection? connection;
 
   @override
-  ConsumerState<_ServerEditorPage> createState() => _ServerEditorPageState();
+  ConsumerState<ServerEditorPage> createState() => ServerEditorPageState();
 }
 
-class _ServerEditorPageState extends ConsumerState<_ServerEditorPage> {
+class ServerEditorPageState extends ConsumerState<ServerEditorPage> {
   late final TextEditingController _nameController = TextEditingController(
     text: widget.connection?.name ?? '',
   );
@@ -1923,7 +1955,21 @@ class _ServerEditorPageState extends ConsumerState<_ServerEditorPage> {
           );
     await ref.read(connectionsProvider.notifier).upsert(connection);
     if (!mounted) return;
-    Navigator.of(context).pop();
+    // #211：保存成功后 pop 掉自己（go_router 栈）⇒ 落点回 `/settings`
+    // 的服务器列表，用户可立即点「激活」。旧写法是原生
+    // `Navigator.pop()`，与 go_router 栈分裂时会连带把设置页带走。
+    //
+    // ⚠️ 无 go_router 的环境（单页挂载的 widget 测试）仍走原生 pop。
+    final router = GoRouter.maybeOf(context);
+    if (router == null) {
+      Navigator.of(context).pop();
+      return;
+    }
+    if (router.canPop()) {
+      router.pop();
+    } else {
+      router.go('/settings');
+    }
   }
 
   /// 用 [url] + [password] 调登录接口种 cookie；返回错误文案，null = 成功。
@@ -1960,7 +2006,17 @@ class _ServerEditorPageState extends ConsumerState<_ServerEditorPage> {
         navigationBar: CupertinoNavigationBar(
           border: null,
           bottom: const NavBarHairline(),
-          leading: const _PopBackButton(),
+          // #211：返回按钮改用 `AppBackButton` —— 它按 **go_router 栈**
+          // 判据（`canPop()` → `pop()`，否则 `go('/')`）走，与本仓其它
+          // 功能页（技能/任务/记忆/统计…）口径一致。
+          // 旧写法 `_PopBackButton`（原生 `Navigator.pop()`）在 go_router
+          // 栈下会把设置页一并带离 ⇒ 落点变主页（主人实机报告的现象）。
+          //
+          // ⚠️ 无 go_router 的环境（单页挂载的 widget 测试）仍用原生
+          // `_PopBackButton`（`GoRouter.of` 会抛 `No GoRouter found`）。
+          leading: GoRouter.maybeOf(context) != null
+              ? const AppBackButton()
+              : const _PopBackButton(),
           middle: Text(isEditing ? l10n.editServer : l10n.addServer),
           trailing: Align(
             alignment: Alignment.centerRight,

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'deep_link.dart';
 import 'shell/adaptive_shell.dart';
 import '../core/connections/connection_providers.dart';
+import '../core/connections/server_connection.dart';
 import '../core/providers/file_picker_provider.dart';
 import '../features/chat/chat_page.dart';
 import '../features/downloads/download_page.dart';
@@ -124,6 +125,22 @@ final routerProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) => HermesPage<void>(
               key: const ValueKey('settings'),
               builder: (_) => const SettingsPage(),
+            ),
+          ),
+          // #211：服务器新增 / 编辑页 —— 与 `/settings` **同栈**（go_router
+          // 栈），返回必落回设置页的服务器列表（主人诉求：新增完服务器后
+          // 想接着点「激活」，不该被弹回主页）。
+          //
+          // 此前它由设置页用原生 `Navigator.push` 推入 ⇒ 与 go_router 栈
+          // **分裂** ⇒ `canPop()` 判据失真 ⇒ 返回直接 `go('/')` 退到主页。
+          //
+          // `extra` = 待编辑的连接（新增态为 null）。
+          GoRoute(
+            path: '/settings/server',
+            pageBuilder: (context, state) => HermesPage<void>(
+              key: const ValueKey('settings-server'),
+              builder: (_) =>
+                  ServerEditorPage(connection: state.extra as ServerConnection?),
             ),
           ),
           GoRoute(
