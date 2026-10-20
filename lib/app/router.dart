@@ -17,6 +17,12 @@ import '../features/memory/memory_page.dart';
 import '../features/onboarding/install_guide_page.dart';
 import '../features/onboarding/onboarding_page.dart';
 import '../features/session_list/session_list_page.dart';
+import '../core/models/auxiliary_model.dart';
+import '../core/models/extensions.dart';
+import '../core/models/mcp.dart';
+import '../features/settings/auxiliary_models_section.dart';
+import '../features/settings/extensions_section.dart';
+import '../features/settings/mcp_section.dart';
 import '../features/settings/settings_page.dart';
 import '../features/skills/skills_page.dart';
 import '../features/tasks/tasks_page.dart';
@@ -141,6 +147,48 @@ final routerProvider = Provider<GoRouter>((ref) {
               key: const ValueKey('settings-server'),
               builder: (_) =>
                   ServerEditorPage(connection: state.extra as ServerConnection?),
+            ),
+          ),
+          // #211 同族：设置页内其余二级页也改走 go_router 栈 ⇒ 返回同样
+          // 落回设置页，而不是把设置页一起带离退到主页。
+          // ① 辅助模型 · 任务选择器（`extra` = AuxiliaryTaskRow）
+          GoRoute(
+            path: '/settings/aux-task-picker',
+            pageBuilder: (context, state) => HermesPage<void>(
+              key: const ValueKey('settings-aux-task-picker'),
+              builder: (_) =>
+                  AuxTaskPickerPage(taskRow: state.extra! as AuxiliaryTaskRow),
+            ),
+          ),
+          // ② 扩展安装表单（`extra` = List<ExtensionRegistryItem>）
+          GoRoute(
+            path: '/settings/extension-install',
+            pageBuilder: (context, state) => HermesPage<void>(
+              key: const ValueKey('settings-extension-install'),
+              builder: (_) => ExtensionInstallPage(
+                registry: (state.extra as List<ExtensionRegistryItem>?) ??
+                    const [],
+              ),
+            ),
+          ),
+          // ③ MCP 服务器编辑（`extra` = McpServer?，新增态 null）
+          GoRoute(
+            path: '/settings/mcp-server',
+            pageBuilder: (context, state) => HermesPage<void>(
+              key: const ValueKey('settings-mcp-server'),
+              builder: (_) =>
+                  McpServerEditorPage(server: state.extra as McpServer?),
+            ),
+          ),
+          // ④ MCP 服务器工具列表（`extra` = McpToolsArgs）
+          GoRoute(
+            path: '/settings/mcp-tools',
+            pageBuilder: (context, state) => HermesPage<void>(
+              key: const ValueKey('settings-mcp-tools'),
+              builder: (_) {
+                final args = state.extra! as McpToolsArgs;
+                return McpToolsPage(server: args.server, tools: args.tools);
+              },
             ),
           ),
           GoRoute(

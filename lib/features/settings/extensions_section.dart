@@ -6,7 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/theme/light_surfaces.dart';
 import '../../app/theme/status_colors.dart';
 import '../../app/widgets/hermes_dialog.dart';
+import 'package:go_router/go_router.dart';
+
 import '../../app/widgets/hermes_page_route.dart';
+import '../shared/app_back_button.dart';
 import '../../app/widgets/nav_bar_hairline.dart';
 import '../../core/api/api_exception.dart';
 import '../../core/models/extensions.dart';
@@ -247,10 +250,22 @@ class ExtensionsSection extends ConsumerWidget {
     WidgetRef ref,
     List<ExtensionRegistryItem> registry,
   ) {
-    return Navigator.of(context).push(
-      HermesPageRoute<void>(
-        builder: (context) => ExtensionInstallPage(registry: registry),
-      ),
+    // #211：改走 **go_router 栈**（`/settings/extension-install`），与
+    // `/settings` 同栈 ⇒ 返回落回设置页，不会把设置页一起带离退到主页。
+    //
+    // ⚠️ 无 go_router 的环境（单页挂载的 widget 测试）回退原生 push ——
+    // `GoRouter.of` 在没有 GoRouter 的 context 上会抛异常。
+    final router = GoRouter.maybeOf(context);
+    if (router == null) {
+      return Navigator.of(context).push(
+        HermesPageRoute<void>(
+          builder: (context) => ExtensionInstallPage(registry: registry),
+        ),
+      );
+    }
+    return router.push<void>(
+      '/settings/extension-install',
+      extra: registry,
     );
   }
 }
@@ -332,7 +347,12 @@ class _ExtensionInstallPageState extends ConsumerState<ExtensionInstallPage> {
         navigationBar: CupertinoNavigationBar(
           border: null,
           bottom: const NavBarHairline(),
-          leading: const _PopBackButton(),
+          // #211：返回按钮按 **go_router 栈** 判据走（`AppBackButton`）——
+          // 原生 `Navigator.pop()` 会把设置页一并带离 ⇒ 落点变主页。
+          // ⚠️ 无 go_router 的环境（单页挂载测试）仍用原生 `_PopBackButton`。
+          leading: GoRouter.maybeOf(context) != null
+              ? const AppBackButton()
+              : const _PopBackButton(),
           middle: Text(l10n.installExtension),
           trailing: CupertinoButton(
             foregroundColor: SettingsSurfaces.actionColor(

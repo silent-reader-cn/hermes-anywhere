@@ -7,7 +7,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/theme/light_surfaces.dart';
 import '../../app/theme/status_colors.dart';
 import '../../app/widgets/hermes_dialog.dart';
+import 'package:go_router/go_router.dart';
+
 import '../../app/widgets/hermes_page_route.dart';
+import '../shared/app_back_button.dart';
 import '../../app/widgets/nav_bar_hairline.dart';
 import '../../core/api/api_exception.dart';
 import '../../core/models/mcp.dart';
@@ -235,10 +238,22 @@ class McpSection extends ConsumerWidget {
     WidgetRef ref, {
     McpServer? server,
   }) {
-    return Navigator.of(context).push(
-      HermesPageRoute<void>(
-        builder: (context) => McpServerEditorPage(server: server),
-      ),
+    // #211：改走 **go_router 栈**（`/settings/mcp-server`），与
+    // `/settings` 同栈 ⇒ 返回落回设置页，不会把设置页一起带离退到主页。
+    //
+    // ⚠️ 无 go_router 的环境（单页挂载的 widget 测试）回退原生 push ——
+    // `GoRouter.of` 在没有 GoRouter 的 context 上会抛异常。
+    final router = GoRouter.maybeOf(context);
+    if (router == null) {
+      return Navigator.of(context).push(
+        HermesPageRoute<void>(
+          builder: (context) => McpServerEditorPage(server: server),
+        ),
+      );
+    }
+    return router.push<void>(
+      '/settings/mcp-server',
+      extra: server,
     );
   }
 
@@ -247,10 +262,19 @@ class McpSection extends ConsumerWidget {
     McpServer server,
     List<McpTool> tools,
   ) {
-    return Navigator.of(context).push(
-      HermesPageRoute<void>(
-        builder: (context) => McpToolsPage(server: server, tools: tools),
-      ),
+    // #211：同上（`/settings/mcp-tools`）。两个参数用 [McpToolsArgs] 打包
+    // （go_router 的 `extra` 只能带一个对象）。
+    final router = GoRouter.maybeOf(context);
+    if (router == null) {
+      return Navigator.of(context).push(
+        HermesPageRoute<void>(
+          builder: (context) => McpToolsPage(server: server, tools: tools),
+        ),
+      );
+    }
+    return router.push<void>(
+      '/settings/mcp-tools',
+      extra: McpToolsArgs(server: server, tools: tools),
     );
   }
 }
@@ -385,7 +409,12 @@ class _McpServerEditorPageState extends ConsumerState<McpServerEditorPage> {
         navigationBar: CupertinoNavigationBar(
           border: null,
           bottom: const NavBarHairline(),
-          leading: const _PopBackButton(),
+          // #211：返回按钮按 **go_router 栈** 判据走（`AppBackButton`）——
+          // 原生 `Navigator.pop()` 会把设置页一并带离 ⇒ 落点变主页。
+          // ⚠️ 无 go_router 的环境（单页挂载测试）仍用原生 `_PopBackButton`。
+          leading: GoRouter.maybeOf(context) != null
+              ? const AppBackButton()
+              : const _PopBackButton(),
           middle: Text(isEditing ? l10n.editMcpServer : l10n.addMcpServer),
           trailing: CupertinoButton(
             foregroundColor: SettingsSurfaces.actionColor(
@@ -481,7 +510,17 @@ class _McpServerEditorPageState extends ConsumerState<McpServerEditorPage> {
   }
 }
 
-/// MCP 工具列表页面。
+/// MCP 服务器工具列表页的入参包（#211：走 go_router 路由时经 `extra` 传递）。
+///
+/// go_router 的 `extra` 只能带**一个**对象 ⇒ 两个参数用本包打包。
+class McpToolsArgs {
+  const McpToolsArgs({required this.server, required this.tools});
+
+  final McpServer server;
+  final List<McpTool> tools;
+}
+
+/// MCP 服务器工具列表页。
 class McpToolsPage extends StatelessWidget {
   const McpToolsPage({super.key, required this.server, required this.tools});
 
@@ -498,7 +537,12 @@ class McpToolsPage extends StatelessWidget {
         navigationBar: CupertinoNavigationBar(
           border: null,
           bottom: const NavBarHairline(),
-          leading: const _PopBackButton(),
+          // #211：返回按钮按 **go_router 栈** 判据走（`AppBackButton`）——
+          // 原生 `Navigator.pop()` 会把设置页一并带离 ⇒ 落点变主页。
+          // ⚠️ 无 go_router 的环境（单页挂载测试）仍用原生 `_PopBackButton`。
+          leading: GoRouter.maybeOf(context) != null
+              ? const AppBackButton()
+              : const _PopBackButton(),
           middle: Text('${server.name} · ${l10n.mcpTools}'),
         ),
         child: SafeArea(

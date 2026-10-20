@@ -1,17 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hermes_ui/app/router.dart';
-import 'package:hermes_ui/app/shell/adaptive_shell.dart';
-import 'package:hermes_ui/app/widgets/hermes_page_route.dart';
 import 'package:hermes_ui/core/api/api_client.dart';
 import 'package:hermes_ui/core/connections/connection_providers.dart';
 import 'package:hermes_ui/core/connections/connection_store.dart';
 import 'package:hermes_ui/core/connections/server_connection.dart';
 import 'package:hermes_ui/core/models/session.dart';
 import 'package:hermes_ui/features/projects/project_providers.dart';
-import 'package:hermes_ui/features/session_list/session_list_page.dart';
 import 'package:hermes_ui/features/session_list/session_list_providers.dart';
 import 'package:hermes_ui/features/settings/settings_page.dart';
 import 'package:hermes_ui/features/shared/app_back_button.dart';
@@ -157,7 +156,7 @@ void main() {
       await _pumpApp(tester, viewport: viewport, router: router);
 
       // 从主页 push 进设置页（真实入口 `openAdaptiveRoute` = `context.push`）
-      router.push('/settings');
+      unawaited(router.push('/settings'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
       expect(
@@ -242,7 +241,7 @@ void main() {
       router: router,
     );
 
-    router.push('/settings');
+    unawaited(router.push('/settings'));
     await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 
