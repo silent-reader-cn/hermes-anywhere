@@ -131,6 +131,9 @@ Future<void> pumpHermesPage(
   Size size = goldenSurfaceSize,
 }) async {
   pinGoldenLocale();
+  // 资产预热必须在**挂真页面之前**做（真界面有 12s 呼吸循环，
+  // `runAsync` 会无限挂起 —— 见 [warmGoldenAssets] 注释）。
+  await warmGoldenAssets(tester);
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = goldenDevicePixelRatio;
   addTearDown(tester.view.reset);
@@ -146,6 +149,31 @@ Future<void> pumpHermesPage(
   // 首帧（AsyncLoading）→ 异步 build 完成（AsyncData）→ 入场动画/图表动画结算
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 400));
+}
+
+/// 预热**品牌区头像**等 asset 图片（`Image.asset`）到 [ImageCache]。
+///
+/// 为什么必须预热：flutter_test 的 **fake async 不推进 asset 的 IO + 解码**
+/// ⇒ 不预热就截图，图片位永远是空白（`Image` 在解码完成前什么都不画）。
+/// 仓内已有同款先例：`test/features/chat/user_attachment_justified_test.dart`
+/// 的 `warmCache`（`runAsync + precacheImage`）。
+///
+/// 触发过的真实后果：安装向导的暗色金照 `install_guide_tailscale_step_dark.png`
+/// 的**品牌头像整块空白**（唯一色 35 / 亮像素 0，而旧基线是 1370 / 10334），
+/// 而亮色那张正常 —— 两者跑同一段工装，差别只在**当次解码有没有赶上截图时机**。
+/// 重拍任何一张涉及品牌区的金照都可能踩到 ⇒ 必须预热，不能靠运气。
+///
+/// 注意：预热要在**最小树**上做（先 `pumpWidget` 一个空壳再 `runAsync`）——
+/// 真界面上有 12s 呼吸循环，`runAsync` 会无限挂起。
+Future<void> warmGoldenAssets(WidgetTester tester) async {
+  await tester.pumpWidget(const CupertinoApp(home: SizedBox.shrink()));
+  final warm = tester.element(find.byType(SizedBox));
+  await tester.runAsync(() async {
+    await precacheImage(
+      const AssetImage('assets/branding/hermes-agent-icon-1024.png'),
+      warm,
+    );
+  });
 }
 
 /// 卸载页面并释放 ProviderScope（让控制器 dispose 取消定时器，避免 pending timer）。

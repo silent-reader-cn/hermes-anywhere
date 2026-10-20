@@ -2639,9 +2639,22 @@ extension AppLocalizationsInstallWizard on AppLocalizations {
       isEnglish ? 'Access Credential' : '访问凭据';
 
   /// 凭据行值。
+  ///
+  /// 为什么保留「不使用明文密码」这句：凭据里的 password 是**秘密**
+  /// （`core/pairing/pairing_client.dart` 的安全铁律：不写日志、不进 toString、
+  /// 不进错误 detail）⇒ 向导里**不显示明文密码**，手机接入靠配对码交接。
+  /// 但**桌面浏览器直连**仍需要密码 ⇒ 补一句真实路径，让用户找得到。
   String get installWizardCredentialValue => isEnglish
       ? 'Handed over via pairing code · no plaintext password'
       : '配对码交接 · 不使用明文密码';
+
+  /// 凭据行值（带「密码在哪看」的指路）。
+  ///
+  /// 与 [installWizardCredentialValue] 同义但多了指路：桌面浏览器直连要密码，
+  /// 而密码只在「设置 → 桌面 → 内置 WebUI 服务」里（遮罩 + 眼睛图标可显隐）。
+  String get installWizardCredentialValueWithPath => isEnglish
+      ? 'Pairing code · password in Settings → Desktop → Built-in WebUI'
+      : '配对码交接 · 密码见「设置 → 桌面 → 内置 WebUI 服务」';
 
   /// 服务状态行值（运行中）。
   String installWizardServiceRunning(String host, int port) =>
@@ -2868,9 +2881,15 @@ extension AppLocalizationsInstallWizard on AppLocalizations {
   /// 为什么必须有：向导的「启动服务」步会把监听地址绑到 `0.0.0.0` 而不给改端口 /
   /// 密码的机会，两个入口又共用同一份 sidecar 配置 —— 不说明的话用户会以为
   /// 向导里没配就是没配。
+  ///
+  /// 路径必须写**真实可点的层级**：`设置 → 桌面 → 内置 WebUI 服务`
+  /// （`settings_page.dart` 的「桌面」入口 → `DesktopSettingsPage` 里的
+  /// `WebuiSidecarSection`）。原措辞只说「内置服务」的高级设置，而那个
+  /// section 挂在**「桌面」子页**下、标题叫「内置 WebUI 服务」⇒ 用户按原文
+  /// 找不到入口（指路指不到 = 没说）。
   String get installWizardBuiltinSettingsHint => isEnglish
-      ? 'Port, password and launch-at-login stay adjustable in Built-in Service → Advanced settings.'
-      : '端口、密码与开机自启可在「内置服务」的高级设置里随时调整。';
+      ? 'Port, password and launch-at-login stay adjustable in Settings → Desktop → Built-in WebUI.'
+      : '端口、密码与开机自启可在「设置 → 桌面 → 内置 WebUI 服务」里随时调整。';
 
   /// 末步收尾（写内置连接）失败的行内提示。
   String installWizardFinishFailed(String error) => isEnglish

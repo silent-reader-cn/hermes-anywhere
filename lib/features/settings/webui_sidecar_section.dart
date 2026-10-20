@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../app/theme/light_surfaces.dart';
 import '../../app/theme/status_colors.dart';
@@ -181,12 +181,15 @@ class _WebuiSidecarSectionState extends ConsumerState<WebuiSidecarSection> {
           builder: (_) => Text(l10n.agentGateGoToInstallGuide),
           onPressed: (dialogContext) async {
             Navigator.of(dialogContext).pop();
-            try {
-              await launchUrl(
-                Uri.parse(hermesAgentDocsUrl),
-                mode: LaunchMode.externalApplication,
-              );
-            } catch (_) {}
+            // 进**本机部署向导**（不是官网文档）—— 用户在这个弹窗里的处境是
+            // 「本机缺 agent，想装上并连上」，官网文档解决不了「装完怎么连」，
+            // 5 步向导能一路走到「装好并激活内置连接」。
+            //
+            // 为什么用 push 而非 go：向导是顶层路由（ShellRoute 之外），
+            // `go` 会**替换**整个栈 ⇒ 设置页被弹掉、返回时无处可回；
+            // `push` 保留栈，向导的返回键据此 pop 回设置页
+            // （见 `install_guide_page.dart::_handleBack`）。
+            unawaited(context.push('/install-guide'));
           },
         ),
         HermesDialogAction(

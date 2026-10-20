@@ -71,8 +71,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       final hasActive = ref.read(activeConnectionProvider) != null;
       final isOnboarding = state.matchedLocation == '/onboarding';
       final isInstallGuide = state.matchedLocation == '/install-guide';
-      if (!hasActive && !isOnboarding && !isInstallGuide) return '/onboarding';
-      if (hasActive && (isOnboarding || isInstallGuide)) return '/';
+      // 装 agent 引导（顶层路由，ShellRoute 之外）：**不受「有没有活跃连接」约束**。
+      // 它是「本机装环境」的流程，与远程连接在不在无关 —— 设置页「缺 agent」
+      // 弹窗的「前往安装向导」要从设置页进到这儿，而设置页通常正连着远程
+      // （hasActive=true）⇒ 原守卫 `hasActive && isInstallGuide → '/'`
+      // 会把向导直接弹回主页，入口形同虚设。
+      if (isInstallGuide) return null;
+      if (!hasActive && !isOnboarding) return '/onboarding';
+      if (hasActive && isOnboarding) return '/';
       return null;
     },
     routes: [

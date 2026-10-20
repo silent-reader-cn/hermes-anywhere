@@ -485,9 +485,10 @@ void main() {
     await tester.pumpAndSettle();
 
     // 首启已改版为决策树（M1）：返回后落到新的首问页，而非改造前的那张地址表单。
-    // 可达性结论：`/install-guide` 在本仓**只有路由声明**（lib/app/router.dart:84），
-    // lib/ 里没有任何 widget 入口指向它 —— 改造前后都只能由路由直接到达，
-    // 故此处只是首屏契约变更，不是入口回归。
+    // 可达性结论（2026-10-20 更新）：`/install-guide` 现在有**两个** widget 入口 ——
+    // ① 引导页内置 Tab 的「进入安装向导」（#204 接回）；
+    // ② 设置页「缺 agent」弹窗的「前往安装向导」（#204 收尾，本轮接回）。
+    // 此处仍只是首屏契约变更断言。
     expect(find.text('Hermes 跑在哪台电脑上？'), findsOneWidget);
     expect(find.text('连接你的 Hermes 服务器'), findsNothing);
 
@@ -1104,9 +1105,11 @@ void main() {
     );
     expect(storage.data[ConnectionStore.activeConnectionKey], isNull);
     expect(find.text('暂无会话'), findsNothing);
-    // 指路文案在末步始终可见（端口/密码回内置服务高级设置调）。
+    // 指路文案在末步始终可见（端口/密码回「设置 → 桌面 → 内置 WebUI 服务」调）。
+    // 文案写的是**真实可点层级** —— 原措辞只说「内置服务」而那个 section 挂在
+    // 「桌面」子页下、标题叫「内置 WebUI 服务」⇒ 用户按原文找不到入口。
     expect(
-      find.text('端口、密码与开机自启可在「内置服务」的高级设置里随时调整。'),
+      find.text('端口、密码与开机自启可在「设置 → 桌面 → 内置 WebUI 服务」里随时调整。'),
       findsOneWidget,
     );
   }, skip: !Platform.isWindows);

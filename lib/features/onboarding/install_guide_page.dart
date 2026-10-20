@@ -266,6 +266,25 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     return AppLocalizations.of(context);
   }
 
+  /// 返回键：能退栈就退栈，退不回才回引导页。
+  ///
+  /// 为什么不能一律 `go('/onboarding')`：向导有两个入口 ——
+  /// ① 引导页内置 Tab 的「进入安装向导」（`push` 进来，栈里有引导页）；
+  /// ② 设置页「缺 agent」弹窗的「前往安装向导」（`push` 进来，栈里有设置页）。
+  /// 一律 `go('/onboarding')` 会把 ② 的用户从设置页**弹到引导页** ——
+  /// 设置页通常正连着远程（hasActive=true），而引导页在有活跃连接时会被
+  /// `router.dart` 的守卫直接弹回主页 ⇒ 用户「进去→被弹回→像坏了」。
+  ///
+  /// 故：**有栈就 pop（回到来处），没栈才 go 引导页**（向导是顶层路由，
+  /// 直接深链进来时栈里只有它自己）。
+  void _handleBack() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    context.go('/onboarding');
+  }
+
   void _appendLog(String line) {
     if (!mounted) return;
     setState(() {
@@ -881,7 +900,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
         middle: Text(l10n.installGuideTitle),
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
-          onPressed: () => context.go('/onboarding'),
+          onPressed: _handleBack,
           child: const Icon(CupertinoIcons.back),
         ),
       ),
@@ -1449,7 +1468,9 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
               icon: CupertinoIcons.lock,
               iconColor: _secondary,
               title: l10n.installWizardCredentialTitle,
-              value: l10n.installWizardCredentialValue,
+              // 带「密码在哪看」的真实路径指路（桌面浏览器直连需要密码；
+              // 手机接入走配对码，不需要明文密码）。
+              value: l10n.installWizardCredentialValueWithPath,
             ),
             _rowDivider(),
             _tailscaleRow(l10n),
