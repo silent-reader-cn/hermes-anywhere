@@ -11,6 +11,7 @@ import 'package:hermes_ui/core/connections/server_connection.dart';
 import 'package:hermes_ui/core/models/session.dart';
 import 'package:hermes_ui/features/projects/project_providers.dart';
 import 'package:hermes_ui/features/session_list/session_list_providers.dart';
+import 'package:hermes_ui/core/models/mcp.dart';
 import 'package:hermes_ui/features/settings/settings_providers.dart';
 import 'package:hermes_ui/features/shared/app_back_button.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -105,7 +106,19 @@ Future<void> _pumpApp(WidgetTester tester) async {
       projectApiFactoryProvider.overrideWithValue((_) => _StubProjectApi()),
       // 扩展 / MCP 分区的入口只在 **data 态** 才渲染（加载中/出错态只有
       // loading / error 分支）⇒ 注入 fake API 让它进 data 态。
-      settingsApiFactoryProvider.overrideWithValue((_) => FakeSettingsApi()),
+      settingsApiFactoryProvider.overrideWithValue(
+        (_) => FakeSettingsApi()
+          ..mcpServersResponse = const McpServersResponse(
+            servers: [
+              McpServer(
+                name: 'Sample',
+                command: 'echo',
+                args: [],
+                enabled: true,
+              ),
+            ],
+          ),
+      ),
     ],
   );
   addTearDown(container.dispose);
@@ -223,13 +236,13 @@ void main() {
     await _selectCategory(tester, 'advanced');
     await _tapEntry(tester, const ValueKey('settings-entry-mcp'));
 
-    // 工具列表入口依赖已有 MCP 服务器（key = `mcp-tools-<name>`）；
-    // 无服务器时该入口不存在 ⇒ 本例显式跳过（不伪造数据、不假装通过）。
+    // MCP 工具列表入口是 **action sheet 里的按钮**（`mcp-tools-<name>`）：
+    // 先点服务器行 → 弹 action sheet → 再点「工具 (N)」⇒ 才进工具列表页。
+    // 本例已注入一个服务器（fake API）⇒ 行必定存在，不靠「等网络」也不靠 skip。
+    await _tapEntry(tester, const ValueKey('mcp-server-row-Sample'));
+
     final entry = find.byKey(const ValueKey('mcp-tools-Sample'));
-    if (entry.evaluate().isEmpty) {
-      markTestSkipped('无 MCP 服务器 ⇒ 工具列表入口不存在（本用例不适用）');
-      return;
-    }
+    expect(entry, findsOneWidget, reason: 'MCP 工具入口应在 action sheet 里');
     await tester.tap(entry);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
