@@ -3409,14 +3409,29 @@ class ChatController extends FamilyNotifier<ChatState, String> {
     // 不做窗口截断，实测单帧最大 15.12 MB / 2033 条），而 REST 路径只取 50 条。
     // 不裁窗 ⇒ state.messages 落地即从 50 行膨胀到整表 ⇒ 列表整体重建
     // （且随会话长度线性恶化）。此处按与 REST 一致的窗口裁尾。
-    final loaded = _tailWindow(
-      detail.messages ?? const <ChatMessage>[],
-      _transcriptWindowSize,
-    );
+    final allLoaded = detail.messages ?? const <ChatMessage>[];
+    final loaded = _tailWindow(allLoaded, _transcriptWindowSize);
     final merged = _mergingLoadedMessages(
       loaded,
       state.messages,
       currentStreamingId,
+    );
+    DiagnosticsService.instance.log(
+      level: DiagnosticsLogLevel.info,
+      tag: 'chat_done',
+      message:
+          'done 帧 transcript 裁窗：服务端 ${allLoaded.length} 条 → 窗口 '
+          '${loaded.length} 条；state.messages ${state.messages.length} → '
+          '${merged.length} 条',
+      details: {
+        'server_rows': allLoaded.length,
+        'window_rows': loaded.length,
+        'local_rows_before': state.messages.length,
+        'merged_rows': merged.length,
+        'message_count': detail.messageCount,
+        'window_size': _transcriptWindowSize,
+        'messages_offset': state.messagesOffset,
+      },
     );
     final persisted = detail.toolCalls ?? const <PersistedToolCall>[];
     _lastPersistedToolCalls = persisted;
