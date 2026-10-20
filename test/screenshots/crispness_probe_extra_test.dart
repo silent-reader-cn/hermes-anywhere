@@ -232,9 +232,9 @@ void main() {
         final lines = [
           ...fittedLines(tester, 'builtinTab(${english ? 'en' : 'zh'})', width),
           ...labelLines(tester, 'builtinTab(${english ? 'en' : 'zh'})', width, [
-            '查看安装指南',
+            '进入安装向导',
             '我装好了，重新检测',
-            'View Install Guide',
+            'Enter Install Wizard',
             'I have installed it, recheck',
           ]),
         ];

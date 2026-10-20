@@ -527,7 +527,7 @@ void main() {
         find.byKey(const ValueKey('onboarding-install-agent-btn')),
         findsOneWidget,
       );
-      expect(find.text('查看安装指南'), findsOneWidget);
+      expect(find.text('进入安装向导'), findsOneWidget);
       expect(
         find.byKey(const ValueKey('onboarding-recheck-agent-btn')),
         findsOneWidget,
@@ -572,6 +572,29 @@ void main() {
         find.byKey(const ValueKey('onboarding-builtin-action-btn')),
       );
       expect(actionBtn.onPressed, isNotNull);
+    });
+
+    testWidgets('缺失卡「进入安装向导」→ 真的进入 /install-guide（不再是开官网文档的死路）', (
+      tester,
+    ) async {
+      fakeFs.fileExistsOverride = (path) => false;
+
+      await tester.pumpWidget(buildTestApp(bundledAvailable: true));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('onboarding-missing-agent-card')),
+        findsOneWidget,
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey('onboarding-install-agent-btn')),
+      );
+      await tester.pumpAndSettle();
+
+      // 入口接回（2026-10-16）：此前该按钮 launchUrl 官网文档 —— 用户被送出 App、
+      // 回来仍卡在同一个死路，而 lib/ 内已无任何 widget 指向 /install-guide。
+      expect(find.text('INSTALL_GUIDE_PAGE'), findsOneWidget);
     });
   });
 

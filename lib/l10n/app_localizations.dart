@@ -1865,7 +1865,7 @@ extension AppLocalizationsAgentGate on AppLocalizations {
       ? 'Built-in WebUI service requires a local Hermes Agent environment to run.'
       : '启用内置 WebUI 服务需依赖本机已安装的 Hermes Agent 运行环境。';
   String get agentGateViewInstallGuide =>
-      isEnglish ? 'View Install Guide' : '查看安装指南';
+      isEnglish ? 'Enter Install Wizard' : '进入安装向导';
   String get agentGateRecheckDone =>
       isEnglish ? 'I have installed it, recheck' : '我装好了，重新检测';
   String get agentGateNeedInstallTitle =>
@@ -2860,4 +2860,20 @@ extension AppLocalizationsInstallWizard on AppLocalizations {
   /// 失败原因兜底：拉起内置服务。
   String get installWizardFailService =>
       isEnglish ? 'The built-in service failed to start' : '内置服务启动失败';
+
+  // ---- 本机部署向导（桌面端）· 末步收尾（2026-10-16 入口接回本批新增键）----
+
+  /// 末步（配对/完成）的指路文案：端口与密码等细节回内置服务入口调。
+  ///
+  /// 为什么必须有：向导的「启动服务」步会把监听地址绑到 `0.0.0.0` 而不给改端口 /
+  /// 密码的机会，两个入口又共用同一份 sidecar 配置 —— 不说明的话用户会以为
+  /// 向导里没配就是没配。
+  String get installWizardBuiltinSettingsHint => isEnglish
+      ? 'Port, password and launch-at-login stay adjustable in Built-in Service → Advanced settings.'
+      : '端口、密码与开机自启可在「内置服务」的高级设置里随时调整。';
+
+  /// 末步收尾（写内置连接）失败的行内提示。
+  String installWizardFinishFailed(String error) => isEnglish
+      ? 'Failed to finish setup: $error'
+      : '收尾失败：$error';
 }

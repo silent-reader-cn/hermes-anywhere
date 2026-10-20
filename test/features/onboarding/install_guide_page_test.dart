@@ -9,8 +9,10 @@ import 'package:go_router/go_router.dart';
 import 'package:hermes_ui/app/app.dart';
 import 'package:hermes_ui/app/theme/light_surfaces.dart';
 import 'package:hermes_ui/app/theme/status_colors.dart';
+import 'package:hermes_ui/core/api/api_exception.dart';
 import 'package:hermes_ui/core/connections/connection_providers.dart';
 import 'package:hermes_ui/core/connections/connection_store.dart';
+import 'package:hermes_ui/core/connections/server_connection.dart';
 import 'package:hermes_ui/core/install/install_detector.dart';
 import 'package:hermes_ui/core/install/llm_onboarding.dart';
 import 'package:hermes_ui/core/install/powershell_installer.dart';
@@ -18,6 +20,7 @@ import 'package:hermes_ui/core/pairing/pairing_contract.dart';
 import 'package:hermes_ui/core/tailscale/tailscale_contract.dart';
 import 'package:hermes_ui/features/onboarding/install_guide_page.dart';
 import 'package:hermes_ui/features/onboarding/onboarding_page.dart';
+import 'package:hermes_ui/features/onboarding/onboarding_providers.dart';
 import 'package:hermes_ui/features/onboarding/widgets/horizontal_step_rail.dart';
 import 'package:hermes_ui/features/onboarding/widgets/network_probe.dart';
 import 'package:hermes_ui/features/session_list/session_list_providers.dart';
@@ -26,6 +29,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../golden/golden_helpers.dart';
 import '../../golden/golden_platform.dart';
+import '../../helpers/fake_onboarding_login_api.dart';
 import '../../helpers/fake_session_list_api.dart';
 import '../../helpers/in_memory_secure_storage.dart';
 
@@ -135,6 +139,57 @@ class _FakeNetworkProbe implements NetworkProbe {
     calls++;
     return result;
   }
+}
+
+/// 假内置包文件系统（末步收尾的 `agentEnvPresentProvider.refresh()` 探活走它）。
+class _FakeSidecarFileSystem implements SidecarFileSystem {
+  @override
+  bool isWindows = true;
+
+  bool bundleAvailable = false;
+
+  bool Function(String path)? fileExistsOverride;
+
+  String customAgentDir = r'C:\Users\Admin\AppData\Local\hermes\hermes-agent';
+
+  String get hermesAgentDir => customAgentDir;
+
+  @override
+  bool isBundleAvailable() => isWindows && bundleAvailable;
+
+  @override
+  String get defaultSidecarDir => r'C:\app\webui';
+
+  @override
+  bool directoryExists(String path) => true;
+
+  @override
+  String? get envSidecarRoot => null;
+
+  @override
+  bool fileExists(String path) =>
+      fileExistsOverride?.call(path) ?? true;
+
+  @override
+  String get logDirectoryPath => r'C:\Users\Admin\AppData\Local\hermes\webui-bundled\logs';
+
+  @override
+  String get logFilePath => r'C:\logs\webui.log';
+
+  @override
+  Future<void> appendLogLine(String path, String line) async {}
+
+  @override
+  Future<void> createDirectory(String path, {bool recursive = true}) async {}
+
+  @override
+  String resolveBundleDir() => r'C:\app\webui';
+
+  @override
+  Future<void> rotateLogIfNeeded(
+    String path, {
+    int maxSizeBytes = 5 * 1024 * 1024,
+  }) async {}
 }
 
 /// sidecar 安全存储 fake（避免真实 flutter_secure_storage 平台通道）。
@@ -296,6 +351,8 @@ void main() {
   late _FakeNetworkProbe networkProbe;
   late _MockWebuiSidecarService sidecarService;
   late _FakeSidecarSecureStorage sidecarSecure;
+  late _FakeSidecarFileSystem sidecarFs;
+  late FakeOnboardingLoginApi loginApi;
 
   setUp(() {
     storage = InMemorySecureStorage();
@@ -305,6 +362,8 @@ void main() {
     networkProbe = _FakeNetworkProbe();
     sidecarService = _MockWebuiSidecarService();
     sidecarSecure = _FakeSidecarSecureStorage();
+    sidecarFs = _FakeSidecarFileSystem();
+    loginApi = FakeOnboardingLoginApi();
     SharedPreferences.setMockInitialValues({'app_locale_mode': 'zh'});
   });
 
@@ -342,6 +401,13 @@ void main() {
         webuiSidecarConfigStorageProvider.overrideWithValue(
           WebuiSidecarConfigStorage(secureStorage: sidecarSecure),
         ),
+        // 末步收尾会探活 agent 环境并自动登录 ⇒ 两处都要替身，禁止真跑系统/网络。
+        sidecarFileSystemProvider.overrideWithValue(sidecarFs),
+        onboardingApiFactoryProvider.overrideWithValue((_, _) => loginApi),
+        // 钉死形态 B（非内置）：本文件的开放入口用例断言的是配对决策树首屏；
+        // 若让 _FakeSidecarFileSystem.isBundleAvailable() 说了算，形态会漂到
+        // 形态 A（内置服务 Tab），与改造前（真实宿主无内置包）不一致。
+        bundledWebuiAvailableProvider.overrideWithValue(false),
         lanAddressProvider.overrideWith((ref) => '192.168.1.7'),
         if (injectTailscale)
           tailscaleServiceProvider.overrideWithValue(
@@ -948,8 +1014,23 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('wizard-pairing-finish-btn')));
     await tester.pumpAndSettle();
 
-    final activeId = storage.data[ConnectionStore.activeConnectionKey];
-    expect(activeId, isNotNull);
+    // 收尾 = **内置连接**（builtinId）+ sidecar 实配地址 + 一次自动登录。
+    // 此前这里自建 UUID 连接 + 硬编码 `127.0.0.1:8787` + 空密码 ⇒ 内置 Tab 认不出
+    // 该行（不归「内置不可删/可停用」管），端口/密码还与 sidecar 实配错配。
+    expect(
+      storage.data[ConnectionStore.activeConnectionKey],
+      ServerConnection.builtinId,
+    );
+    final builtin = (await ConnectionStore(storage: storage).loadAll())
+        .singleWhere((c) => c.id == ServerConnection.builtinId);
+    // 向导「启动服务」步把监听地址绑到 0.0.0.0 ⇒ 本机连接地址必须回落 127.0.0.1。
+    expect(builtin.baseUrl, 'http://127.0.0.1:8787');
+    expect(builtin.kind, ConnectionKind.builtin);
+    expect(loginApi.loginCalls, 1);
+    expect(
+      loginApi.lastPassword,
+      sidecarSecure.data[WebuiSidecarConfigStorage.keyPassword],
+    );
     expect(find.text('暂无会话'), findsOneWidget);
   }, skip: !Platform.isWindows);
 
@@ -971,9 +1052,63 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('wizard-pairing-skip-btn')));
     await tester.pumpAndSettle();
 
-    final activeId = storage.data[ConnectionStore.activeConnectionKey];
-    expect(activeId, isNotNull);
+    // 跳过配对同样走完整收尾链（内置连接 + 自动登录）。
+    expect(
+      storage.data[ConnectionStore.activeConnectionKey],
+      ServerConnection.builtinId,
+    );
+    expect(loginApi.loginCalls, 1);
     expect(find.text('暂无会话'), findsOneWidget);
+  }, skip: !Platform.isWindows);
+
+  testWidgets('末步收尾失败（自动登录被拒）→ 留在向导页出红字，不静默进主页', (tester) async {
+    final pairing = _FakePairingService();
+    await tester.pumpWidget(
+      buildTestApp(tester, injectPairing: true, pairing: pairing),
+    );
+    await openGuide(tester);
+    await reachPairing(tester);
+
+    loginApi.loginError = HttpException(401, 'unauthorized', message: '密码错误');
+    await tester.tap(find.byKey(const ValueKey('wizard-pairing-skip-btn')));
+    // 配对步有无限 spinner（等待接入）⇒ 不能用 pumpAndSettle（永不稳定），
+    // 按本文件既有口径固定泵几帧。
+    await pumpFrames(tester);
+
+    // 不静默：行内红字 + 不写激活连接 + 不跳会话列表（旧实现 catch 里只记日志，
+    // 用户会以为装完了，实际连不上）。
+    expect(find.byKey(const ValueKey('wizard-finish-error')), findsOneWidget);
+    expect(find.textContaining('收尾失败'), findsOneWidget);
+    // 「密码错误」这条必须精确指向**红字那处**（`wizard-finish-error`），
+    // 不能用全页 `textContaining` —— 向导的日志台也会把同一异常写一行
+    // （`写入本机连接失败: ...`，见 `installWizardLogConnectionFailed`），
+    // 两处都含「密码错误」是**正确行为**（红字给用户看 + 日志台留痕），
+    // 全页匹配会命中 2 个而误判成失败。
+    //
+    // 注：`wizard-finish-error` 键就挂在**那个 Text 自己身上**（不是它的祖先），
+    // 故不能用 `find.descendant`（会找到 0 个）—— 直接读该 Text 的 data。
+    final finishErrorText = tester.widget<Text>(
+      find.byKey(const ValueKey('wizard-finish-error')),
+    );
+    expect(
+      finishErrorText.data,
+      contains('密码错误'),
+      reason: '错误原因（密码错误）必须透传到给用户看的红字上',
+    );
+    expect(finishErrorText.data, contains('收尾失败'));
+    // 日志台那行同样应记录到失败原因（留痕，不静默）。
+    expect(
+      find.textContaining('写入本机连接失败'),
+      findsOneWidget,
+      reason: '失败必须同时写进日志台（留痕），不能只显示红字',
+    );
+    expect(storage.data[ConnectionStore.activeConnectionKey], isNull);
+    expect(find.text('暂无会话'), findsNothing);
+    // 指路文案在末步始终可见（端口/密码回内置服务高级设置调）。
+    expect(
+      find.text('端口、密码与开机自启可在「内置服务」的高级设置里随时调整。'),
+      findsOneWidget,
+    );
   }, skip: !Platform.isWindows);
 
   // -------------------------------------------------------------------------

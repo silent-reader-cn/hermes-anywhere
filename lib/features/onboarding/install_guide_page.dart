@@ -9,16 +9,14 @@ import 'package:hermes_ui/app/theme/typography_tokens.dart';
 import '../../app/theme/light_surfaces.dart';
 import '../../app/theme/status_colors.dart';
 import '../../app/widgets/nav_bar_hairline.dart';
-import '../../core/connections/connection_providers.dart';
-import '../../core/connections/server_connection.dart';
 import '../../core/install/install_detector.dart';
 import '../../core/install/llm_onboarding.dart';
 import '../../core/install/powershell_installer.dart';
 import '../../core/pairing/pairing_contract.dart';
 import '../../core/tailscale/tailscale_contract.dart';
-import '../../core/utils/uuid.dart';
 import '../../l10n/app_localizations.dart';
 import '../webui_sidecar/webui_sidecar_providers.dart';
+import 'builtin_service_connect.dart';
 import 'widgets/horizontal_step_rail.dart';
 import 'widgets/network_probe.dart';
 import 'widgets/onboarding_field_style.dart';
@@ -119,6 +117,12 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
   late final TextEditingController _modelController;
   bool _savingModel = false;
   String? _modelFormError;
+
+  // ── 末步收尾（写内置连接 → 进会话列表） ───────────────────────────────
+  /// 收尾进行中（防重入 + 按钮转圈）。
+  bool _finishing = false;
+  /// 收尾失败原因（行内红字，可重试；不静默吞错）。
+  String _finishError = '';
 
   @override
   void initState() {
@@ -743,27 +747,39 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     }
   }
 
-  /// 写入并激活指向本机内置服务的连接，然后进入应用。
+  /// 向导末步收尾（配对成功点「完成」、配对不可用点「跳过」都走这里）。
+  ///
+  /// 三级顺序不可换：
+  /// 1. **先刷 agent 环境探测** —— 向导刚把 Agent 装好，而 `agentEnvPresentProvider`
+  ///    是缓存值（全仓只有内置 Tab 的「重新检测」与设置页会刷新），不刷则用户回到
+  ///    内置服务 Tab 仍看到「未检测到 Agent」+ 置灰的启动按钮，等于白装；
+  /// 2. 再走 [BuiltinServiceConnector] 的「自动登录 + builtin upsert/activate」——
+  ///    与内置 Tab 的「启动并连接」**同一份链**：地址/密码取 sidecar 实配
+  ///    （端口可改、密码是首次加载生成的 24 位随机值），连接落在 `builtinId` 上；
+  ///    此前这里自建 UUID 连接 + 硬编码 `127.0.0.1:8787` + 空密码 ⇒ 走完也登录不上，
+  ///    且内置 Tab 认不出该连接（不归「内置不可删 / 可停用」铁律管）；
+  /// 3. 最后进会话列表。
+  ///
+  /// 失败不静默：就地出红字（[installWizardFinishFailed]）并保留按钮可重试。
   Future<void> _finishWizard() async {
+    if (_finishing) return;
+    setState(() {
+      _finishing = true;
+      _finishError = '';
+    });
+    final l10n = _l10n();
     try {
-      const localUrl = 'http://127.0.0.1:8787';
-      final connection = ServerConnection(
-        id: uuidV4(),
-        name: 'Localhost (8787)',
-        baseUrl: localUrl,
-        username: null,
-        password: null,
-        customHeaders: const {},
-        createdAt: DateTime.now().toUtc(),
-      );
-      final saved = await ref
-          .read(connectionsProvider.notifier)
-          .upsert(connection);
-      await ref.read(activeConnectionProvider.notifier).setActive(saved.id);
+      await ref.read(agentEnvPresentProvider.notifier).refresh();
+      await BuiltinServiceConnector(ref).loginAndActivate();
       if (!mounted) return;
       context.go('/');
     } catch (e) {
-      _appendLog(_l10n().installWizardLogConnectionFailed('$e'));
+      if (!mounted) return;
+      setState(() {
+        _finishing = false;
+        _finishError = l10n.installWizardFinishFailed('$e');
+      });
+      _appendLog(l10n.installWizardLogConnectionFailed('$e'));
     }
   }
 
@@ -2466,6 +2482,34 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     );
   }
 
+  /// 末步（配对 / 完成）共用的收尾尾巴：指路文案 + 收尾失败红字。
+  ///
+  /// 指路文案为什么必须有：向导的「启动服务」步把监听地址绑到 `0.0.0.0` 且不提供
+  /// 改端口 / 密码的入口，而两个入口共用同一份 sidecar 配置 —— 不说明的话用户会
+  /// 以为「向导里没配就是没配」。
+  List<Widget> _finishTailChildren(AppLocalizations l10n) {
+    return [
+      Text(
+        l10n.installWizardBuiltinSettingsHint,
+        textAlign: TextAlign.center,
+        style: TextStyle(fontSize: kFontCaption, color: _secondary),
+      ),
+      if (_finishError.isNotEmpty) ...[
+        const SizedBox(height: 6),
+        Text(
+          _finishError,
+          key: const ValueKey('wizard-finish-error'),
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: kFontBody,
+            color: statusRedText.resolveFrom(context),
+          ),
+        ),
+      ],
+      const SizedBox(height: 8),
+    ];
+  }
+
   /// 宽屏下按钮在内容列尾部自然滚动（设计稿 R1-B 口径）；窄屏给固定底栏。
   Widget _buildBottomBar(AppLocalizations l10n) {
     return _buildFooterActions(l10n);
@@ -2557,33 +2601,47 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     if (_phase == GuidePhase.pairing) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-        child: SizedBox(
-          width: double.infinity,
-          child: CupertinoButton(
-            key: const ValueKey('wizard-pairing-skip-btn'),
-            padding: EdgeInsets.zero,
-            onPressed: _finishWizard,
-            child: Text(
-              l10n.installWizardPairingSkip,
-              style: TextStyle(fontSize: kFontButton, color: _secondary),
+        child: Column(
+          children: [
+            ..._finishTailChildren(l10n),
+            SizedBox(
+              width: double.infinity,
+              child: CupertinoButton(
+                key: const ValueKey('wizard-pairing-skip-btn'),
+                padding: EdgeInsets.zero,
+                onPressed: _finishing ? null : _finishWizard,
+                child: _finishing
+                    ? const CupertinoActivityIndicator()
+                    : Text(
+                        l10n.installWizardPairingSkip,
+                        style: TextStyle(fontSize: kFontButton, color: _secondary),
+                      ),
+              ),
             ),
-          ),
+          ],
         ),
       );
     }
     if (_phase == GuidePhase.done) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-        child: SizedBox(
-          width: double.infinity,
-          child: CupertinoButton.filled(
-            color: CupertinoTheme.brightnessOf(context) == Brightness.light
-                ? LightSurfaces.userDetail
-                : null,
-            key: const ValueKey('wizard-pairing-finish-btn'),
-            onPressed: _finishWizard,
-            child: Text(l10n.finish),
-          ),
+        child: Column(
+          children: [
+            ..._finishTailChildren(l10n),
+            SizedBox(
+              width: double.infinity,
+              child: CupertinoButton.filled(
+                color: CupertinoTheme.brightnessOf(context) == Brightness.light
+                    ? LightSurfaces.userDetail
+                    : null,
+                key: const ValueKey('wizard-pairing-finish-btn'),
+                onPressed: _finishing ? null : _finishWizard,
+                child: _finishing
+                    ? const CupertinoActivityIndicator()
+                    : Text(l10n.finish),
+              ),
+            ),
+          ],
         ),
       );
     }

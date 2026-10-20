@@ -5,7 +5,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hermes_ui/app/theme/typography_tokens.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/theme/light_surfaces.dart';
 import '../../../app/theme/status_colors.dart';
@@ -16,7 +15,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../desktop/desktop_settings.dart';
 import '../../settings/settings_surfaces.dart';
 import '../../webui_sidecar/webui_sidecar_providers.dart';
-import '../onboarding_providers.dart';
+import '../builtin_service_connect.dart';
 import 'onboarding_field_style.dart';
 
 /// 内置服务 Tab（Windows 打包版形态 A 默认选中）。
@@ -106,13 +105,15 @@ class _BuiltinTabState extends ConsumerState<BuiltinTab> {
     } catch (_) {}
   }
 
-  Future<void> _openInstallGuide() async {
-    try {
-      await launchUrl(
-        Uri.parse(hermesAgentDocsUrl),
-        mode: LaunchMode.externalApplication,
-      );
-    } catch (_) {}
+  /// 缺 Agent 时进入本机部署向导 `/install-guide`（2026-10-16 入口接回）。
+  ///
+  /// 为什么必须是**真进向导**而不是开官网文档：agent 环境缺失时，本 Tab 的
+  /// 「启动并连接」是禁用态（见 `_buildActionButton` 的 `canPress = isAgentInstalled`），
+  /// 这张缺失卡的两个按钮就是整屏唯一的出口。原先按钮跳官网文档 ⇒ 用户被送出
+  /// App、回来仍卡在同一个死路，而仓库里那套现成的 5 步部署向导（含装机三步 +
+  /// 起服务 + 手机配对）无人可达（`08e316a` 删掉了唯一的 `push` 入口）。
+  void _openInstallGuide() {
+    unawaited(context.push('/install-guide'));
   }
 
   String _mapFailureReason(SidecarState state) {
@@ -204,34 +205,9 @@ class _BuiltinTabState extends ConsumerState<BuiltinTab> {
       // 等待 running 状态（超时 30s 失败态）
       await _waitForRunning(startFuture);
 
-      // 3. 自动 login
-      final config = ref.read(webuiSidecarConfigProvider);
-      final effectiveHost = (config.host == '0.0.0.0' || config.host.isEmpty)
-          ? '127.0.0.1'
-          : config.host;
-      final baseUrl = 'http://$effectiveHost:${config.port}';
-      final password = config.password;
-
-      final factory = ref.read(onboardingApiFactoryProvider);
-      final client = factory(baseUrl, const []);
-      await client.login(password);
-
-      // 4. ServerConnection.builtinId upsert & activate
-      final connection = ServerConnection(
-        id: ServerConnection.builtinId,
-        name: 'Hermes',
-        baseUrl: baseUrl,
-        username: null,
-        password: password.isEmpty ? null : password,
-        customHeaders: const {},
-        createdAt: DateTime.now().toUtc(),
-        kind: ConnectionKind.builtin,
-        enabled: true,
-      );
-
-      await ref
-          .read(connectionsProvider.notifier)
-          .upsertBuiltinAndActivate(connection);
+      // 3-4. 自动 login + ServerConnection.builtinId upsert & activate
+      //      （与向导末步收尾**共用同一份链**，见 BuiltinServiceConnector）
+      await BuiltinServiceConnector(ref).loginAndActivate();
 
       // 5. 跳转会话列表
       if (mounted) {
@@ -483,7 +459,7 @@ class _BuiltinTabState extends ConsumerState<BuiltinTab> {
                     dark: CupertinoColors.activeOrange,
                   ),
                   borderRadius: BorderRadius.circular(8),
-                  onPressed: () => unawaited(_openInstallGuide()),
+                  onPressed: _openInstallGuide,
                   child: Text(
                     l10n.agentGateViewInstallGuide,
                     textAlign: TextAlign.center,
