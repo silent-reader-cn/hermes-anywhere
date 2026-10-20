@@ -199,6 +199,17 @@ class ChatController extends FamilyNotifier<ChatState, String> {
   /// G3：连续被去重吞掉的内容帧数（text / reasoning；有帧落账即清零）。
   int _dedupSwallowStreak = 0;
 
+  /// 本回合已投递的 interim 整段文本指纹集（归一化后的文本本体）。
+  ///
+  /// 用途：interim 是**整段完整文本**（非增量），服务端回放时会原样重投。现有去重依赖
+  /// 「尾部匹配 / 整段包含 / ≥2 字重叠」三个启发式，中间一已具标容/切段就会全部失宜，
+  /// 整段被当成新段落再次追加（见现象：同一句话按「重连次数」重复 N 遍）。
+  /// 指纹集不依赖位置/游标，只看「这段文本本回合是不是已经展示过」。
+  ///
+  /// 作用域：单回合（一个 user turn）——与服务端的每回合去重集合对齐（同一正文不应
+  /// 在两个回合里重复出现，但不同回合的同句话是合法的）。
+  final Set<String> _deliveredInterimFingerprints = <String>{};
+
   /// 观测性计数（chat_apply）：闸门丢弃总数 / 去重吞帧总数 / 管线再武装次数。
   int _replayGateDropTotal = 0;
   int _dedupSwallowTotal = 0;
@@ -1756,6 +1767,10 @@ class ChatController extends FamilyNotifier<ChatState, String> {
     _timelineSequence = 0;
     _replayRebuildTimeline = false;
     _prefillSince = null;
+    // 指纹集的作用域 = 单回合：新回合开始即清空（同一正文不应在两个回合里重复出现，
+    // 但不同回合的同句话是合法的）。
+    _deliveredInterimFingerprints.clear();
+    _tokenStreamedText = '';
     // 应用层守卫（chat_apply）：新回合即新 run —— 序号游标按 streamId 归零，
     // 视图活性触发次数与基线也重置（单回合最多触发 _kViewLivenessMaxPerTurn 次）。
     _noteStreamRunForSeq(streamId);
@@ -2120,6 +2135,9 @@ class ChatController extends FamilyNotifier<ChatState, String> {
     }
     // 有帧真正落账 → 去重吞帧连击中断（G3 只关心连续吞帧）。
     _dedupSwallowStreak = 0;
+    // token 路径流出的正文单独记录（不含 interim 贡献）——用于判定
+    // 「这段 interim 是否已经被 token 流出过」（服务端 already_streamed 标记失效时的兜底）。
+    _tokenStreamedText += remainder;
     // 时间线断点：在「事件到达」时记录（而非 flush 时），保证与真实事件顺序一致；
     // start 取缓冲全量（content + 待合并 + 待揭示），使切片与最终 content 对齐。
     //
@@ -2677,6 +2695,21 @@ class ChatController extends FamilyNotifier<ChatState, String> {
     );
   }
 
+  /// 本回合**由 token 流出**的正文（不含 interim 贡献的部分）。
+  ///
+  /// 用途：判定一段 interim 是否已经被 token 流出过。服务端的
+  /// `already_streamed` 标记靠已流出正文的**尾部匹配**判定，弱网下 token 帧丢失
+  /// → 尾部不匹配 → 标记失效 → interim 整段被当新段落再次追加。
+  /// 客户端这里用**整体包含**判定（不依赖尾部）——比尾部匹配更稳。
+  ///
+  /// 强调：**不能用「整个 streaming content」作判据** —— 那里也含 interim 自己贡献的段落，
+  /// 否则「模型在两个工具轮次重复同一句话」（合法）会被误吞。
+  /// 此处只累计 **token 路径**写入的正文。
+  String _tokenStreamedText = '';
+  String _streamedTokenText() {
+    return _tokenStreamedText.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
   String _currentStreamingContent() {
     final id = state.stream.streamingAssistantMessageId;
     String base = '';
@@ -2706,11 +2739,77 @@ class ChatController extends FamilyNotifier<ChatState, String> {
     return base;
   }
 
-  /// interim_assistant：already_streamed 过滤 + 先 flush 再追加 + 分隔符规则。
+  /// interim 整段指纹（归一化）：用于「本回合是不是已经展示过这段整段文本」判定。
+  ///
+  /// 归一化只压缩空白（含「不同行首尾」的差异）——保留每个字的真实内容，
+  /// 否则会把「只差一个标点」的两段真实不同文本归为一例。
+  @visibleForTesting
+  static String interimFingerprint(String text) {
+    return text.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  /// interim_assistant 入口：已投递过的整段直接吞掉（防「同一句话重复 N 遍」）。
+  ///
+  /// 主人真机现象（2026-10-20）：两段不相关会话里同一句话分别重复 4 遍 / 2 遍。
+  /// 定性（实证）：
+  ///  - state.db 里该句话**只有一份** → 重复 100% 在渲染层；
+  ///  - 客户端 SSE 日志里该 interim **只到达 1 次** → 服务端正常时一句一次；
+  ///  - 服务端的 `already_streamed` 标记靠「已流出正文的尾部匹配」算，而已流出正文只在
+  ///    **token 路径**累积 → 手机弱网（5G + VPN）下 token 帧丢失 → 尾部不匹配 → 标记失效
+  ///    → interim 整段被当「新段落」再次追加 → 重复。每次重投/重连多一份。
+  ///
+  /// 保护「合法的重复」：模型在两个工具轮次重复同一句话是合法的
+  /// → 只在「确实已展示过」时才吞（判据：replay 连接 ∨ 已由 token 流出过）。
   bool _handleInterimAssistant(String text, bool alreadyStreamed) {
     if (alreadyStreamed) return false;
     final trimmed = text.trim();
     if (trimmed.isEmpty) return false;
+    final fingerprint = interimFingerprint(trimmed);
+    if (fingerprint.isNotEmpty &&
+        !_deliveredInterimFingerprints.add(fingerprint)) {
+      // 已投递过（指纹命中）→ 判定是否确实已展示过：
+      //  - replay 连接 → 服务端回放重投（已实证）→ 必须吞；
+      //  - live 流 → 该段正文已由 token 流出过（服务端标记在弱网下失效）→ 必须吞；
+      //  - 两者都不成立 → 合法的重复（模型重复同一句话）→ 正常展示。
+      final alreadyShown = state.stream.isReplayConnection ||
+          _streamedTokenText().contains(fingerprint);
+      if (alreadyShown) {
+        _observeDedupSwallow(
+          kind: 'interim-fingerprint',
+          cursor: state.stream.matchedPrefixLength,
+          newCursor: state.stream.matchedPrefixLength,
+          matchedPrefixLength: state.stream.matchedPrefixLength,
+          textOrReasoning: false,
+        );
+        // 诊断链路：整段重复被吞掉时把正文摘要写进日志。
+        // 主人下次遇到「同一句话重复 N 遍」时，诊断页可直接看到这条记录。
+        DiagnosticsService.instance.log(
+          level: DiagnosticsLogLevel.warn,
+          tag: 'chat_apply',
+          message:
+              'interim 整段重复被吞（指纹命中）——'
+              '同一整段正文已展示过，重复丢弃'
+              '（会话：${state.sessionId}，'
+              'replay=${state.stream.isReplayConnection}，'
+              'afterSeq=${state.stream.replayAfterSeq}，'
+              'matchedPrefix=${state.stream.matchedPrefixLength}）',
+          details: {
+            'fingerprint_len': fingerprint.length,
+            'excerpt': fingerprint.length > 60
+                ? fingerprint.substring(0, 60)
+                : fingerprint,
+            'replay': state.stream.isReplayConnection,
+            'after_seq': state.stream.replayAfterSeq,
+          },
+        );
+        return false;
+      }
+    }
+    return _handleInterimAssistantBody(text, trimmed);
+  }
+
+  /// interim 整段正文处理：含含/重叠启发式 + 先 flush 再追加 + 分隔符规则。
+  bool _handleInterimAssistantBody(String text, String trimmed) {
     flushPendingStreamingContent();
     final stream = state.stream;
     if (stream.streamingAssistantMessageId == null) {
