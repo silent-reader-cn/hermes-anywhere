@@ -450,42 +450,83 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     if (_uploading) return;
     final l10n = AppLocalizations.of(context);
     final picker = ref.read(filePickerServiceProvider);
-    final FilePickerResult? picked;
+    final List<FilePickerEntry> picked;
     try {
-      picked = await picker.pickFile();
+      picked = await picker.pickFiles();
     } catch (error) {
       await _showError(l10n.selectFileFailed, _errorMessage(error));
       return;
     }
-    if (picked == null) return; // 用户取消
+    if (picked.isEmpty) return; // 用户取消
+
+    // 服务端口径：每条消息最多 20 个附件（webui routes.py `[:20]`）⇒ 超出部分
+    // 服务端会**静默丢弃**，客户端必须显式拦截并告知，不做无声截断。
+    final existing = ref.read(pendingAttachmentsProvider(widget.sessionId)).length;
+    final room = kMaxPendingAttachments - existing;
+    if (room <= 0) {
+      await _showError(
+        l10n.attachmentsLimitReached,
+        l10n.attachmentLimitDetail(kMaxPendingAttachments),
+        isError: false,
+      );
+      return;
+    }
+    final targets = picked.length > room ? picked.sublist(0, room) : picked;
+    final dropped = picked.length - targets.length;
 
     setState(() => _uploading = true);
+    // await 前一次性捕获全部依赖（provider 均无 autoDispose，随容器常驻）：
+    // 上传期间用户可能切会话/退页，await 之后一律不再触碰 `ref`。
+    final client = ref.read(apiClientProvider);
+    final notifier = ref.read(
+      pendingAttachmentsProvider(widget.sessionId).notifier,
+    );
+    // 单个失败不打断其余文件：全部尝试完再统一报（文件名 + 原因）。
+    final failures = <({String name, String reason})>[];
     try {
-      final client = ref.read(apiClientProvider);
-      final resp = await client.uploadFile(
-        sessionId: widget.sessionId,
-        data: picked.bytes,
-        filename: picked.name,
-      );
-      if (!mounted) return;
-      // 只入待发附件列表，不直接发送；点发送时随消息一并提交。
-      ref
-          .read(pendingAttachmentsProvider(widget.sessionId).notifier)
-          .add(
+      for (final entry in targets) {
+        if (!mounted) return;
+        try {
+          final bytes = await entry.readBytes();
+          final resp = await client.uploadFile(
+            sessionId: widget.sessionId,
+            data: bytes,
+            filename: entry.name,
+          );
+          notifier.add(
             PendingAttachment(
-              name: picked.name,
-              path: resp.path ?? picked.name,
+              name: entry.name,
+              path: resp.path ?? entry.name,
               mime: resp.mime ?? '',
-              size: resp.size ?? picked.bytes.length,
+              size: resp.size ?? bytes.length,
               isImage: resp.isImage ?? false,
-              thumbnailData: picked.bytes,
+              thumbnailData: bytes,
             ),
           );
-    } catch (error) {
-      if (!mounted) return;
-      await _showError(l10n.uploadFailed, _errorMessage(error));
+        } catch (error) {
+          failures.add((name: entry.name, reason: _errorMessage(error)));
+        }
+      }
     } finally {
       if (mounted) setState(() => _uploading = false);
+    }
+    if (!mounted) return;
+    if (failures.isNotEmpty) {
+      await _showError(
+        l10n.uploadFailed,
+        failures.length == 1
+            ? failures.single.reason
+            : failures
+                .map((f) => '${f.name}：${f.reason}')
+                .join('\n'),
+      );
+    }
+    if (dropped > 0) {
+      await _showError(
+        l10n.attachmentsLimitReached,
+        l10n.attachmentLimitDetail(kMaxPendingAttachments),
+        isError: false,
+      );
     }
   }
 
@@ -594,7 +635,11 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
     }
   }
 
-  Future<void> _showError(String title, String message) {
+  Future<void> _showError(
+    String title,
+    String message, {
+    bool isError = true,
+  }) {
     final l10n = AppLocalizations.of(context);
     final isLight = CupertinoTheme.brightnessOf(context) == Brightness.light;
     return showHermesDialog<void>(
@@ -603,7 +648,11 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
       title: (_) => Text(title),
       content: (_) => Text(
         message,
-        style: TextStyle(color: statusRedText.resolveFrom(context)),
+        style: TextStyle(
+          color: isError
+              ? statusRedText.resolveFrom(context)
+              : secondaryText.resolveFrom(context),
+        ),
       ),
       actions: [
         HermesDialogAction(

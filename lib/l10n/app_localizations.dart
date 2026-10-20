@@ -366,6 +366,13 @@ class AppLocalizations {
   String attachmentUploaded(String name) =>
       isEnglish ? 'Attachment "$name" uploaded.' : '附件「$name」已上传。';
   String get uploadFailed => isEnglish ? 'Upload Failed' : '上传失败';
+  /// 多选附件超出单条消息上限时的提示标题（**非错误**：已添加成功的仍在待发条）。
+  String get attachmentsLimitReached =>
+      isEnglish ? 'Attachment Limit Reached' : '附件数量已达上限';
+  /// 多选附件超出上限的说明文案（`max` = 单条消息允许的附件数）。
+  String attachmentLimitDetail(int max) => isEnglish
+      ? 'You can attach up to $max files per message. Extra files were not added.'
+      : '每条消息最多可附加 $max 个文件，超出的文件未添加。';
   String get selectModel => isEnglish ? 'Select Model' : '选择模型';
   String get followServerDefault =>
       isEnglish ? 'Follow Server Default' : '跟随服务器默认';

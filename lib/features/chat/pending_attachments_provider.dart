@@ -30,3 +30,10 @@ final pendingAttachmentsProvider = StateNotifierProvider.family<
     String>(
   (ref, sessionId) => PendingAttachmentsNotifier(),
 );
+
+/// 单条消息的附件数上限（**服务端口径**）。
+///
+/// webui `api/routes.py::_normalize_chat_attachments(...)[:20]` 只取前 20 个
+/// ⇒ 客户端多选超出部分若照单全收，**服务端会静默丢弃**（用户以为全发出去了）。
+/// 故客户端同口径拦截并显式提示，不做无声截断。
+const int kMaxPendingAttachments = 20;
