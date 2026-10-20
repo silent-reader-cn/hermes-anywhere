@@ -42,6 +42,17 @@ import 'chat_state.dart';
 /// "Timer still pending"），采用「前沿冷却 + 窗口内合并」的时间戳方案。
 const Duration _sessionListRefreshThrottleWindow = Duration(milliseconds: 1500);
 
+/// transcript 可见窗口大小（与 REST `GET /api/session` 的 `messageLimit: 50` 对齐）。
+///
+/// done 收尾帧自带的是服务端**全量** transcript（`_session_payload_with_full_messages`
+/// 无窗口截断，实测单帧最大 15.12 MB / 2033 条），而 REST 路径只取 50 条窗口。
+/// 两者不对称 ⇒ done 落地瞬间 `state.messages` 从 50 行膨胀到整表 ⇒ 列表整体
+/// 重建 + 内存/布局代价随会话长度线性增长。
+///
+/// 故 done 路径按同一窗口裁剪，只保留**尾部**（最新在数组末尾，见
+/// `chat_message_list.dart` 的 `index = itemCount - 1 - rawIndex` 反转映射）。
+const int _transcriptWindowSize = 50;
+
 /// 聊天主控制器（chat_spec.md §1/§2：九态状态机 + 消息组装 + 断线恢复）。
 ///
 /// 唯一写 `List<ChatMessage>` 的类；SSE 事件经 [_handleSseEvent] 同步串行
@@ -3394,7 +3405,14 @@ class ChatController extends FamilyNotifier<ChatState, String> {
     String? currentStreamingId,
   ) {
     final detail = SessionDetail.fromJson(rawSession);
-    final loaded = detail.messages ?? const <ChatMessage>[];
+    // done 帧自带的是**全量** transcript（服务端 `_session_payload_with_full_messages`
+    // 不做窗口截断，实测单帧最大 15.12 MB / 2033 条），而 REST 路径只取 50 条。
+    // 不裁窗 ⇒ state.messages 落地即从 50 行膨胀到整表 ⇒ 列表整体重建
+    // （且随会话长度线性恶化）。此处按与 REST 一致的窗口裁尾。
+    final loaded = _tailWindow(
+      detail.messages ?? const <ChatMessage>[],
+      _transcriptWindowSize,
+    );
     final merged = _mergingLoadedMessages(
       loaded,
       state.messages,
@@ -5591,6 +5609,79 @@ class ChatController extends FamilyNotifier<ChatState, String> {
       liveTimelinePoints: const [],
       completedReasoningGroups: groups,
     );
+  }
+
+  /// transcript 尾部窗口裁剪：只保留最后 [size] 条**可渲染**行。
+  ///
+  /// 语义对齐服务端 `routes.py::_message_window_for_display`：
+  /// - 「可渲染行」= user（且有可见内容/附件）或 assistant；工具结果行
+  ///   （`tool_call_id` / `tool_use_id`）不占可见行预算；
+  /// - 但**紧跟在窗口内 assistant 工具调用之后**的工具结果行必须保留 ——
+  ///   渲染侧由 `role:"tool"` 行按 `tool_call_id` 重建工具卡片段，丢掉它
+  ///   会让工具卡没有摘要（与服务端 #4070 的处理同构）。
+  ///
+  /// 数组语义：**尾部 = 最新**（`chat_message_list.dart` 的
+  /// `index = itemCount - 1 - rawIndex` 反转映射，最新渲染在视觉底部）。
+  static List<ChatMessage> _tailWindow(
+    List<ChatMessage> messages,
+    int size,
+  ) {
+    if (size <= 0 || messages.length <= size) {
+      return messages;
+    }
+    // 从尾部往前找第 size 条可渲染行的起点。
+    var start = messages.length;
+    var renderable = 0;
+    for (var i = messages.length - 1; i >= 0; i--) {
+      if (!_countsAsRenderableRow(messages[i])) continue;
+      renderable++;
+      if (renderable >= size) {
+        start = i;
+        break;
+      }
+    }
+    if (renderable < size) {
+      // 不足 size 条可渲染行：全部可渲染行都要，start 落到最前。
+      start = 0;
+      for (var i = 0; i < messages.length; i++) {
+        if (_countsAsRenderableRow(messages[i])) continue;
+        start = i + 1; // 跳过开头的工具结果行
+      }
+    }
+    // 保留窗口起点之前紧邻的、属于窗口内工具调用的结果行。
+    final windowToolCallIds = <String>{};
+    for (var i = start; i < messages.length; i++) {
+      final id = messages[i].toolCallId ?? messages[i].toolUseId;
+      if (id != null && id.isNotEmpty) windowToolCallIds.add(id);
+    }
+    while (start > 0) {
+      final prev = messages[start - 1];
+      if (_countsAsRenderableRow(prev)) break;
+      final id = prev.toolCallId ?? prev.toolUseId;
+      if (id == null || !windowToolCallIds.contains(id)) break;
+      start--;
+    }
+    return messages.sublist(start);
+  }
+
+  /// 该行是否计入「可见行」预算（对齐服务端 `_message_counts_as_renderable_for_window`）。
+  ///
+  /// - assistant：计（工具调用正文由工具卡承载，但 assistant 行本身是可见气泡）；
+  /// - user：有可见内容或附件才计；纯工具结果行（带 tool_call_id / tool_use_id
+  ///   或无可见内容）不计。
+  static bool _countsAsRenderableRow(ChatMessage message) {
+    if (message.role == 'assistant') return true;
+    if (message.role != 'user') return false;
+    final toolCallId = message.toolCallId;
+    final toolUseId = message.toolUseId;
+    if ((toolCallId != null && toolCallId.isNotEmpty) ||
+        (toolUseId != null && toolUseId.isNotEmpty)) {
+      return false;
+    }
+    final content = (message.content ?? '').trim();
+    if (content.isNotEmpty) return true;
+    final attachments = message.attachments;
+    return attachments != null && attachments.isNotEmpty;
   }
 
   /// 幽灵行退役：把「已被权威行覆盖」的客户端临时 assistant 行摘掉。
