@@ -5656,12 +5656,24 @@ class ChatController extends FamilyNotifier<ChatState, String> {
       }
     }
     if (renderable < size) {
-      // 不足 size 条可渲染行：全部可渲染行都要，start 落到最前。
-      start = 0;
-      for (var i = 0; i < messages.length; i++) {
-        if (_countsAsRenderableRow(messages[i])) continue;
-        start = i + 1; // 跳过开头的工具结果行
-      }
+      // 可渲染行不足 size 条 ⇒ **全量保留**（一条都不裁）。
+      //
+      // 【2026-10-20 修掉的真 bug】此分支原先写成：
+      //   start = 0;
+      //   for (i = 0..n) { if (可渲染) continue; start = i + 1; }
+      // 那个循环遇到**每一个**不可渲染行（工具结果行）就把 start 往后推 ⇒
+      // 最终 start 落到「最后一条工具结果行 + 1」⇒ 窗口被裁成**尾部几条**。
+      //
+      // 现场（本机真实会话 af294c385b5e，63 条消息 / 仅 27 条可渲染行）：
+      // 窗口被裁成 **1 条**（只剩末条 assistant）⇒ 本轮的 user 提问行被裁掉
+      // ⇒ `_mergingLoadedMessages` 在窗口里找不到任何 user 边界行 ⇒
+      // 乐观 user 气泡的插入点退化成 `insertAt = result.length`（最末尾）
+      // ⇒ **提问气泡跑到本轮回复的下方**（主人真机截图现象），
+      // 刷新后走 REST 路径（服务端窗口正确）才回到上方。
+      //
+      // 正确语义（对齐服务端 `routes.py::_message_window_for_display`）：
+      // 服务端数可渲染行不满 limit 时 `start_idx` 停在 0 ⇒ 窗口 = 全部行。
+      return messages;
     }
     // 保留窗口起点之前紧邻的、属于窗口内工具调用的结果行。
     final windowToolCallIds = <String>{};
@@ -5678,6 +5690,14 @@ class ChatController extends FamilyNotifier<ChatState, String> {
     }
     return messages.sublist(start);
   }
+
+  /// 测试用转发（[ChatController] 是 `FamilyNotifier`，静态方法可直接调，
+  /// 但私有成员跨文件不可见 ⇒ 暴露一个公开入口给守卫测试）。
+  @visibleForTesting
+  static List<ChatMessage> tailWindowForTesting(
+    List<ChatMessage> messages,
+    int size,
+  ) => _tailWindow(messages, size);
 
   /// 该行是否计入「可见行」预算（对齐服务端 `_message_counts_as_renderable_for_window`）。
   ///
