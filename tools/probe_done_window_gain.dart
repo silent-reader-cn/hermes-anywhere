@@ -77,6 +77,7 @@ void main(List<String> args) {
 
   stdout.writeln('【旧】全量 done 帧');
   stdout.writeln('  帧体积: ${fullPayload.length / 1024 / 1024} MB');
+  stdout.writeln('  服务端 jsonEncode: $fullEncodeMs ms');
   stdout.writeln('  客户端 jsonDecode: $fullDecodeMs ms');
   stdout.writeln('  state.messages 行数: ${msgs.length}');
 
@@ -93,6 +94,7 @@ void main(List<String> args) {
   stdout.writeln('');
   stdout.writeln('【新】裁窗 50 条 done 帧');
   stdout.writeln('  帧体积: ${winPayload.length / 1024} KB');
+  stdout.writeln('  服务端 jsonEncode: $winEncodeMs ms');
   stdout.writeln('  客户端 jsonDecode: $winDecodeMs ms');
   stdout.writeln('  state.messages 行数: ${win.length}');
   stdout.writeln('');
