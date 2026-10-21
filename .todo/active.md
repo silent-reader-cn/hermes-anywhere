@@ -39,7 +39,10 @@
 - **菜单色对照**：修复前浅色恒为 `#004A94`（高对比档），修复后为 `#00508F`（普通档），随开关正确切换；深色态走原生色不变。
 - **实拍**：浅色文档预览由「黑栏 + 白正文」变为同族浅底 + 深色字；深色态协调无回归。
 - 隔离工作区（`D:/tmp/hermes-theme-verify`，避开并行模型清单任务）`analyze lib/` 零告警；`session_list/` + `narrow_navigation_dropdown` + `settings_dialog_migration` 共 436 项全绿；媒体相关 40 项全绿。
-- **全量回归（最终，主仓库实测）**：**5964 通过 / 241 跳过 / 1 失败**（提交时为 5957/238/1，差异仅因并行任务期间新增的 skip 用例，非回归）。唯一失败为 `golden_screens_test` 的 `session_list dark` —— 在**不含本改动的基线**上以完全相同数值复现（0.59%、7798px，卡片描边亚像素偏移，差异图字节数一致），源自并行的模型清单任务对 `session_list_page.dart` 的改动，**需由其重拍金照**才能让全量归零。本改动自身零失败。
+- **全量回归（最终，主仓库实测）**：**5964 通过 / 241 跳过 / 1 失败**（提交时为 5957/238/1，差异仅因并行任务期间新增的 skip 用例，非回归）。唯一失败为 `golden_screens_test` 的 `session_list dark`。
+  - **偏移来源已精确定位到提交**：`6868729`「#210 窄屏会话卡片补描边」给**窄屏会话卡片**加了描边（此前深色走 `BorderSide.none`），但**未重拍金照** —— 基线 `session_list_dark.png` 自 10-15 未更新，差异即这批卡片描边（0.59%、7798px）。
+  - **与本改动零关系**（双重实证）：① 在**不含本改动**的基线上以完全相同数值复现，差异图字节数一致；② 本改动对 `session_list_page.dart` 的修改**全部在 `_SessionFilterSheet` 内**（筛选弹层），未触及会话列表主界面的卡片描边。
+  - ⇒ **需由 `6868729` 的收口方重拍该金照**才能让全量归零，非本任务范围。
 - 测试契约更新：`session_filter_sheet_test.dart` 未选中行断言由 `LightSurfaces.card` 改为 `isNull`（旧值钉的正是「行底盖住描边」这一缺陷）；`session_list_light_surfaces_test.dart` 增补「未选中行不画底」断言。
 - 动态色令牌的断言口径分两类（改动时逐个核对）：`CupertinoDialogAction.textStyle` / `TextStyle.color` 里存的是**未解析**的动态色本体 ⇒ 比未解析值；`RichText` 实际绘制色是**解析后**的实色 ⇒ 比 `Color(x.resolveFrom(ctx).toARGB32())`（与本仓库既有 `secondaryText` 断言同口径）。涉及 6 个测试文件。
 
