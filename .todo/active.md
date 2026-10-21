@@ -3202,7 +3202,11 @@ return MediaQuery(
 1. **Riverpod 生命周期写 provider 三连炸**：最初用 `currentChatSessionIdProvider` + `ChatPage` 维护「当前聊天会话」，实测连撞三条硬约束 —— ① 生命周期内改 provider ⇒ 「Tried to modify a provider while the widget tree was building」；② 改帧后回调 ⇒ dispose 后读 ref ⇒ 「Cannot use ref after the widget was disposed」；③ 改用容器 ⇒ 容器已 dispose ⇒ 「Tried to read a provider from a ProviderContainer that was already disposed」。**两次实测都真炸**（C5 守卫 404 项全红，基线同文件全绿 ⇒ 一眼定位到是自己引入）。**最终方案：改从 go_router 路由解析**（`resolveCurrentChatSessionId`），路由状态是只读真相，零生命周期、零 dispose 风险（读法与 `features/notifications/notification_providers.dart` `isCurrentChatRoute` 同源）。
 2. **下载按钮紧凑态有两条分支**：patch 时一度留下两处 `if (compact)`（新分支在前生效、旧分支成死代码）⇒ 已清死代码。
 3. **「引用」只对图像有意义**：初版在文档预览（PDF/Office）导航栏也渲染了引用按钮 ⇒ 已收敛为**仅媒体查看器**（图片）显示。
-4. **测试侧两个坑**（均已修）：① `AttachmentLightbox.isImage` **默认 true** ⇒ 断言「文档不显示引用按钮」必须显式传 `isImage: false`（否则被当成图片）；② 「当前聊天」既已改为**从路由解析**，测试里的自建 `GoRouter` 必须 `routerProvider.overrideWithValue(router)` 注入全局 provider（否则解析不到测试路由、用例假红）。
+4. **过期通知会误导**：修复 Riverpod 生命周期问题**之前**起跑的后台 `flutter test test/features/chat/`
+   会在修复后仍推送结果（-409，含 C5 守卫 404 项红）——那是**旧代码的残响**。
+   判别法：先 `git log --oneline -1` 对比通知里那次跑的起点 HEAD，再**用当前代码重跑该域**单点实证
+   （本次：C5 单跑 +25 全绿、chat 域与全量均已复测）。**别拿过期通知当回归**。
+5. **测试侧两个坑**（均已修）：① `AttachmentLightbox.isImage` **默认 true** ⇒ 断言「文档不显示引用按钮」必须显式传 `isImage: false`（否则被当成图片）；② 「当前聊天」既已改为**从路由解析**，测试里的自建 `GoRouter` 必须 `routerProvider.overrideWithValue(router)` 注入全局 provider（否则解析不到测试路由、用例假红）。
 
 ---
 
