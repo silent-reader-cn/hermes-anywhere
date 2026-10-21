@@ -42,8 +42,11 @@ const String _skipReason = '设置 MODEL_LIST_SHOTS=1 才生成默认模型列�
 /// 产物根目录（相对本文件：test/screenshots/ → 仓库根 .shots）。
 const String _shotRoot = '../../.shots/model-list';
 
-/// 视口（物理像素，DPR 2.0 ⇒ 逻辑 1280×1600，够放下整个列表）。
-const Size _size = Size(2560, 3200);
+/// 视口（物理像素，DPR 2.0 ⇒ 逻辑 390×2400，窄屏单列长卷）。
+///
+/// 用**窄屏**：宽屏（≥900）设置页是左栏分类导航，「模型」分组在独立分类页里，
+/// 截图工装要先点分类才能看到列表；窄屏是单列长卷，模型分组直接可见。
+const Size _size = Size(780, 4800);
 
 /// 真实形态的目录：`id` = 上游网关原始模型名；`label` = 服务端改写形态。
 const _groups = <Map<String, Object?>>[
