@@ -214,6 +214,17 @@ void main() {
       tiles.any((tile) => tile.backgroundColor == LightSurfaces.selectedSurface),
       isTrue,
     );
+    // 未选中行**不画底**：段的 1px 描边须完整可见（不透明行底会把描边盖住，
+    // 只有半透明选中行让描边透出来 ⇒ 视觉上「只有被选中的那行四周有描边」，
+    // 主人 2026-10-21 报障）。
+    expect(
+      tiles.every(
+        (tile) =>
+            tile.backgroundColor == null ||
+            tile.backgroundColor == LightSurfaces.selectedSurface,
+      ),
+      isTrue,
+    );
     expect(
       tiles.every(
         (tile) => tile.backgroundColorActivated == LightSurfaces.pressed,

@@ -175,7 +175,7 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
           builder: (ctx) => Text(
             l10n.cancel,
             style: CupertinoTheme.brightnessOf(ctx) == Brightness.light
-                ? const TextStyle(color: LightSurfaces.menuAction)
+                ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(ctx))
                 : null,
           ),
           onPressed: (ctx) => Navigator.of(ctx).pop(false),
@@ -201,7 +201,7 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
             builder: (ctx) => Text(
               l10n.ok,
               style: CupertinoTheme.brightnessOf(ctx) == Brightness.light
-                  ? const TextStyle(color: LightSurfaces.menuAction)
+                  ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(ctx))
                   : null,
             ),
             onPressed: (ctx) => Navigator.of(ctx).pop(),
@@ -284,7 +284,7 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
                 child: Text(
                   l10n.diagnosticsExitSelectMode,
                   style: isLight
-                      ? const TextStyle(color: LightSurfaces.menuAction)
+                      ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(context))
                       : null,
                 ),
               )
@@ -296,7 +296,7 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
                       child: Text(
                         l10n.diagnosticsSelectMode,
                         style: isLight
-                            ? const TextStyle(color: LightSurfaces.menuAction)
+                            ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(context))
                             : null,
                       ),
                     )
@@ -542,7 +542,7 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
     final l10n = AppLocalizations.of(context);
     final isLight = CupertinoTheme.brightnessOf(context) == Brightness.light;
     final actionColor = isLight
-        ? LightSurfaces.menuAction
+        ? LightSurfaces.menuAction.resolveFrom(context)
         : CupertinoTheme.of(context).primaryColor;
     final backLabel = CupertinoLocalizations.of(context).backButtonLabel;
 
@@ -886,7 +886,9 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
                   : l10n.selectAll,
               style: TextStyle(
                 fontSize: kFontButton,
-                color: isLight ? LightSurfaces.menuAction : null,
+                color: isLight
+                    ? LightSurfaces.menuAction.resolveFrom(context)
+                    : null,
               ),
             ),
           ),

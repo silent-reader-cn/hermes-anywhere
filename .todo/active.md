@@ -7,6 +7,48 @@
 
 ---
 
+## #204 媒体预览与菜单色的深浅主题适配补修（主人实机报障三处）
+
+**分类**：浅色主题 · 深浅适配　**状态**：改动已落，待全量回归 + 主人真机复验　**发现**：2026-10-21（主人先后报三处：「大图浏览界面好像没做深浅适配」「窄屏折叠菜单颜色停留在高对比度档」「窄屏筛选弹层只有被选中的筛选项有描边」）
+
+### 位置
+
+- `lib/features/chat/widgets/chat_media_view.dart` — `AttachmentLightbox`（聊天附件全屏预览：图片大图 / PDF·Office·音视频·文本 / 不可预览兜底）。
+- `lib/features/session_list/session_list_page.dart` — `_SheetOptionRow`（窄屏筛选弹层的选项行）。
+- `lib/app/theme/light_surfaces.dart` — `menuAction` 令牌。
+- `lib/app/widgets/adaptive_action_menu.dart` — 窄屏 ActionSheet 动作文字取色。
+- `tools/light_theme_contrast.py` + `docs/specs/light-theme-audit-2026-09-12.md` — 审计工具与报告。
+
+### 现状 vs 预期（三处，均实测定位，非观感猜测）
+
+1. **Lightbox 恒黑**：`CupertinoPageScaffold(backgroundColor: CupertinoColors.black)` + 黑色导航栏 + 白字，整页一套 chrome。图片大图浏览这没问题（媒体查看器惯例），但**文档类预览**在浅色主题下是「黑色导航栏 + 白色正文面」的割裂（实拍确认）。预期：图片 = 媒体查看器语义（恒黑，浅色下也保持，照片不与浅色背景混）；其余 = 文档阅读器语义（跟随主题）。
+2. **筛选弹层只有选中行有描边**：`CupertinoListSection.insetGrouped` 的 1px 描边画在**子项之下**，而 `CupertinoListTile` 行底铺满整段宽度 ⇒ 不透明行底把描边整段盖住，只有**半透明**的选中行让描边透出来 ⇒ 视觉上「只有被选中的那行四周有描边」。深色态同病（行底 `secondarySystemGroupedBackground` 不透明）。预期：描边是**分组卡片**的边界，不该被切成一段一段。
+3. **窄屏折叠菜单是高对比度配色**：`LightSurfaces.menuAction` 是写死的 `Color(0xFF004A94)` —— 而 #004A94 恰是 `statusBlueText` 的**高对比度档**（普通档 #005FB8）⇒ 不开高对比度开关也显示高对比度配色。预期：菜单动作色随「主题 × 高对比度开关」解析。
+
+### 落地（改动）
+
+- Lightbox 按内容类型分流 chrome：媒体查看器分支保留恒黑反色；文档分支导航栏底色/标题/关闭按钮/下载按钮与正文面同族，正文承载面由 `systemBackground` 改为跟随主题页底色；下载与刷新按钮新增 `foreground` 参数。
+- 筛选弹层：行**一律不画底**，由段统一提供卡面 + 描边（宽窄两态同口径）；选中态仍由「半透明中性灰底 + 右侧勾」表达。移除 `_SheetOptionRow.rowSurfaceFromSection` 开关。
+- `menuAction` 改为 `CupertinoDynamicColor`（普通档 #00508F / 高对比档 #004A94 / 深色 #0A84FF / 深色高对比 #45A3FF），**全部 37 处 `const TextStyle(color: LightSurfaces.menuAction)` 调用点同步改为 `resolveFrom(context)`**（动态色塞进 `const TextStyle` 不会自动解析，会冻结在浅色档 —— 这正是根因）。
+- 浅色普通档取 #00508F 而非 #005FB8：原生 ActionSheet 按下底是半透明 #E0E0E0 叠遮罩 ⇒ 实底 #DADADA，#005FB8 对该底仅 **4.498588:1**（差 0.0014 未达正文 AA），#00508F 为 5.886524:1 宽裕达标。
+- 审计工具修复：`--check-report` 此前整体不可用（KeyError）—— 工具最后一次更新早于 `light_surfaces.dart` 的 getter 化与 `Color.fromRGBO` 化。补齐字面量/别名判定、别名前向引用、getter 形式令牌、`CupertinoDynamicColor` 令牌、以及「`LightSurfaces.foo(...)` 是函数调用而非颜色引用」的排除。报告按当前源码重新生成，`--check-report` 通过（2524 行）。
+
+### 验收（实测取证）
+
+- **描边连续性像素判定**：沿分组外框列逐像素扫描 —— 修复前 89 行采样命中 **0** 行，修复后连续命中 **72** 行（浅色）。
+- **菜单色对照**：修复前浅色恒为 `#004A94`（高对比档），修复后为 `#00508F`（普通档），随开关正确切换；深色态走原生色不变。
+- **实拍**：浅色文档预览由「黑栏 + 白正文」变为同族浅底 + 深色字；深色态协调无回归。
+- 隔离工作区（`D:/tmp/hermes-theme-verify`，避开并行模型清单任务）`analyze lib/` 零告警；`session_list/` + `narrow_navigation_dropdown` + `settings_dialog_migration` 共 436 项全绿；媒体相关 40 项全绿。
+- 测试契约更新：`session_filter_sheet_test.dart` 未选中行断言由 `LightSurfaces.card` 改为 `isNull`（旧值钉的正是「行底盖住描边」这一缺陷）；`session_list_light_surfaces_test.dart` 增补「未选中行不画底」断言。
+
+### 待主人真机复验
+
+- 窄屏筛选弹层：分组卡片外框是否处处完整连续。
+- 窄屏折叠菜单：普通档是否为普通蓝（不再像高对比度）、开高对比度后是否变深。
+- 聊天附件：图片大图仍为黑底；文档预览在浅色下是否与全局浅色调协调。
+
+---
+
 ## #202 窄屏筛选弹层：工作区段提到项目段之前（已落 main 并推送）
 
 **分类**：窄屏 UI 顺序　**状态**：已落 main（`6292a9a`）；**待主人真机复验观感**　**发现**：2026-10-15（主人：「顺便把窄屏会话项筛选中 工作区筛选放在项目筛选前面」）

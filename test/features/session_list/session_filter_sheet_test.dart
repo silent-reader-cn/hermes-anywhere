@@ -404,6 +404,11 @@ void main() {
         find.descendant(of: archivedRow, matching: find.byType(Icon)),
         findsNothing,
       );
+      // 未选中行**不画底**（backgroundColor = null）：段的 1px 描边须完整可见。
+      //
+      // 旧实现给未选中行铺不透明白底（LightSurfaces.card），把段的描边整段盖住，
+      // 只有半透明的选中行让描边透出来 ⇒ 视觉上变成「只有被选中的那行四周有
+      // 描边，没选中的都没有」（主人 2026-10-21 报障）。现统一由段提供面与描边。
       expect(
         tester
             .widget<CupertinoListTile>(
@@ -413,7 +418,7 @@ void main() {
               ),
             )
             .backgroundColor,
-        equals(LightSurfaces.card),
+        isNull,
       );
 
       // 方框 checkbox 系图标在本弹层彻底消失（同一单选语义只剩一种控件）。

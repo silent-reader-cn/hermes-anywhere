@@ -213,7 +213,9 @@ abstract final class SettingsSurfaces {
   /// Text-button foreground, including disabled form submission buttons.
   static Color? actionColor(BuildContext context, {bool disabled = false}) =>
       isLight(context)
-      ? (disabled ? LightSurfaces.textSecondary : LightSurfaces.menuAction)
+      ? (disabled
+            ? LightSurfaces.textSecondary
+            : LightSurfaces.menuAction.resolveFrom(context))
       : null;
 
   /// Keeps button labels readable throughout the light pressed animation.
@@ -484,7 +486,7 @@ abstract final class SettingsSurfaces {
           style: TextStyle(
             color: child.isDestructiveAction
                 ? statusRedText.resolveFrom(context)
-                : LightSurfaces.menuAction,
+                : LightSurfaces.menuAction.resolveFrom(context),
           ),
           child: child.child,
         ),
@@ -531,7 +533,7 @@ abstract final class SettingsSurfaces {
                     ? LightSurfaces.textSecondary
                     : action.isDestructiveAction
                     ? statusRedText.resolveFrom(context)
-                    : LightSurfaces.menuAction,
+                    : LightSurfaces.menuAction.resolveFrom(context),
               ),
               child: action.onPressed == null
                   ? DefaultTextStyle.merge(

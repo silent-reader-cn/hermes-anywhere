@@ -548,7 +548,7 @@ class _KanbanPageState extends ConsumerState<KanbanPage> {
           builder: (dialogContext) => Text(
             l10n.ok,
             style: _usesLightSurfaces(dialogContext)
-                ? const TextStyle(color: LightSurfaces.menuAction)
+                ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(dialogContext))
                 : null,
           ),
           onPressed: (dialogContext) => Navigator.pop(dialogContext),
@@ -1258,7 +1258,7 @@ class _KanbanCardDetailPageState extends ConsumerState<KanbanCardDetailPage> {
           builder: (dialogContext) => Text(
             l10n.ok,
             style: _usesLightSurfaces(dialogContext)
-                ? const TextStyle(color: LightSurfaces.menuAction)
+                ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(dialogContext))
                 : null,
           ),
           onPressed: (dialogContext) => Navigator.pop(dialogContext),

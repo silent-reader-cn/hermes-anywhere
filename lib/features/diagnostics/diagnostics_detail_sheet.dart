@@ -46,7 +46,7 @@ Future<void> copyDiagnosticsEntry(
           builder: (ctx) => Text(
             l10n.ok,
             style: CupertinoTheme.brightnessOf(ctx) == Brightness.light
-                ? const TextStyle(color: LightSurfaces.menuAction)
+                ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(ctx))
                 : null,
           ),
           onPressed: (ctx) => Navigator.of(ctx).pop(),
@@ -292,7 +292,7 @@ class DiagnosticsDetailSheet extends StatelessWidget {
           child: Text(
             l10n.copy,
             style: isLight
-                ? const TextStyle(color: LightSurfaces.menuAction)
+                ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(context))
                 : null,
           ),
         ),

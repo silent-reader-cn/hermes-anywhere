@@ -335,7 +335,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
           builder: (_) => Text(
             l10n.ok,
             style: isLight
-                ? const TextStyle(color: LightSurfaces.menuAction)
+                ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(context))
                 : null,
           ),
           onPressed: (dialogContext) => Navigator.pop(dialogContext),

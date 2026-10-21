@@ -49,7 +49,7 @@ class _ProjectPickerSheet extends ConsumerWidget {
           child: Text(
             l10n.noProject,
             style: isLight
-                ? const TextStyle(color: LightSurfaces.menuAction)
+                ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(context))
                 : null,
           ),
         ),
@@ -82,7 +82,7 @@ class _ProjectPickerSheet extends ConsumerWidget {
           child: Text(
             l10n.newProjectEllipsis,
             style: isLight
-                ? const TextStyle(color: LightSurfaces.menuAction)
+                ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(context))
                 : null,
           ),
         ),
@@ -94,7 +94,7 @@ class _ProjectPickerSheet extends ConsumerWidget {
         child: Text(
           l10n.cancel,
           style: isLight
-              ? const TextStyle(color: LightSurfaces.menuAction)
+              ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(context))
               : null,
         ),
       ),
@@ -208,7 +208,7 @@ class _ProjectPickerRowState extends State<_ProjectPickerRow> {
                   widget.project.name ?? l10n.unnamedProject,
                   overflow: TextOverflow.ellipsis,
                   style: isLight
-                      ? const TextStyle(color: LightSurfaces.menuAction)
+                      ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(context))
                       : null,
                 ),
               ),

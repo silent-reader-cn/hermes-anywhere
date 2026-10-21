@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/theme/light_surfaces.dart';
+import '../../../app/theme/status_colors.dart';
 import '../../../app/widgets/hermes_dialog.dart';
 import '../../../app/widgets/hermes_page_route.dart';
 import '../../../core/api/api_exception.dart';
@@ -737,6 +738,17 @@ class AttachmentLightbox extends StatelessWidget {
 
     final previewKind = workspaceFileKindOf(titleText);
 
+    // ── chrome 分流：媒体查看器 vs 文档阅读器 ──────────────────────────
+    // 图片大图浏览 = **媒体查看器语义**：图片区恒为中性黑背板（浅色主题下
+    // 也一样），与桌面端主流 IM 的看图器一致（照片在浅色背板上会失去边缘）。
+    // 其余（PDF/Office/音视频/文本/不可预览兜底）= **文档阅读器语义**：跟随
+    // 主题（导航栏 + 正文面同族），与工作区文件预览页同口径。
+    //
+    // ⚠️ 此前两类共用一套「恒黑」chrome，浅色主题下文档预览是「黑色导航栏 +
+    // 白色正文面」的割裂（已实拍确认），故按内容类型分流。
+    final bool mediaViewer =
+        isImage || previewKind == WorkspaceFileKind.image;
+
     // 远端图片（http/https）才有「刷新」语义：内容可能在服务端被改写而 URL
     // 不变，本地缓存会一直挡着（key = sha256(URL)、TTL 30 天）。内存字节 /
     // data: URI / 本地文件都没有远端副本，不渲染刷新按钮。
@@ -757,6 +769,10 @@ class AttachmentLightbox extends StatelessWidget {
       mimeType: mimeType ?? (isImage ? 'image/png' : null),
       onOpenFile: onOpenFile,
       compact: true,
+      // 媒体查看器 = 黑底反色（白字）；文档阅读器 = 跟随主题（可读蓝字）。
+      foreground: mediaViewer
+          ? CupertinoColors.white
+          : statusBlueText.resolveFrom(context),
     );
 
     Widget body;
@@ -835,8 +851,16 @@ class AttachmentLightbox extends StatelessWidget {
       body = Column(
         children: [
           Expanded(
+            // 承载面跟随主题：浅色=白卡面、深色=深色面。此前固定用
+            // systemBackground（浅色=纯白）而**导航栏恒黑**，浅色下顶部黑条 +
+            // 白色正文形成割裂（实测见 docs 记要）。改为跟随主题页底色后，
+            // 正文区与导航栏同族，深浅两态各自自洽。
             child: ColoredBox(
-              color: CupertinoColors.systemBackground.resolveFrom(context),
+              color: LightSurfaces.resolve(
+                context,
+                LightSurfaces.page,
+                dark: LightSurfaces.darkPage,
+              ),
               child: previewKind == WorkspaceFileKind.pdf
                   ? SizedBox.expand(child: previewBody)
                   : SingleChildScrollView(child: previewBody),
@@ -866,7 +890,17 @@ class AttachmentLightbox extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(iconData, size: 64, color: CupertinoColors.white),
+              Icon(
+                iconData,
+                size: 64,
+                color: mediaViewer
+                    ? CupertinoColors.white
+                    : LightSurfaces.resolve(
+                        context,
+                        LightSurfaces.textSecondary,
+                        dark: CupertinoColors.systemGrey,
+                      ),
+              ),
               if (titleText.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 Text(
@@ -874,8 +908,10 @@ class AttachmentLightbox extends StatelessWidget {
                   textAlign: TextAlign.center,
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: CupertinoColors.white,
+                  style: TextStyle(
+                    color: mediaViewer
+                        ? CupertinoColors.white
+                        : CupertinoColors.label.resolveFrom(context),
                     // TODO(type): 未进梯子
                     fontSize: kFontItemTitle,
                     fontWeight: FontWeight.w600,
@@ -885,9 +921,16 @@ class AttachmentLightbox extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 l10n.previewUnsupported,
-                style: const TextStyle(
-                  // Inverse media preview on black: #8E8E93 is 6.440674:1; theme-independent.
-                  color: CupertinoColors.systemGrey,
+                style: TextStyle(
+                  // 媒体查看器 = 黑底反色（#8E8E93 对黑底 6.440674:1，主题无关）；
+                  // 文档阅读器 = 跟随主题（次级文字）。
+                  color: mediaViewer
+                      ? CupertinoColors.systemGrey
+                      : LightSurfaces.resolve(
+                          context,
+                          LightSurfaces.textSecondary,
+                          dark: secondaryText,
+                        ),
                   fontSize: kFontBody,
                 ),
               ),
@@ -897,19 +940,34 @@ class AttachmentLightbox extends StatelessWidget {
       );
     }
 
+    // ── 导航栏 chrome ────────────────────────────────────────────────
+    // 媒体查看器：栏体恒黑 + 白字（反色 UI，浅色主题下也保持 —— 图片在浅色
+    // 导航栏上会与背景混，主流看图器一律黑底）。
+    // 文档阅读器：栏体跟随主题（barBackgroundColor = 页底色），文字用主题
+    // label/primary，与工作区文件预览页同口径。
+    final navBackground = mediaViewer
+        ? CupertinoColors.black.withValues(alpha: 0.7)
+        : null;
+    final navForeground = mediaViewer
+        ? CupertinoColors.white
+        : CupertinoColors.label.resolveFrom(context);
+
     return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.black,
+      backgroundColor: mediaViewer
+          ? CupertinoColors.black
+          : CupertinoTheme.of(context).scaffoldBackgroundColor,
       navigationBar: CupertinoNavigationBar(
         // 全屏媒体查看器：栏体恒黑，结构线在其上只会变成一条亮线 ⇒ 刻意不给线，
         // 只显式关掉 SDK 那条黑 30%（避免线族里存留异色，口径见 nav_bar_hairline.dart）。
+        // 文档阅读器：走全局 bar 底色（与主题一致），线同样由栏体自身处理。
         border: null,
-        backgroundColor: CupertinoColors.black.withValues(alpha: 0.7),
+        backgroundColor: navBackground,
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
           onPressed: () => Navigator.of(context).pop(),
-          child: const Icon(
+          child: Icon(
             CupertinoIcons.clear_thick,
-            color: CupertinoColors.white,
+            color: navForeground,
             size: 20,
           ),
         ),
@@ -917,8 +975,8 @@ class AttachmentLightbox extends StatelessWidget {
             ? Text(
                 titleText,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: CupertinoColors.white,
+                style: TextStyle(
+                  color: navForeground,
                   fontSize: kFontBody,
                 ),
               )
@@ -927,7 +985,11 @@ class AttachmentLightbox extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (refreshableImage)
-              _MediaRefreshButton(mediaUrl: resolvedUrl!, sessionId: sessionId),
+              _MediaRefreshButton(
+                mediaUrl: resolvedUrl!,
+                sessionId: sessionId,
+                foreground: navForeground,
+              ),
             navDownloadBtn,
           ],
         ),
@@ -947,6 +1009,7 @@ class _AttachmentDownloadButton extends ConsumerWidget {
     this.mimeType,
     this.onOpenFile,
     this.compact = false,
+    this.foreground,
   });
 
   final String? resolvedUrl;
@@ -961,6 +1024,10 @@ class _AttachmentDownloadButton extends ConsumerWidget {
   /// false 时为整块 filled 按钮（正文兜底区）。
   final bool compact;
 
+  /// 紧凑态的前景色（图标/状态字）。媒体查看器 = 白字反色；文档阅读器 =
+  /// 主题蓝（跟随主题）。null = 沿用白字（filled 按钮态不受影响）。
+  final Color? foreground;
+
   /// 统一按 compact 包装按钮外观，状态逻辑与文案零分叉。
   Widget _btn({
     required VoidCallback? onPressed,
@@ -969,24 +1036,27 @@ class _AttachmentDownloadButton extends ConsumerWidget {
     bool activity = false,
     bool destructive = false,
   }) {
+    // 紧凑态前景色：图标与状态字同色（图标此前继承 CupertinoButton 默认蓝，
+    // 在黑底上会与白字状态字打架 ⇒ 媒体查看器显式白字）。
+    final Color fg = foreground ?? CupertinoColors.white;
     final row = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (activity)
-          const CupertinoActivityIndicator(
-            color: CupertinoColors.white,
+          CupertinoActivityIndicator(
+            color: fg,
             radius: 6,
           )
         else
-          Icon(icon, size: 16),
+          Icon(icon, size: 16, color: fg),
         const SizedBox(width: 6),
         Text(
           label,
           style: compact
-              ? const TextStyle(
+              ? TextStyle(
                   fontSize: kFontCaption,
                   fontWeight: FontWeight.w600,
-                  color: CupertinoColors.white,
+                  color: fg,
                 )
               : null,
         ),
@@ -1245,10 +1315,17 @@ class _AttachmentDownloadButton extends ConsumerWidget {
 /// 保持单一职责便于测试）。刷新失败只提示、不破坏已有缓存（service 层保证）。
 /// 刷新中换活动指示器：既给即时反馈，也顺带防连点。
 class _MediaRefreshButton extends ConsumerStatefulWidget {
-  const _MediaRefreshButton({required this.mediaUrl, this.sessionId});
+  const _MediaRefreshButton({
+    required this.mediaUrl,
+    this.sessionId,
+    this.foreground,
+  });
 
   final String mediaUrl;
   final String? sessionId;
+
+  /// 图标/转圈前景色（媒体查看器 = 白字反色；文档阅读器 = 主题字色）。
+  final Color? foreground;
 
   @override
   ConsumerState<_MediaRefreshButton> createState() =>
@@ -1293,12 +1370,13 @@ class _MediaRefreshButtonState extends ConsumerState<_MediaRefreshButton> {
 
   @override
   Widget build(BuildContext context) {
+    final Color fg = widget.foreground ?? CupertinoColors.white;
     if (_refreshing) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         child: CupertinoActivityIndicator(
           radius: 8,
-          color: CupertinoColors.white,
+          color: fg,
         ),
       );
     }
@@ -1309,9 +1387,9 @@ class _MediaRefreshButtonState extends ConsumerState<_MediaRefreshButton> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         minimumSize: Size.zero,
         onPressed: _onPressed,
-        child: const Icon(
+        child: Icon(
           CupertinoIcons.arrow_clockwise,
-          color: CupertinoColors.white,
+          color: fg,
           size: 20,
         ),
       ),

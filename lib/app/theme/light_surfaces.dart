@@ -414,9 +414,33 @@ abstract final class LightSurfaces {
   /// White content reaches 6.308159:1; the main bubble stays #007AFF.
   static const Color userDetail = Color(0xFF005FB8);
 
-  /// Action-sheet blue from the existing high-contrast status palette.
-  /// Keeps native translucent pressed rows readable without changing their skin.
-  static const Color menuAction = Color(0xFF004A94);
+  /// Action-sheet / 弹窗动作文字色（浅色档）。
+  ///
+  /// ⚠️ 此前这里是**写死**的 `Color(0xFF004A94)` —— 而 #004A94 恰是
+  /// `statusBlueText` 的**高对比度档**（`highContrastColor`），普通档是
+  /// #005FB8。写死的后果：**不打开「高对比度」开关也显示高对比度配色**
+  /// （主人 2026-10-21 报障：窄屏折叠菜单项颜色停留在高对比度档）。
+  ///
+  /// 现改为 `CupertinoDynamicColor`，由 [resolveFrom] 按「主题 × 高对比度
+  /// 开关」解析：
+  /// - 浅色普通档 #00508F —— 比 `statusBlueText` 普通档 #005FB8 深一档，
+  ///   以满足原生 ActionSheet **按下态**的对比度（原生 sheet 的按下底是半透明
+  ///   #E0E0E0 叠遮罩 ⇒ 实底 #DADADA；#005FB8 对该底仅 4.498588:1，差
+  ///   0.0014 未达正文 AA 4.5，#00508F 为 5.886524:1 宽裕达标）。
+  ///   对普通面 #EFEFEF = 7.204658:1、对白卡 = 8.254398:1。
+  /// - 浅色高对比档 #004A94（沿用原值，对普通面 7.592011:1）。
+  /// - 深色档 #0A84FF / 深色高对比档 #45A3FF。
+  ///
+  /// ⚠️ **必须经 `resolveFrom(context)` 解析后使用**：动态色直接塞进
+  /// `const TextStyle` 不会自动解析（会冻结在浅色档），这正是本条修掉的
+  /// 那类问题的根因（参见 `status_colors.dart` 顶部的用法说明）。
+  static const CupertinoDynamicColor menuAction =
+      CupertinoDynamicColor.withBrightnessAndContrast(
+        color: Color(0xFF00508F),
+        darkColor: Color(0xFF0A84FF),
+        highContrastColor: Color(0xFF004A94),
+        darkHighContrastColor: Color(0xFF45A3FF),
+      );
 
   /// 浅色使用固定 [light]，深色显式解析调用点原有的 [dark] 语义色。
   ///

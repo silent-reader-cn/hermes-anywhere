@@ -619,6 +619,8 @@ void main() {
       // 取消操作（普通动作）：LightSurfaces.menuAction
       final cancelFinder = find.byKey(const ValueKey('tasks-delete-cancel'));
       final cancelAction = tester.widget<CupertinoDialogAction>(cancelFinder);
+      // `menuAction` 是**动态色**（随高对比度开关解析）⇒ 这里存的是**未解析**
+      // 的动态色本体（渲染时才解析），故比未解析值。
       expect(cancelAction.textStyle?.color, LightSurfaces.menuAction);
       expect(
         passesAA(
@@ -689,6 +691,8 @@ void main() {
 
       final okFinder = find.byKey(const ValueKey('tasks-error-ok'));
       final okAction = tester.widget<CupertinoDialogAction>(okFinder);
+      // `menuAction` 是**动态色**（随高对比度开关解析）⇒ 这里存的是**未解析**
+      // 的动态色本体（渲染时才解析），故比未解析值。
       expect(okAction.textStyle?.color, LightSurfaces.menuAction);
       expect(
         passesAA(

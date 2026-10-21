@@ -1255,7 +1255,7 @@ class _DailyTokensBarChartState extends State<_DailyTokensBarChart> {
               l10n.ok,
               style:
                   CupertinoTheme.brightnessOf(dialogContext) == Brightness.light
-                  ? const TextStyle(color: LightSurfaces.menuAction)
+                  ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(dialogContext))
                   : null,
             ),
             onPressed: (dialogContext) => Navigator.of(dialogContext).pop(),

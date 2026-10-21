@@ -826,7 +826,7 @@ class _GitPageState extends ConsumerState<GitPage> {
                   branch.name!,
                   style: isDark
                       ? null
-                      : const TextStyle(color: LightSurfaces.menuAction),
+                      : TextStyle(color: LightSurfaces.menuAction.resolveFrom(context)),
                 ),
               ),
           ],
@@ -836,7 +836,7 @@ class _GitPageState extends ConsumerState<GitPage> {
               l10n.cancel,
               style: isDark
                   ? null
-                  : const TextStyle(color: LightSurfaces.menuAction),
+                  : TextStyle(color: LightSurfaces.menuAction.resolveFrom(context)),
             ),
           ),
         );

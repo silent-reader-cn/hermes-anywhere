@@ -837,7 +837,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
                           color:
                               CupertinoTheme.brightnessOf(ctx) ==
                                   Brightness.light
-                              ? LightSurfaces.menuAction
+                              ? LightSurfaces.menuAction.resolveFrom(ctx)
                               : null,
                         ),
                       ),
@@ -869,7 +869,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
             child: Text(
               AppLocalizations.of(ctx).cancel,
               style: CupertinoTheme.brightnessOf(ctx) == Brightness.light
-                  ? const TextStyle(color: LightSurfaces.menuAction)
+                  ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(ctx))
                   : null,
             ),
           ),

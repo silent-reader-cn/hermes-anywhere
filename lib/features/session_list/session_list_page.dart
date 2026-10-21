@@ -3270,10 +3270,10 @@ class _SessionFilterSheet extends ConsumerWidget {
     // 宽窄分流判据与外壳一致（kAdaptiveBreakpoint = 900）：>= 900 走宽屏居中
     // 卡片，< 900 保持底部 sheet 逐像素不变。
     final isWide = MediaQuery.sizeOf(context).width >= kAdaptiveBreakpoint;
-    // 宽屏各段是「白卡上叠白段」，靠 [cardDecoration] 的 1px 描边分层；行底若再
-    // 刷一层不透明白底（或不透明深灰底），会把段的描边整段盖掉。
-    // 故宽屏行底改由段提供（见 [_SheetOptionRow.rowSurfaceFromSection]），窄屏维持既有行底。
-    // 开关下发给各行的 [_SheetOptionRow.rowSurfaceFromSection]（宽屏 = true）。
+    // 各段是「白卡上叠白段」，靠 [cardDecoration] 的 1px 描边分层；行底若再
+    // 刷一层不透明白底（或不透明深灰底），会把段的描边整段盖掉 —— 只剩半透明
+    // 的选中行让描边透出来，视觉上变成「只有被选中的那行四周有描边」。
+    // 故行底一律由段提供（见 [_SheetOptionRow._surface]），窄屏宽屏同口径。
     // 窄屏顶部圆角对齐系统 sheet（16pt），内容随圆角裁切干净。
     const sheetRadius = BorderRadius.vertical(top: Radius.circular(16));
     final headerStyle = TextStyle(
@@ -3378,14 +3378,12 @@ class _SessionFilterSheet extends ConsumerWidget {
         children: [
           _SheetOptionRow(
             key: const ValueKey('sheet-filter-all'),
-            rowSurfaceFromSection: isWide,
             label: l10n.all,
             selected: mode == SessionListFilterMode.all,
             onTap: () => onSelect(SessionListFilterMode.all, null),
           ),
           _SheetOptionRow(
             key: const ValueKey('sheet-filter-archived'),
-            rowSurfaceFromSection: isWide,
             label: '${l10n.archived}${_archivedCountLabelFor(current)}',
             selected: mode == SessionListFilterMode.archived,
             onTap: () => onSelect(SessionListFilterMode.archived, null),
@@ -3394,7 +3392,6 @@ class _SessionFilterSheet extends ConsumerWidget {
               mode != SessionListFilterMode.archived)
             _SheetOptionRow(
               key: const ValueKey('sheet-filter-clear'),
-              rowSurfaceFromSection: isWide,
               label: l10n.clearFilter,
               selected: false,
               onTap: () => onSelect(SessionListFilterMode.all, null),
@@ -3424,7 +3421,6 @@ class _SessionFilterSheet extends ConsumerWidget {
           for (final label in current.sourceLabels)
             _SheetOptionRow(
               key: ValueKey('filter-chip-$label'),
-              rowSurfaceFromSection: isWide,
               label: label,
               selected:
                   mode == SessionListFilterMode.source &&
@@ -3456,7 +3452,6 @@ class _SessionFilterSheet extends ConsumerWidget {
           for (final project in projects)
             _SheetOptionRow(
               key: ValueKey('project-chip-${project.id}'),
-              rowSurfaceFromSection: isWide,
               label: project.name ?? l10n.untitledProject,
               selected:
                   mode == SessionListFilterMode.project &&
@@ -3487,7 +3482,6 @@ class _SessionFilterSheet extends ConsumerWidget {
         children: [
           _SheetOptionRow(
             key: const ValueKey('workspace-chip-all'),
-            rowSurfaceFromSection: isWide,
             label: l10n.allWorkspaces,
             selected:
                 mode == SessionListFilterMode.all ||
@@ -3499,7 +3493,6 @@ class _SessionFilterSheet extends ConsumerWidget {
           for (final ws in workspaces)
             _SheetOptionRow(
               key: ValueKey('workspace-chip-${ws.path}'),
-              rowSurfaceFromSection: isWide,
               label: (ws.name != null && ws.name!.trim().isNotEmpty)
                   ? ws.name!.trim()
                   : (ws.path?.trim() ?? ''),
@@ -3745,39 +3738,32 @@ class _SheetOptionRow extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
-    this.rowSurfaceFromSection = false,
   });
 
   final String label;
   final bool selected;
   final VoidCallback onTap;
 
-  /// 行底是否由所在 `CupertinoListSection` 的 decoration 提供（宽屏卡片 = true）。
-  ///
-  /// 为什么要有这个开关：`CupertinoListSection.insetGrouped` 把 `decoration`
-  /// （含 1px 描边）画在**子项之下**（`list_section.dart` 的
-  /// `DecoratedBox(decoration: …, child: Column(children: …))`），而 `CupertinoListTile`
-  /// 的背景是**铺满整段宽度**的 `ColoredBox`（`list_tile.dart`）。于是行底一旦是不
-  /// 透明白（[LightSurfaces.card] = #FFFFFF），段的描边会被整段盖掉 —— 整屏只剩
-  /// 「显示」段（该行从未传 backgroundColor）与选中行（半透明灰底让描边透出来）
-  /// 看得见外框。宽屏各段是「白卡上叠白段，靠描边分层」，故宽屏行不再自画底；
-  /// 窄屏（底部 sheet 白卡叠在页底色上）保持既有像素不动。
-  final bool rowSurfaceFromSection;
-
   /// 本行实际要画的底；`null` = 不画，露出所在段的面与描边。
+  ///
+  /// ⚠️ 曾经按「窄屏行自画底 / 宽屏不画」分流，结果是**段的 1px 描边被行底
+  /// 切成一段一段**：
+  /// `CupertinoListSection.insetGrouped` 把 decoration（含 1px 描边）画在
+  /// **子项之下**，而 `CupertinoListTile` 的背景是**铺满整段宽度**的
+  /// `ColoredBox`。于是行底一旦是不透明白（`LightSurfaces.card` = #FFFFFF），
+  /// 段的描边被整段盖掉；只有**半透明**的行底（选中行 = `selectedSurface`
+  /// rgba(120,120,128,.16)）让描边透出来 ⇒ 视觉上变成「**只有被选中的那行
+  /// 四周有描边，没选中的都没有**」（主人 2026-10-21 报障）。
+  ///
+  /// 深色态同病：行底 = `secondarySystemGroupedBackground`（不透明）⇒ 描边
+  /// 全被盖住，只剩「显示」段（该行从未传 backgroundColor）露着外框。
+  ///
+  /// 现统一为**行不画底**：段的卡面 + 1px 描边完整可见（两态一致），选中态
+  /// 由「半透明中性灰底 + 右侧勾」表达（不改选中语义，只让描边不再被切碎）。
   Color? _surface(BuildContext context) {
-    if (!rowSurfaceFromSection) {
-      // 窄屏：行自画底（既有行为，逐像素不变）。
-      // L2：选中行底为中性灰 .16（同类选中态全局一致）。
-      return LightSurfaces.resolve(
-        context,
-        selected ? LightSurfaces.selectedSurface : LightSurfaces.card,
-        dark: CupertinoColors.secondarySystemGroupedBackground,
-      );
-    }
     if (!selected) return null;
-    // 宽屏选中行：浅色叠半透明灰（描边仍透出）；暗色下该色与段面同色
-    // （`secondarySystemGroupedBackground`），画了只是白盖描边、像素无差 ⇒ 不画。
+    // 浅色：叠半透明中性灰（L2 档）；深色：该色与段面同色，画了只是白盖
+    // 描边、像素无差 ⇒ 不画。
     return CupertinoTheme.brightnessOf(context) == Brightness.light
         ? LightSurfaces.selectedSurface
         : null;

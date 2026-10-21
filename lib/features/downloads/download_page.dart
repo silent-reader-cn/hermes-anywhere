@@ -143,7 +143,7 @@ Future<void> _installApkWithPermissionGate(
             l10n.cancel,
             style:
                 CupertinoTheme.brightnessOf(dialogContext) == Brightness.light
-                ? const TextStyle(color: LightSurfaces.menuAction)
+                ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(dialogContext))
                 : null,
           ),
           onPressed: (dialogContext) => Navigator.of(dialogContext).pop(),
@@ -154,7 +154,7 @@ Future<void> _installApkWithPermissionGate(
             l10n.installPermissionGoSettings,
             style:
                 CupertinoTheme.brightnessOf(dialogContext) == Brightness.light
-                ? const TextStyle(color: LightSurfaces.menuAction)
+                ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(dialogContext))
                 : null,
           ),
           onPressed: (dialogContext) {
@@ -245,7 +245,7 @@ Future<void> openDownloadedFile(
               l10n.ok,
               style:
                   CupertinoTheme.brightnessOf(dialogContext) == Brightness.light
-                  ? const TextStyle(color: LightSurfaces.menuAction)
+                  ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(dialogContext))
                   : null,
             ),
             onPressed: (dialogContext) => Navigator.of(dialogContext).pop(),
@@ -300,7 +300,7 @@ Future<void> openDownloadedFile(
               l10n.ok,
               style:
                   CupertinoTheme.brightnessOf(dialogContext) == Brightness.light
-                  ? const TextStyle(color: LightSurfaces.menuAction)
+                  ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(dialogContext))
                   : null,
             ),
             onPressed: (dialogContext) => Navigator.of(dialogContext).pop(),

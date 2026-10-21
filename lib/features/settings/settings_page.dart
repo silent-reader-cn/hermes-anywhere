@@ -1262,7 +1262,7 @@ class _NotificationSectionState extends ConsumerState<_NotificationSection> {
     // null → 沿用原生色（`CupertinoDialogAction` 默认 primaryColor）。
     final isLight = CupertinoTheme.brightnessOf(context) == Brightness.light;
     final ink = isLight
-        ? const TextStyle(color: LightSurfaces.menuAction)
+        ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(context))
         : null;
     unawaited(
       showHermesDialog<void>(
@@ -1596,7 +1596,7 @@ class _ServerSectionState extends ConsumerState<_ServerSection> {
                         )
                       : LightSurfaces.resolve(
                           context,
-                          LightSurfaces.menuAction,
+                          LightSurfaces.menuAction.resolveFrom(context),
                           dark: CupertinoColors.activeBlue,
                         ),
                 ),
@@ -1703,7 +1703,7 @@ class _ServerSectionState extends ConsumerState<_ServerSection> {
     // `SettingsSurfaces.dialog`）；深色返回 null → 沿用原生色。
     final isLight = CupertinoTheme.brightnessOf(context) == Brightness.light;
     final ink = isLight
-        ? const TextStyle(color: LightSurfaces.menuAction)
+        ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(context))
         : null;
     final dangerInk = isLight
         ? TextStyle(color: statusRedText.resolveFrom(context))
@@ -1850,7 +1850,7 @@ class ServerEditorPageState extends ConsumerState<ServerEditorPage> {
     // 浅色下动作文字取高对比度深蓝（同 `SettingsSurfaces.dialog`）。
     final isLight = CupertinoTheme.brightnessOf(context) == Brightness.light;
     final ink = isLight
-        ? const TextStyle(color: LightSurfaces.menuAction)
+        ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(context))
         : null;
     return showHermesDialog<void>(
       context,
@@ -2591,7 +2591,7 @@ class _AboutSectionState extends ConsumerState<_AboutSection> {
     // null → 沿用原生色（`CupertinoDialogAction` 默认 primaryColor）。
     final isLight = CupertinoTheme.brightnessOf(context) == Brightness.light;
     final ink = isLight
-        ? const TextStyle(color: LightSurfaces.menuAction)
+        ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(context))
         : null;
     await showHermesDialog<void>(
       context,
@@ -2627,7 +2627,7 @@ class _AboutSectionState extends ConsumerState<_AboutSection> {
     // 本方法四处弹窗共用这一份口径。
     final isLight = CupertinoTheme.brightnessOf(context) == Brightness.light;
     final ink = isLight
-        ? const TextStyle(color: LightSurfaces.menuAction)
+        ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(context))
         : null;
 
     UpdateCheckResult result;

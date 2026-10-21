@@ -210,7 +210,7 @@ class ExtensionsSection extends ConsumerWidget {
     // null → 沿用原生色（`CupertinoDialogAction` 默认 primaryColor / systemRed）。
     final isLight = CupertinoTheme.brightnessOf(context) == Brightness.light;
     final ink = isLight
-        ? const TextStyle(color: LightSurfaces.menuAction)
+        ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(context))
         : null;
     final dangerInk = isLight
         ? TextStyle(color: statusRedText.resolveFrom(context))

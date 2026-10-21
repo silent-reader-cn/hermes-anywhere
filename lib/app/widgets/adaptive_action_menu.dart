@@ -481,9 +481,21 @@ class AdaptiveActionMenu {
                 item.label,
                 style: isLight
                     ? TextStyle(
+                        // 普通动作 = [LightSurfaces.menuAction] **随开关解析**
+                        // （普通档 #00508F / 高对比档 #004A94）。
+                        //
+                        // ⚠️ 此前用写死的 `LightSurfaces.menuAction`
+                        // （#004A94 = 高对比度档）⇒ 不开高对比度开关也显示
+                        // 高对比度配色（主人 2026-10-21 报障）。同分支的破坏性
+                        // 动作一直是 `statusRedText.resolveFrom(...)`（随开关），
+                        // 普通动作与之不一致 ⇒ 统一为随开关解析。
+                        //
+                        // 对比度（审计报告 P1/native sheet）：普通档对普通面
+                        // #EFEFEF = 7.204658:1、对按下面 #DADADA = 5.886524:1，
+                        // 均达正文 AA；高对比档更高。
                         color: item.isDestructive
                             ? statusRedText.resolveFrom(sheetContext)
-                            : LightSurfaces.menuAction,
+                            : LightSurfaces.menuAction.resolveFrom(sheetContext),
                       )
                     : null,
               ),
@@ -496,7 +508,9 @@ class AdaptiveActionMenu {
           child: Text(
             cancelLabel,
             style: isLight
-                ? const TextStyle(color: LightSurfaces.menuAction)
+                ? TextStyle(
+                    color: LightSurfaces.menuAction.resolveFrom(sheetContext),
+                  )
                 : null,
           ),
         ),

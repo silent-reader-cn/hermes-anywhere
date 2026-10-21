@@ -94,6 +94,8 @@ void main() {
 
         // 2. 「无项目」使用 menuAction
         final noneText = tester.widget<Text>(find.text('无项目'));
+        // `menuAction` 是**动态色**（随高对比度开关解析）⇒ 这里存的是**未解析**
+        // 的动态色本体（渲染时才解析），故比未解析值。
         expect(noneText.style?.color, LightSurfaces.menuAction);
 
         // 3. 项目行文字使用 menuAction，ellipsis 图标使用 textSecondary

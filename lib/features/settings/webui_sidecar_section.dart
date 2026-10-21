@@ -151,7 +151,7 @@ class _WebuiSidecarSectionState extends ConsumerState<WebuiSidecarSection> {
     // SettingsSurfaces 里「禁用动作改 textSecondary」那条分支（详见守卫测试
     // `chat/c5_dialog_migration_test.dart` 的窄屏分支说明）。
     final actionStyle = SettingsSurfaces.isLight(context)
-        ? const TextStyle(color: LightSurfaces.menuAction)
+        ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(context))
         : null;
     await showHermesDialog<void>(
       context,

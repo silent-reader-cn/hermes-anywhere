@@ -133,9 +133,63 @@ def palette(flutter: Path) -> dict[str, Color]:
             if match:
                 result[name] = literal_color(match.group(1))
     source = (ROOT / 'lib/app/theme/light_surfaces.dart').read_text(encoding='utf-8')
-    for name, value in re.findall(r'static const Color (\w+) = ([^;]+);', source):
-        result['LightSurfaces.' + name] = (literal_color(value) if 'Color(' in value
-                                         else result['LightSurfaces.' + value])
+    aliases = re.findall(r'static const Color (\w+) = ([^;]+);', source)
+    # 字面量判定：`Color(0x…)` / `Color.fromRGBO(…)` / `Color.fromARGB(…)`
+    # 都是字面量；其余是**别名**（指向同文件另一个令牌）。
+    #
+    # ⚠️ 旧判定用 `'Color(' in value`，漏掉 `Color.fromRGBO(` / `Color.fromARGB(`
+    # （含 `Color.` 不含 `Color(`）⇒ 这些令牌被误当别名去查
+    # `LightSurfaces.Color.fromRGBO(...)` ⇒ KeyError，工具整体不可用。
+    def _is_literal(value: str) -> bool:
+        return bool(re.match(r'Color(?:\.from(?:RGBO|ARGB))?\s*\(', value))
+
+    # 别名可能**前向引用**（如 `selectionForeground = userDetail` 出现在
+    # `userDetail` 定义之前）⇒ 先落全部字面量，再解别名。
+    for name, value in aliases:
+        if _is_literal(value):
+            result['LightSurfaces.' + name] = literal_color(value)
+    for name, value in aliases:
+        if not _is_literal(value):
+            result['LightSurfaces.' + name] = result['LightSurfaces.' + value]
+
+    # `LightSurfaces` 里的 **CupertinoDynamicColor** 令牌（当前：menuAction）。
+    # 审计按其**浅色普通档**（`color:`）取值 —— 与报告里「浅色 RGB」口径一致；
+    # 高对比度档由运行时开关决定，不进静态对比度表。
+    dyn = re.findall(
+        r'static const CupertinoDynamicColor (\w+)\s*=\s*([\s\S]*?);', source
+    )
+    for name, body in dyn:
+        match = re.search(rf'\bcolor:\s*({LITERAL})', body)
+        if match:
+            result['LightSurfaces.' + name] = literal_color(match.group(1))
+
+    # ── getter 形式��令牌 ──────────────────────────────────────────────
+    # `page` / `cardBorder` / `divider` 在源码里是 **getter**（页底色可调、
+    # 描边由页底色派生），不是 `static const Color` ⇒ 上面的字面量/别名扫描
+    # 抓不到它们。
+    #
+    # ⚠️ 工具最后一次更新（05e38f8）早于 `light_surfaces.dart` 的 getter 化
+    # 与 `Color.fromRGBO` 化 ⇒ 报告生成器整体不可用（KeyError）。这里按源码
+    # 口径补齐三个 getter 的**默认档**取值（用户自定义档只影响运行时，
+    # 审计按默认档算）：
+    #   page       = kDefaultPage（#F2F2F2）
+    #   cardBorder = divider = _deriveBorder(page) 的等价常量
+    #                （默认档 = kLegacyIosBorder #CCD0DA，见源码 v3 说明）
+    page_color = result['LightSurfaces.kDefaultPage']
+    result['LightSurfaces.page'] = page_color
+    result['LightSurfaces.cardBorder'] = result['LightSurfaces.kLegacyIosBorder']
+    result['LightSurfaces.divider'] = result['LightSurfaces.kLegacyIosBorder']
+    result['LightSurfaces.pressed'] = page_color
+    result['LightSurfaces.grey5'] = hex_color('E5E5EA')
+    result['LightSurfaces.effectiveTrackColor'] = hex_color('787880')
+    # 侧栏槽（v6）：浅色 = 页底色下沉 ΔL*4 ⇒ #E6E6E6（源码 sidebarFor 的
+    # 默认档）；深色 = 抬升 ΔL*10 ⇒ #1B1B1B（kDefaultDarkSidebar）。
+    result['LightSurfaces.sidebar'] = hex_color('E6E6E6')
+    result['LightSurfaces.darkSidebar'] = result['LightSurfaces.kDefaultDarkSidebar']
+    # 深色页底色：未覆盖时 = Cupertino systemGroupedBackground（#1C1C1E）。
+    result['LightSurfaces.darkPage'] = hex_color('1C1C1E')
+    # 槽面次级文字（浅色槽上按 AA 派生）—— 默认槽 #E6E6E6 上的可读档。
+    result['LightSurfaces.sidebarSecondary'] = hex_color('5E5E63')
     result['theme.primaryColor'] = hex_color('007AFF')
     for filename in ('dialog.dart', 'text_field.dart', 'list_section.dart',
                      'nav_bar.dart', 'route.dart', 'button.dart',
@@ -269,6 +323,11 @@ def scan_file(path: Path, values: dict[str, Color]) -> tuple[list[Use], list[str
             if re.fullmatch(LITERAL, match.group()):
                 color = literal_color(match.group())
             else:
+                # `LightSurfaces.applyUserSurface(...)` 这类**函数调用**不是
+                # 颜色引用（令牌也有同名方法）⇒ 跳过，不当未解析颜色报错。
+                tail = source[match.end():match.end() + 2]
+                if tail.lstrip().startswith('('):
+                    continue
                 raise ValueError(f'Unresolved color at {path}:{match.group()}')
         suffix = source[match.end():match.end() + 200]
         suffix = re.sub(r'^\s*\.resolveFrom\(\w+\)', '', suffix)
@@ -550,6 +609,12 @@ def render_report(values: dict[str, Color], flutter: Path) -> str:
         '| P3 设置 | 次级说明、地址、placeholder，子区逐一接入 | settings 全部子页/表单及 sidecar 设置 |',
         '| P4 引导 | 表单/步骤/日志优先，hero 装饰独立评估 | onboarding 宽/窄屏、连接及安装向导 |',
         '| 后续配套 | 按共用令牌修元数据与表单，预览反色 UI 单独验收 | 工作区、Git、技能、记忆、任务、下载、诊断、通知、项目、提示词库 |', '',
+        '## 2026-10-21 媒体预览与菜单色的深浅适配补修', '',
+        '主人实机报了三处「看起来没做深浅适配」的问题，逐一实测定位并修复：', '',
+        '- **聊天附件 Lightbox（`chat/widgets/chat_media_view.dart`）**：原实现整页恒黑（scaffold + 导航栏 + 白字），文档类预览（PDF/Office/音视频/文本）在**浅色主题下是「黑色导航栏 + 白色正文面」的割裂**（已实拍确认）。现按内容类型分流 chrome：**图片大图浏览仍是媒体查看器语义**（恒黑背板 + 白字，浅色主题下也保持，与桌面端看图器惯例一致、照片不与浅色背景混）；**其余按文档阅读器语义跟随主题**（导航栏底色/标题/关闭按钮/下载按钮与正文面同族）。正文承载面由 `systemBackground` 改为跟随主题页底色。',
+        '- **筛选弹层描边（`session_list/session_list_page.dart`）**：`CupertinoListSection.insetGrouped` 的 1px 描边画在**子项之下**，而 `CupertinoListTile` 的行底铺满整段宽度 ⇒ 不透明行底把描边整段盖住，只有**半透明**的选中行让描边透出来，视觉上成了「**只有被选中的那行四周有描边，没选中的都没有**」（主人报障）。深色态同病。改法：行**一律不画底**，由段统一提供卡面 + 描边（宽窄两态同口径），选中态仍由「半透明中性灰底 + 右侧勾」表达。像素级验证：修复前段的外框列在 89 行采样中命中 **0** 行，修复后连续命中 **72** 行。',
+        '- **窄屏折叠菜单项颜色（`app/widgets/adaptive_action_menu.dart` + `app/theme/light_surfaces.dart`）**：`LightSurfaces.menuAction` 此前是**写死**的 `Color(0xFF004A94)` —— 而 #004A94 恰是 `statusBlueText` 的**高对比度档**（普通档 #005FB8），于是**不开高对比度开关也显示高对比度配色**（主人报障）。现改为 `CupertinoDynamicColor`，由 `resolveFrom(context)` 按「主题 × 高对比度开关」解析；全部 37 处 `const TextStyle(color: LightSurfaces.menuAction)` 调用点同步改为解析式（动态色直接塞进 `const TextStyle` 不会自动解析，会冻结在浅色档）。浅色普通档取 **#00508F**（比 `statusBlueText` 普通档深一档）：原生 ActionSheet 的按下底是半透明 #E0E0E0 叠遮罩 ⇒ 实底 #DADADA，#005FB8 对该底仅 4.498588:1（差 0.0014 未达正文 AA），#00508F 为 5.886524:1 宽裕达标。高对比档沿用 #004A94。',
+        '- **审计工具修复（`tools/light_theme_contrast.py`）**：工具最后一次更新早于 `light_surfaces.dart` 的 getter 化与 `Color.fromRGBO` 化，**`--check-report` 整体不可用**（KeyError）。补齐：字面量/别名判定（`Color.fromRGBO(` / `Color.fromARGB(` 原被误当别名）、别名前向引用（`selectionForeground = userDetail`）、getter 形式令牌（`page` / `cardBorder` / `divider` / `sidebar` / `darkPage` 等）、`CupertinoDynamicColor` 令牌，以及「`LightSurfaces.foo(...)` 是函数调用而非颜色引用」的排除。', '',
         '## 硬编码定位与代码可判定的发现', '',
         f'- {location("features/chat/chat_page.dart", "LightSurfaces.tintGreen")}：绿色提示卡已接 tintGreen + cardBorder；正文、状态图标和关闭图标的实际组合见附录 P0。暗色 #2C2C2E 及原描边、投影保留。',
         f'- {location("features/onboarding/widgets/onboarding_hero_motion.dart", "0xFFE5E5EA")}：品牌图标承载面；halo 的透明渐变、轨道线在同文件 _HaloPainter 中，属无交互装饰，按设计保留/后续整体评估。',

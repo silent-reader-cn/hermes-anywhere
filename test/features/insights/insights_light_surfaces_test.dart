@@ -447,7 +447,18 @@ void main() {
           );
           if (isLight) {
             final foreground = _textColor(tester, _l10n.ok);
-            expect(foreground, LightSurfaces.menuAction);
+            // `menuAction` 现在是**动态色**（随「高对比度」开关解析）⇒ 断言
+            // 必须比**解析后的实色**，不能拿未解析的动态色去比。
+            // 取值口径与本文件既有的 `secondaryText` 断言一致
+            // （`Color(...resolveFrom(context).toARGB32())`）。
+            expect(
+              foreground,
+              Color(
+                LightSurfaces.menuAction
+                    .resolveFrom(tester.element(find.text(_l10n.ok)))
+                    .toARGB32(),
+              ),
+            );
             // Native dialog: white/page backdrops and the opaque pressed row.
             for (final background in [
               LightSurfaces.card,

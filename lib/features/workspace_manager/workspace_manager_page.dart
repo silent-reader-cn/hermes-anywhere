@@ -368,7 +368,7 @@ class _WorkspaceManagerPageState extends ConsumerState<WorkspaceManagerPage> {
               l10n.cancel,
               style: CupertinoTheme.brightnessOf(dialogContext) ==
                       Brightness.light
-                  ? const TextStyle(color: LightSurfaces.menuAction)
+                  ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(dialogContext))
                   : null,
             ),
             onPressed: (dialogContext) {
@@ -382,7 +382,7 @@ class _WorkspaceManagerPageState extends ConsumerState<WorkspaceManagerPage> {
               l10n.save,
               style: CupertinoTheme.brightnessOf(dialogContext) ==
                       Brightness.light
-                  ? const TextStyle(color: LightSurfaces.menuAction)
+                  ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(dialogContext))
                   : null,
             ),
             onPressed: (dialogContext) {
@@ -425,7 +425,7 @@ class _WorkspaceManagerPageState extends ConsumerState<WorkspaceManagerPage> {
               l10n.cancel,
               style: CupertinoTheme.brightnessOf(dialogContext) ==
                       Brightness.light
-                  ? const TextStyle(color: LightSurfaces.menuAction)
+                  ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(dialogContext))
                   : null,
             ),
             onPressed: (dialogContext) {
@@ -477,7 +477,7 @@ class _WorkspaceManagerPageState extends ConsumerState<WorkspaceManagerPage> {
             return Text(
               l10n.ok,
               style: isLight
-                  ? const TextStyle(color: LightSurfaces.menuAction)
+                  ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(dialogContext))
                   : null,
             );
           },

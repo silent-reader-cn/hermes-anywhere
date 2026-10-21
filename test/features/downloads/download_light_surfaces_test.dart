@@ -208,9 +208,18 @@ void main() {
           matching: find.text('取消'),
         ),
       );
+      // `menuAction` 是**动态色**（随高对比度开关解析）⇒ 这里存的是**未解析**
+      // 的动态色本体（渲染时才解析），故比未解析值。
       expect(lightCancelText.style?.color, LightSurfaces.menuAction);
       expect(
-        contrastRatio(LightSurfaces.menuAction, LightSurfaces.card),
+        contrastRatio(
+          Color(
+            LightSurfaces.menuAction
+                .resolveFrom(tester.element(find.text('取消')))
+                .toARGB32(),
+          ),
+          LightSurfaces.card,
+        ),
         greaterThanOrEqualTo(4.5),
       );
 

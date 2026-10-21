@@ -49,7 +49,7 @@ Future<bool?> showDownloadConfirmationDialog(
 
   // 浅色下动作文字取高对比度深蓝（`LightSurfaces.menuAction`），深色沿用原生。
   final TextStyle? actionStyle = isLight
-      ? const TextStyle(color: LightSurfaces.menuAction)
+      ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(context))
       : null;
 
   return showHermesDialog<bool>(

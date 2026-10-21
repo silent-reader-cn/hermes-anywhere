@@ -299,7 +299,8 @@ class _TasksPageState extends ConsumerState<TasksPage> {
     });
   }
 
-  /// 宽屏主体：左栏（固定 360）+ 右栏「任务输出」常驻面板。
+  /// 宽屏主体：左栏（固定 360）+ 右栏「任务输出」常驻面板。
+
   /// 双栏宿主：把「剩余视口高度」算准后交给两栏（两栏各自内部滚动）。
   ///
   /// 刻意**不用** `SliverFillRemaining`：`hasScrollBody: false` 会向子级要
@@ -632,7 +633,7 @@ class _TasksPageState extends ConsumerState<TasksPage> {
           // 与改造前同落位：颜色走 `textStyle`（不是塞进 builder 的 Text），
           // 窄屏 `CupertinoDialogAction.textStyle` 因此保持非空（既有守卫在钉它）。
           textStyle: isLight
-              ? const TextStyle(color: LightSurfaces.menuAction)
+              ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(context))
               : null,
           builder: (_) => Text(l10n.cancel),
           onPressed: (dialogContext) => Navigator.pop(dialogContext, false),
@@ -667,7 +668,7 @@ class _TasksPageState extends ConsumerState<TasksPage> {
         HermesDialogAction(
           key: const ValueKey('tasks-error-ok'),
           textStyle: isLight
-              ? const TextStyle(color: LightSurfaces.menuAction)
+              ? TextStyle(color: LightSurfaces.menuAction.resolveFrom(context))
               : null,
           builder: (_) => Text(l10n.ok),
           onPressed: (dialogContext) => Navigator.pop(dialogContext),
