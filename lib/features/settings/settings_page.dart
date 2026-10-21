@@ -2512,7 +2512,11 @@ class _ModelPickerPage extends ConsumerWidget {
                                 context,
                                 model.id == currentState.defaultModel,
                               ),
-                              title: Text(model.displayName),
+                              // 显示**原模型名**（原始 id），不用服务端改写过的
+                              // label（`minimax-m3.1-flash` 而非
+                              // `Minimax M3.1 Flash`）—— 口径与聊天侧两个模型
+                              // 选择器一致（#204）。
+                              title: Text(model.rawName),
                               trailing: model.id == currentState.defaultModel
                                   ? const Icon(CupertinoIcons.checkmark)
                                   : null,

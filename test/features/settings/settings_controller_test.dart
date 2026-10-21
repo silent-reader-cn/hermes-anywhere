@@ -94,11 +94,13 @@ void main() {
         options.map((o) => o.id).toList(),
         ['gpt-4o', 'gpt-4o-mini', 'o3', 'claude-sonnet-4'],
       );
+      // 解析层仍保留服务端下发的 label（原始字段不被改写）
       expect(options.first.displayName, 'GPT-4o');
       expect(options.first.providerID, 'openai');
 
-      // 派生：默认模型显示名
-      expect(state.defaultModelLabel, 'GPT-4o');
+      // 派生：默认模型显示名 —— **原模型名**（原始 id），不用服务端改写过的
+      // label（#204）。
+      expect(state.defaultModelLabel, 'gpt-4o');
     });
 
     test('默认模型不在目录中 → defaultModelLabel 回退为 id 本身', () async {

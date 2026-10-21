@@ -7,6 +7,40 @@
 
 ---
 
+## #204 模型列表统一：设置页显示原始模型 id + 三处共用同一数据源
+
+**分类**：UI 一致性 / 数据源统一　**状态**：进行中（分支 `feat/model-list-unify-raw-id`）　**发现**：2026-10-21（主人：「设置中选择默认模型的选项，不要把模型名改成首字母大写和空格的形式，还用原模型名；显示方式遵照聊天记录中切换模型的地方；上下文弹窗与宽屏直接暴露的、以及聊天右下角与设置默认模型列表，数据源应该用一样的」）
+
+### 现状 vs 预期（实证根因，非推测）
+
+- **「首字母大写 + 空格」的来源是服务端，不是客户端**：服务端 `/api/models` 下发的 `label` 字段由 `api/routes.py:19912` 的 `_make_label()` 生成（连字符拆词 + 首字母大写 + 空格拼接），`api/config.py:1664+` 的静态表则直接写死 `"GPT-5.4 Mini"` 这类字面量。客户端只是原样显示 `ModelCatalogOption.displayName`。
+- **实证本机真实数据**：CPA 网关 `http://localhost:30004/v1/models` 的原始 id = `minimax-m3.1-flash` / `deepseek-v4-flash` / `gpt-5.6-sol`…；经服务端 `_make_label` 后即变成 `Minimax M3.1 Flash` 这类形态 ⇒ 主人看到的差异成立。
+- **三处数据源各不相同**：
+  1. 设置页 `_ModelPickerPage`（`lib/features/settings/settings_page.dart:2346-2538`）：`settingsControllerProvider` → `GET /api/models`（缓存目录，`settings_providers.dart:382`）+ live 覆盖（`settings_providers.dart:398-408` 的 `_tryOverlayLiveModels`）⇒ **有 provider 分组**，但每行显示服务端 `label`。
+  2. 上下文窗口弹窗 `_buildModelMenu`（`lib/features/chat/widgets/context_window_popover.dart:406-486`）：`chatAvailableModelsProvider` 优先（默认空 ⇒ 走 `client.modelsLive()` 兜底，`context_window_popover.dart:644-683`）⇒ 显示**原始 id 文本**。
+  3. 聊天窗口右下角 composer chip `_buildModelMenu`（`lib/features/chat/widgets/composer_meta_chips.dart:381-481`）：`availableModelIdsProvider`（`lib/core/providers/catalog_providers.dart:25-53`）→ `GET /api/models/live` ⇒ 显示**原始 id 文本**。
+- **预期（主人 2026-10-21 拍板）**：
+  1. 设置页模型列表**保留 provider 分组**，但每行显示**原始模型 id**（不再显示服务端 label）；分组标题仍来自 `/api/models`。
+  2. 设置页与聊天窗口右下角的模型列表**共用同一份数据源**（`/api/models/live` 口径）。
+  3. 上下文弹窗的模型下拉与宽屏输入栏右下角的模型 chip **合并成一个数据源**（消除「一处 `chatAvailableModelsProvider` 注入、一处 `availableModelIdsProvider`」的双轨）。
+
+### 落地范围
+
+- `lib/core/providers/catalog_providers.dart`：模型列表数据源收敛为**单一 provider**（`/api/models/live`），供设置页 / 上下文弹窗 / composer chip 三处共用；保留 `chatAvailableModelsProvider` 作为测试注入点语义。
+- `lib/features/chat/widgets/context_window_popover.dart`：删掉自带的 `_maybeFetchModels` 兜底拉取，改读共用 provider。
+- `lib/features/chat/widgets/composer_meta_chips.dart`：改读共用 provider（与弹层同一份）。
+- `lib/features/settings/settings_page.dart` `_ModelPickerPage`：每行标题从 `model.displayName` 改为原始 id；分组标题保留。
+- `lib/features/settings/settings_providers.dart`：默认模型行 `defaultModelLabel` 口径同步（显示原始 id，与列表一致）。
+
+### 验收
+
+- `flutter analyze` 零告警。
+- 设置页模型列表：每行文本 = 原始 id（如 `minimax-m3.1-flash`），**不再出现** `Minimax M3.1 Flash` 这类形态。
+- 三处（设置页 / 上下文弹窗 / composer chip）模型列表数据同源：用测试断言同源。
+- 既有设置页 / 弹窗 / chip 测试全绿；受影响断言同步更新。
+
+---
+
 ## #202 窄屏筛选弹层：工作区段提到项目段之前（已落 main 并推送）
 
 **分类**：窄屏 UI 顺序　**状态**：已落 main（`6292a9a`）；**待主人真机复验观感**　**发现**：2026-10-15（主人：「顺便把窄屏会话项筛选中 工作区筛选放在项目筛选前面」）
@@ -3008,3 +3042,102 @@ return MediaQuery(
 - 备注（并行冲突）：本轮提交时撞上并行会话改写 main 历史，首次提交被其打包又回退，最终以工作区+index 内容为准重新提交；**只 `git add` 本条目点名的文件**。
 - 备注（**守卫判据的坑**，2026-10-15 补）：初版守卫只断言「图表 widget 外框高 > 180」，**不能鉴别**「卡片被拉伸而图表不弹性」（= 只拉外框、里面还是空的）那一形态 —— 因为 `Expanded` 的 tight 约束会把外框撑满，外框高恒等于剩余空间。正解 = 双判据：① `chart.height > chartCard.height - 90`（图表应吃掉卡片除标题/内边距外的全部高度）；② 最下排轴标签贴卡片底（`label.last.bottom > chartCard.bottom - 40`）。**且测试数据要够长**：模型只给 1 个时右列仅 ~265pt，两形态差不到 40pt，判据会假绿；改成 6 个模型后 A2 形态必红（实测 `Expected: a value greater than <394.5> / Actual: <180.0>`）。
 - 备注（**交付纪律**，2026-10-15）：首次交付的「改后」对比图取自 worktree 里**试验变体**那轮残留的 PNG（图表固定 180 的形态），与交付代码不一致 ⇒ 主人据此报「容器大了、里面还是空的」。规矩：**出图后必须核对图的来源/生成时刻与当前代码同一状态**，交付前再用几何实测交叉验证（本次实测：卡片 462.5pt / 图表 393.5pt / 轴标签 719.5→741.5 贴卡片底 758）；图改名防缓存。
+
+## #204 本机部署向导接回「内置服务」入口 + 末步收尾改共用链（2026-10-16）
+
+**分类**：引导/部署入口　**状态**：已实现并过测（主体 9f56915 + 收尾一批待提交），待主人实机复验　**发现**：2026-10-16（主人：「把这个五步向导配在现有引导页 使用本机服务的入口 是不是合适」→ 授权「按你推荐的推进」）
+
+### 现状 vs 预期
+- **现状（死路留在原地）**：形态 A 内置服务 Tab 在 agent 环境缺失时，`「启动并连接」` 是禁用态（`builtin_tab.dart` `canPress = !isBusy && isAgentInstalled`），整屏唯一出口是缺失卡的两个按钮，而「进入安装向导」按钮实际 `launchUrl(官网文档)`（`08e316a` 把唯一的 `context.push('/install-guide')` 删掉了）。同时 `lib/` 内已无任何 widget 指向 `/install-guide`（仅路由声明 + `deep_link` 白名单外）⇒ 2592 行 5 步部署向导（装机三步/起服务/出码配对）无人可达。
+- **预期**：缺 agent 时缺失卡按钮**真进向导**；向导末步收尾与内置 Tab「启动并连接」走**同一份链**（自动登录 + `builtinId` upsert/activate），不再自建 UUID 连接。
+
+### 改动点
+- 新增 `lib/features/onboarding/builtin_service_connect.dart`：`BuiltinServiceConnector`（`baseUrlOf` 把 `0.0.0.0`/空 host 回落 `127.0.0.1`；`loginAndActivate()` = 自动登录 + `upsertBuiltinAndActivate`）。**两个入口共用一份**，消灭第二/第三份实现（原向导硬编码 `127.0.0.1:8787` + 空密码，与 sidecar 实配「可改端口 + 首次加载生成 24 位随机密码」错配 ⇒ 装完连不上）。
+- `builtin_tab.dart`：`_openInstallGuide()` 改为 `context.push('/install-guide')`；`_startAndConnect` 的步骤 3-4 改调共用链；移除 `url_launcher` / `onboarding_providers` 无用 import。
+- `install_guide_page.dart`：`_finishWizard()` 重写为「① 刷 `agentEnvPresentProvider`（不刷则回内置 Tab 仍显示未检测到 + 置灰）→ ② 共用链收尾 → ③ 进会话列表」，失败**不静默**（行内红字 `wizard-finish-error` + 可重试）；配对/完成两相位底部栏加指路文案与收尾尾巴。
+- l10n：`agentGateViewInstallGuide` 文案「查看安装指南」→「进入安装向导」（按钮行为已变，文案同步）；新增 `installWizardBuiltinSettingsHint`、`installWizardFinishFailed(String)`。
+
+### 验收
+- `flutter analyze` 0 issue；`test/features/onboarding/`、`test/core/connections/`、`test/golden/` 全绿；金照无差异（向导只动配对/完成两相位，未进任何金照；窄屏逐像素不变）。
+- 新增守卫：缺失卡按钮 → 到达 `/install-guide`；收尾写入的是 `builtinId` + sidecar 实配 baseUrl + 自动登录被调用；收尾失败留在页内并出红字。
+
+### 收尾（2026-10-20，主人批准按推荐档做完）
+- **设置页入口已接回本机向导**（不再开官网文档）：`webui_sidecar_section.dart` 的「前往安装向导」改 `context.push('/install-guide')`；`router.dart` 的守卫放行 `/install-guide`（原 `hasActive && isInstallGuide → '/'` 会把从设置页进来的用户弹回主页，而设置页通常正连着远程）；`install_guide_page.dart` 返回键改 `_handleBack`（能退栈就 `pop` 回设置页，退不回才 `go('/onboarding')`）。
+- **指路文案改写真实可点层级**：`installWizardBuiltinSettingsHint` 从「内置服务的高级设置」改为「**设置 → 桌面 → 内置 WebUI 服务**」（实测那个 section 挂在「桌面」子页下、标题叫「内置 WebUI 服务」，原措辞指不到）。
+- **凭据行加密码指路**：新增 `installWizardCredentialValueWithPath`（「配对码交接 · 密码见「设置 → 桌面 → 内置 WebUI 服务」」）。**仍不显示明文密码** —— 凭据里的 password 是秘密（`core/pairing/pairing_client.dart` 安全铁律：不写日志/不进 toString/不进错误 detail），手机接入走配对码；只有桌面浏览器直连需要密码，故只指路不展示。
+- **向导「启动服务」步不加端口/密码输入框**（维持原决策）：端口/密码的真源是 sidecar 配置，向导再存一份 = 把 #204 刚消灭的「两份实现」改回来；且密码是首次加载自动生成的 24 位随机密码，用户本就填不了。服务步已有局域网行（含 host:port）显示端口。
+
+### 未做（挂待裁决）
+- **前 3 步依赖联网跑官方 `install.ps1`**（`https://hermes-agent.nousresearch.com/install.ps1`）：受限地区失败面大（向导内有网络探测卡 + 「仍然继续」）。本批未动。
+- **从设置页跑完向导会切到本机内置连接**（向导末步的既定语义：自动登录 + 激活 builtin 连接）。若主人认为「在设置页触发时不该切连接」，需另定分支语义。
+
+## #205 回合收尾延迟：「正文已出完，等很久才报已完成」—— 客户端侧裁窗（2026-10-20）
+
+**分类**：聊天流式/收尾　**状态**：① 裁窗已合入 main（b3d38d1）+ 裁窗 bug 已修（40bb722）待主人实机复验；② 动画重播待裁决　**发现**：2026-10-20（主人：「现在 live 回复生成完毕后，要等很长时间，看上去好像是重新拉取了一遍这个生成完毕的回复，才弹已完成」）
+
+### 现状 vs 预期
+- **现状**：done 收尾帧落地后 `state.messages` 从 50 行**膨胀到整表**（最大会话 2033 行），列表按整表重建 + 滚动跳变；且收尾帧的**下载**量随会话长度线性增长（实测最大 12.66 MB）⇒ 长会话必慢、越用越慢。
+- **预期**：done 落地后显示态与 REST 路径**同体量契约**（50 条窗口），收尾不产生整表重建。
+
+### 根因（实证，非推断）
+- 服务端 done 帧自带**全量** transcript（`api/streaming.py:_session_payload_with_full_messages`，不做窗口截断）；而 REST `GET /api/session` 走 `_message_window_for_display(..., msg_limit=50)` 只回 50 条。**两条路径体量契约不一致 = 缺陷本体**。
+- 客户端 `_applyCompletedStreamSession` 直吃全量 ⇒ 整表化。
+
+### 改动点（① 已合入 b3d38d1，埋点 a2791a7）
+- `chat_controller.dart` 新增 `_transcriptWindowSize = 50` + `_tailWindow(messages, size)` + `_countsAsRenderableRow(message)`。
+- 落点：`_applyCompletedStreamSession` 入口裁尾。裁窗语义**对齐服务端** `routes.py::_message_window_for_display`：按**可渲染行**计数（user 可见内容/附件、assistant）；工具结果行不占预算；**窗口起点前紧邻的、属于窗口内工具调用的结果行必须保留**（否则工具卡丢摘要，对齐服务端 #4070）；数组**尾部 = 最新**。
+- **隐藏收益（renderId 连续性）**：`renderId = 'transcript:{messagesOffset + i}'`（**按下标**不是 messageId）；done 帧 `session.compact()` **不含 `messages_offset`** ⇒ `messagesOffset` 不变；裁窗后长度回到 50 ⇒ renderId 区间与落地前**完全一致** ⇒ 列表不整体重建。不裁窗则区间从 `transcript:1983..2032` 变成 `..4032`，尾部 1983 行全是新 key。
+- 诊断埋点（tag `chat_done`）：服务端全量行数 / 裁窗后窗口行数 / 合并后行数 / `messagesOffset`。
+
+### 验收
+- `flutter analyze` 0 issue；`test/features/chat/` **1324 全绿**；全仓 **5933 通过 / 2 失败**（2 条均在 `test/features/onboarding/`，属并行会话在途改动 —— stash 隔离后 onboarding 96 条全绿，与本改动无关）。
+- 新增探针 `test/features/chat/chat_done_duplicate_probe_test.dart`（5 场景全绿）：A 内容一致→1 行无重复；B 服务端改写→仍 1 行；C 无 transcript→走补拉且行 id 不变；D 行身份替换（动画重播成因）；E 200 条全量→落地后裁到 51 行且保留尾部。
+- 真实数据批量验证（25 个最大真实会话）：帧体积缩减 **4.7×~19.8×**（12.66 MB→653 KB）、`jsonDecode` **85ms→9ms**、`state.messages` **2033→85 行**；**最终回复 100% 保留（25/25）、工具结果行 0 缺失**。
+
+### 裁窗 bug 修复（2026-10-20，主人真机截图反馈「提问气泡跑到回复下方」）
+- **现象**：回合回复完成后，本轮提问的蓝色气泡出现在**该回复的下方**；过一会刷新才回到上方。
+- **根因（我引入的真 bug，非服务端问题）**：`_tailWindow` 的「可渲染行不足 size 条」那一支写反了 —— 循环遇每个不可渲染行（tool 结果行）就把 `start` 往后推 ⇒ 窗口被裁成尾部几条。现场（真实会话 `af294c385b5e`：63 条消息 / 仅 27 条可渲染行）⇒ **窗口被裁成 1 条** ⇒ 本轮 user 提问行被裁掉 ⇒ `_mergingLoadedMessages` 找不到 user 边界行 ⇒ 乐观气泡插入点退化成「最末尾」⇒ 气泡落到回复下方。
+- **修法**（对齐服务端 `routes.py::_message_window_for_display` 的 `start_idx = 0` 起步）：可渲染行不满窗口时**全量保留**（`if (renderable < size) return messages;`）。
+- **验证**：用主人那个真实会话的数据跑客户端合并逻辑 —— 修复前「气泡前一行 = assistant」⇒ 错；修复后「前一行 = user、后一行 = assistant」⇒ 对。新增守卫 `test/features/chat/chat_done_window_test.dart`（3 条，RED 校验通过：旧实现精确红 `Expected: <63> Actual: <1>`）。
+- **通用教训**：「窗口按 A 计数、按 B 切片」是两种口径，切点必须在 A 的维度上算；**A < limit 的边界那一支必须单独验**。
+
+### 未做（挂待裁决）
+- **② 动画重播**（live 层气泡 → transcript 层气泡的渲染源切换，行 id 从 `stream-<uuid>` 换成服务端 `message_id`）：① 落地后已从「整表重建 + 滚动跳变」降级为「单条气泡重绘一次」的轻微闪动；② 修法在仓里已有（`diffMergeMessages` 的 #121 `_liveBufferAhead`/`_patchLiveRow` 保身份机制）但**语义不同**（其 `liveStreamingMessageId` 指「活跃流期间」，done 落地时流已结束），直接照搬**不生效**，需重新对齐语义；③ 触及 live 层生命周期（`streamingAssistantMessageId` 25+ 处引用）+ #121/#147/#196 家族 ⇒ **风险中**，建议主人实机确认 ① 后仍觉闪动明显再做。
+- **③ done 帧 `jsonDecode` 离主 isolate**：原估「冻帧数秒」被**实测推翻**（桌面 VM：12.66 MB → 85 ms；裁窗后 653 KB → 9 ms，手机 ARM 估也只 ~35 ms）⇒ 大头是**下载**不是解析 ⇒ **建议不做**（改事件分发同步语义不值）。
+- **服务端侧根治**（done 帧只带本轮增量）未做：会同时影响 webui 前端与 Flutter 客户端的契约对齐，需一并处理。
+
+### 备注
+- 真机 E2E 坑：本机 Flutter 桌面 app **内容区白屏**（改动版与基线版 `PrintWindow` 客户区「非近白像素」完全相同 65766/1360658 = 4%，Debug/Release 一致）⇒ 属**环境既有问题**，与本改动无关。判白屏归属必须做「基线版对照构建」。
+- 取证脚本入 `tools/probe_done_*.dart`（3 个）：体量量测 / 裁窗前后收益对比 / 真实会话裁窗回归检查。
+
+
+### #206 聊天输入栏「+」附件按钮支持多选
+
+**分类**：聊天 / 附件　**状态**：已实现（待主人实机复验）　**发现**：2026-10-20（主人：「点加号上传附件增加支持多选」）
+
+### 现状 vs 预期
+- **现状**：点「+」走 `FilePickerService.pickFile()` —— 系统选择器**单选**，一次只能加一个附件；想加 3 个文件要点 3 次、选 3 次。
+- **预期**：一次进入系统选择器即可**多选**，选中的文件全部上传并进入待发附件条，随消息一并提交。
+
+### 改动点
+- **选择层**（`lib/core/utils/file_picker.dart`）：新增 `FilePickerService.pickFiles()`（多选）与 `FilePickerEntry`（文件名 + **惰性** `readBytes()`）。
+  - 惰性的理由：一次多选可能选中几十个大文件（单文件上限 20 MiB），若在选择器返回前就把全部字节读进内存，移动端极易被系统杀掉 ⇒ 逐个 `await readBytes()`，用完即随上传释放。
+  - 平台语义：`file_picker` 的 `pickFiles` 在各平台实现里恒为多选（Windows `FOS_ALLOWMULTISELECT` / Android `EXTRA_ALLOW_MULTIPLE` / macOS `allowsMultipleSelection` / Linux `multiple=true`）⇒ 无需额外开关。
+  - `FakeFilePickerService` 加 `results` 列表（多选），`pickFile` 语义与既有测试保持不变。
+- **上传链路**（`lib/features/chat/widgets/chat_input_bar.dart` `_handleAttachment`）：改为遍历选中项**逐个上传**，逐个入待发附件条。
+  - 单个失败**不打断**其余文件：全部尝试完再统一报（多失败时逐个点名「文件名：原因」）。
+  - await 前一次性捕获 `apiClientProvider` / `pendingAttachmentsProvider` 的 notifier ⇒ 上传期间切会话/退页不会触发「Cannot use ref after the widget was disposed」。
+- **上限拦截**（`lib/features/chat/pending_attachments_provider.dart`）：新增 `kMaxPendingAttachments = 20`。
+  - **服务端口径**：webui `api/routes.py::_normalize_chat_attachments(...)[:20]` 只取前 20 个 ⇒ 超出部分客户端若照单全收，**服务端会静默丢弃**（用户以为全发出去了）。故客户端同口径拦截并显式提示（`附件数量已达上限`），不做无声截断。
+- **文案**（`lib/l10n/app_localizations.dart`）：新增 `attachmentsLimitReached` / `attachmentLimitDetail(int)`（中英双语）；`_showError` 加 `isError` 开关（上限提示用 `secondaryText` 而非红色错误色）。
+- **不动**：`router.dart` 里会话工作区的上传入口（`pickFile` 单文件 → 工作区）是另一个语义，保持原样。
+
+### 验收
+- `flutter analyze`：0 issue（仅剩 `tools/probe_done_window_gain.dart` 2 条**既有** unused_local_variable warning，与本改动无关）。
+- 新增 `test/features/chat/chat_attachment_multi_select_test.dart`（3 条全绿）：① 多选 3 个 → 3 次 `uploadFile`（文件名逐个正确）→ 全部入待发条 → 发送时 3 个附件一并提交；② 部分失败 → 成功项仍入条、失败项在错误弹窗里逐个点名；③ 选 21 个 → 只上传 20 个且「附件数量已达上限」提示可见。
+- 既有 `test/features/chat/chat_attachment_test.dart`（4 条）未回归（单选路径经 `pickFiles` 回落 `result` 保持兼容）。
+- `test/features/chat/` + `test/l10n/`：**1354 通过 / 4 跳过 / 0 失败**。
+
+### 备注
+- 待发附件条（`attachment_pending_bar.dart`）已是横向 `ListView`（每项 132pt 宽）⇒ 多附件天然可横向滚动，无需改布局；「全部清空」按钮在 >1 个时自动出现。
+- 用户气泡侧多附件宫格（`user_attachment_block.dart` justified gallery）本就支持任意张数，无需改动。

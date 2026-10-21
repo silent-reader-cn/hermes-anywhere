@@ -133,7 +133,7 @@ class _ComposerMetaChipsState extends ConsumerState<ComposerMetaChips> {
     if (anchor == null) return;
 
     final modelsAsync = ref.read(availableModelIdsProvider);
-    final models = modelsAsync.valueOrNull ?? const <String>[];
+    final models = _resolvedModels(modelsAsync);
     final isWide = MediaQuery.sizeOf(context).width >= kAdaptiveBreakpoint;
     final entry = OverlayEntry(
       builder: (entryContext) => PopoverMenuShell(
@@ -378,14 +378,28 @@ class _ComposerMetaChipsState extends ConsumerState<ComposerMetaChips> {
   /// 搜索无匹配时的提示行：次级色 + [kFontCaption]（注解档），定高
   /// [kPickerNoResultsRowHeight] 以便 [fitMenuHeight] 精确按行裁剪。
 
+  /// 模型候选清单（#204）：与上下文弹层的模型下拉**同一份数据源**。
+  ///
+  /// 优先级：`chatAvailableModelsProvider`（宿主/测试注入）优先，为空则回落到
+  /// 共用的 `availableModelIdsProvider`（⇒ 同一份 `/api/models/live` 响应、
+  /// 同一套去重规则、同一份原始模型名）。
+  ///
+  /// 注入值用 [ref.read] 读：本方法会在事件回调与 Overlay builder 里被调用
+  /// （不在 build 周期内），Riverpod 2.x 的 `watch` 在那里会抛异常。
+  List<String> _resolvedModels(AsyncValue<List<String>> live) {
+    final injected = ref.read(chatAvailableModelsProvider);
+    if (injected.isNotEmpty) return injected;
+    return live.valueOrNull ?? const <String>[];
+  }
+
   Widget _buildModelMenu(BuildContext menuContext, double available) {
     final l10n = AppLocalizations.of(menuContext);
     final currentModel = ref
         .watch(chatControllerProvider(widget.sessionId))
         .model;
     final modelsAsync = ref.watch(availableModelIdsProvider);
-    final models = modelsAsync.valueOrNull ?? const <String>[];
-    final isLoading = modelsAsync.isLoading;
+    final models = _resolvedModels(modelsAsync);
+    final isLoading = modelsAsync.isLoading && models.isEmpty;
     // 宽屏（>= kAdaptiveBreakpoint）：模型项仍单行（模型名本身就是全部信息，
     // 硬拆两行会「上重下空」），只加图标与 36 行高；窄屏逐像素不变。
     final isWide =

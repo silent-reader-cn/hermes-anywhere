@@ -15,6 +15,7 @@ import '../../core/models/auxiliary_model.dart';
 import '../../core/models/extensions.dart';
 import '../../core/models/mcp.dart';
 import '../../core/models/server_catalog.dart';
+import '../../core/providers/catalog_providers.dart';
 
 /// 版本号平台通道异常/测试环境时的回退值（历史常量，避免空显示）。
 const String appVersionFallback = '1.0.0+1';
@@ -292,30 +293,21 @@ class SettingsState {
   final String? refreshError;
 
   /// 全部模型选项（展平各分组 models + extraModels，大小写归一去重保序）。
-  List<ModelCatalogOption> get allModels {
-    final result = <ModelCatalogOption>[];
-    final seen = <String>{};
-    for (final group in modelGroups) {
-      for (final model in [...group.models, ...group.extraModels]) {
-        final normId = model.id
-            .toLowerCase()
-            .replaceAll(' ', '-')
-            .replaceAll('_', '-');
-        final key = model.providerID == null
-            ? normId
-            : '${model.providerID!.toLowerCase()}/$normId';
-        if (seen.add(key)) result.add(model);
-      }
-    }
-    return result;
-  }
+  ///
+  /// 去重规则与 core 的 [ModelCatalogSnapshot.allModels] 共用同一实现
+  /// （[flattenModelOptions]），保证设置页与聊天侧的模型集合口径一致（#204）。
+  List<ModelCatalogOption> get allModels => flattenModelOptions(modelGroups);
 
   /// 默认模型的显示名（目录中找不到时回退为 id 本身）。
+  ///
+  /// 显示**原模型名**（原始 id），不用服务端改写过的 `displayName`
+  /// （`minimax-m3.1-flash` 而非 `Minimax M3.1 Flash`）—— 与模型列表各行
+  /// 同一口径（#204）。
   String? get defaultModelLabel {
     final id = defaultModel;
     if (id == null || id.isEmpty) return null;
     for (final option in allModels) {
-      if (option.id == id) return option.displayName;
+      if (option.id == id) return option.rawName;
     }
     return id;
   }

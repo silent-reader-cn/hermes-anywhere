@@ -1441,6 +1441,19 @@ class ModelCatalogOption {
   final String displayName;
   final String? providerID;
 
+  /// **原模型名**（#204）：列表里显示给用户看的那一串。
+  ///
+  /// 服务端 `/api/models` 的 `displayName`（= `label`）是「人写名」——由
+  /// `api/routes.py:19912` 的 `_make_label()` 把 id 拆词后首字母大写并以空格
+  /// 拼接而来（`minimax-m3.1-flash` → `Minimax M3.1 Flash`），而 `id` 才是
+  /// 上游网关返回的原始模型名。主人 2026-10-21 明确：模型名要显示原模型名。
+  ///
+  /// 故 UI 一律用本字段，**不**用 [displayName]。
+  ///
+  /// 带 provider 前缀的 id（`@custom:ark.cn-beijing.volces.com:doubao-lite-128k`）
+  /// 保留完整写法 —— 前缀是路由信息，截掉会指回错误的 provider。
+  String get rawName => id;
+
   /// favoriteKey = (id, providerID)。
   ModelFavoriteKey get favoriteKey =>
       ModelFavoriteKey(modelID: id, providerID: providerID);

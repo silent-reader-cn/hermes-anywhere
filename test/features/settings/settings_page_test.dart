@@ -376,8 +376,10 @@ void main() {
       );
 
       // 模型：默认模型显示名 + 推理强度
+      // 显示的是**原模型名**（原始 id），不是服务端改写过的 label（#204）。
       expect(find.text('默认模型'), findsOneWidget);
-      expect(find.text('GPT-4o'), findsOneWidget);
+      expect(find.text('gpt-4o'), findsOneWidget);
+      expect(find.text('GPT-4o'), findsNothing);
       await tester.ensureVisible(
         find.byKey(const ValueKey('settings-reasoning')),
       );
@@ -478,7 +480,8 @@ void main() {
 
       expect(find.text('模型加载失败'), findsNothing);
       expect(find.text('默认模型'), findsOneWidget);
-      expect(find.text('GPT-4o'), findsOneWidget);
+      expect(find.text('gpt-4o'), findsOneWidget);
+      expect(find.text('GPT-4o'), findsNothing);
     });
 
     testWidgets('服务器不支持推理强度 → 不显示推理行', (tester) async {

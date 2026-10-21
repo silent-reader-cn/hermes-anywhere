@@ -14,12 +14,11 @@ import '../../../app/widgets/adaptive_action_menu.dart'
 import '../../../app/widgets/picker_menu_content.dart';
 import '../../../app/widgets/popover_dropdown.dart';
 import '../../../app/widgets/popover_menu_shell.dart';
-import '../../../core/api/api_client.dart';
-import '../../../core/api/api_client_server_panels.dart';
 import '../../../core/api/api_client_workspace.dart';
 import '../../../core/connections/connection_providers.dart';
 import '../../../core/models/context_window_snapshot.dart';
 import '../../../core/models/workspace.dart';
+import '../../../core/providers/catalog_providers.dart';
 import '../../../core/utils/context_window_formatter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../settings/settings_providers.dart';
@@ -135,7 +134,6 @@ class ContextWindowPopover extends ConsumerStatefulWidget {
 class _ContextWindowPopoverState extends ConsumerState<ContextWindowPopover> {
   bool _compressing = false;
   bool _savingWorkspace = false;
-  bool _loadingModels = false;
   bool _manualInputExpanded = false;
   bool _loadingWorkspaces = false;
   bool _workspacesFetched = false;
@@ -161,7 +159,28 @@ class _ContextWindowPopoverState extends ConsumerState<ContextWindowPopover> {
 
   List<WorkspaceRoot> _workspaces = const [];
   late final TextEditingController _workspaceController;
-  List<String> _fetchedModels = const [];
+
+  /// 模型候选清单（#204）：与聊天窗口右下角的模型 chip **同一份数据源**
+  /// （共用 `availableModelIdsProvider` ⇒ 同一次 `/api/models/live` 响应、
+  /// 同一套去重规则、同一份原始模型名）。
+  ///
+  /// 优先级：`chatAvailableModelsProvider`（宿主/测试注入）优先，为空则回落到
+  /// 共用 provider 的实时列表。
+  ///
+  /// 读法用 [ref.read] 而非 [ref.watch]：本 getter 会在事件回调与 Overlay
+  /// builder 里被调用（不在 build 周期内），Riverpod 2.x 的 `watch` 在那里
+  /// 会抛异常。数据到达后的重建由 [build] 里的 [ref.listen] 负责。
+  List<String> get _resolvedModels {
+    final injected = ref.read(chatAvailableModelsProvider);
+    if (injected.isNotEmpty) return injected;
+    return ref.read(availableModelIdsProvider).valueOrNull ?? const <String>[];
+  }
+
+  /// 模型清单是否仍在加载（共用 provider 未出结果且无注入值）。
+  bool get _loadingModels {
+    if (ref.read(chatAvailableModelsProvider).isNotEmpty) return false;
+    return ref.read(availableModelIdsProvider).isLoading;
+  }
 
   @override
   void initState() {
@@ -169,9 +188,8 @@ class _ContextWindowPopoverState extends ConsumerState<ContextWindowPopover> {
     final initialWorkspace =
         ref.read(chatControllerProvider(widget.sessionId)).workspace ?? '';
     _workspaceController = TextEditingController(text: initialWorkspace);
-    // 若 provider 模型列表为空，异步拉取真实模型以保证可切换；异步拉取工作区列表
+    // 异步拉取工作区列表；模型清单改由共用 provider 提供（#204）。
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_maybeFetchModels());
       unawaited(_fetchWorkspaces());
     });
   }
@@ -361,10 +379,7 @@ class _ContextWindowPopoverState extends ConsumerState<ContextWindowPopover> {
   /// 模型下拉的行高清单：候选模型 + 「跟随服务器默认」（宽屏另夹一条分组线）
   /// + （宽屏且候选够多时的）搜索框块。
   List<double> _modelMenuRowHeights(bool isWide) {
-    final providerModels = ref.read(chatAvailableModelsProvider);
-    final resolved = providerModels.isNotEmpty
-        ? providerModels
-        : _fetchedModels;
+    final resolved = _resolvedModels;
     final row = isWide ? kMenuRowHeightMouse : kMenuRowHeightTouch;
     return <double>[
       if (isWide && resolved.length >= kPickerSearchMinCandidates)
@@ -406,10 +421,7 @@ class _ContextWindowPopoverState extends ConsumerState<ContextWindowPopover> {
   Widget _buildModelMenu(BuildContext menuContext, double available) {
     final l10n = AppLocalizations.of(menuContext);
     final isWide = isWideLayout(menuContext);
-    final providerModels = ref.read(chatAvailableModelsProvider);
-    final resolved = providerModels.isNotEmpty
-        ? providerModels
-        : _fetchedModels;
+    final resolved = _resolvedModels;
     final currentModel = ref
         .read(chatControllerProvider(widget.sessionId))
         .model;
@@ -641,47 +653,6 @@ class _ContextWindowPopoverState extends ConsumerState<ContextWindowPopover> {
     );
   }
 
-  Future<void> _maybeFetchModels() async {
-    final existing = ref.read(chatAvailableModelsProvider);
-    if (existing.isNotEmpty) return;
-    if (_loadingModels) return;
-
-    final ApiClient client;
-    try {
-      client = ref.read(apiClientProvider);
-    } catch (_) {
-      // 处于测试环境或无激活连接时静默处理
-      return;
-    }
-
-    setState(() => _loadingModels = true);
-    try {
-      final response = await client.modelsLive();
-      final liveOptions = response.liveOptions;
-      if (!mounted) return;
-      final modelIds = <String>[];
-      final seen = <String>{};
-      for (final opt in liveOptions) {
-        final id = opt.id.trim();
-        if (id.isEmpty) continue;
-        final normKey = id
-            .toLowerCase()
-            .replaceAll(' ', '-')
-            .replaceAll('_', '-');
-        if (seen.add(normKey)) {
-          modelIds.add(id);
-        }
-      }
-      setState(() {
-        _fetchedModels = modelIds;
-      });
-    } catch (_) {
-      // 网络请求失败静默保留空列表（仅显示跟随服务器默认）
-    } finally {
-      if (mounted) setState(() => _loadingModels = false);
-    }
-  }
-
   Future<void> _fetchWorkspaces() async {
     if (_loadingWorkspaces || _workspacesFetched) return;
     setState(() => _loadingWorkspaces = true);
@@ -743,6 +714,15 @@ class _ContextWindowPopoverState extends ConsumerState<ContextWindowPopover> {
 
   @override
   Widget build(BuildContext context) {
+    // 模型清单到达后重建本弹层（否则模型下拉会一直停在「加载中」）。
+    // 用 listen 而非 watch：本弹层的模型 getter 会在事件回调 / Overlay
+    // builder 里被读（不在 build 周期内），那里 watch 会抛异常。
+    ref.listen<AsyncValue<List<String>>>(availableModelIdsProvider, (
+      previous,
+      next,
+    ) {
+      if (mounted) setState(() {});
+    });
     final l10n = AppLocalizations.of(context);
     final snapshot = widget.snapshot;
     // 宽窄分流（阈值 900，唯一判据走 layout_tokens）：宽屏按设计稿 §3 重排，
