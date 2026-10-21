@@ -30,6 +30,7 @@ import '../../downloads/download_save_service.dart';
 import '../../settings/settings_providers.dart';
 import '../../workspace_manager/file_preview_body.dart';
 import 'chat_media_parser.dart';
+import 'media_quote_button.dart';
 
 export '../../downloads/download_confirm_dialog.dart';
 
@@ -984,6 +985,16 @@ class AttachmentLightbox extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // 「引用」在刷新按钮左侧：把该图上传到当前聊天的附件（待发附件条）。
+            // 仅图像（媒体查看器）有「引用」语义；文档预览不显示此按钮。
+            if (mediaViewer)
+              MediaQuoteButton(
+                resolvedUrl: resolvedUrl,
+                bytes: bytes,
+                name: titleText.isNotEmpty ? titleText : null,
+                sessionId: sessionId,
+                foreground: navForeground,
+              ),
             if (refreshableImage)
               _MediaRefreshButton(
                 mediaUrl: resolvedUrl!,
@@ -1039,6 +1050,30 @@ class _AttachmentDownloadButton extends ConsumerWidget {
     // 紧凑态前景色：图标与状态字同色（图标此前继承 CupertinoButton 默认蓝，
     // 在黑底上会与白字状态字打架 ⇒ 媒体查看器显式白字）。
     final Color fg = foreground ?? CupertinoColors.white;
+    // 紧凑态（导航栏右上角）**只留图标**：与旁边的刷新按钮同款（20px 同色），
+    // 状态文案改由 Tooltip 承载（图标本身已区分下载中/已下载/重试）。
+    if (compact) {
+      return Tooltip(
+        message: label,
+        child: CupertinoButton(
+          key: const ValueKey('attachment-download-button'),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          minimumSize: Size.zero,
+          onPressed: onPressed,
+          child: Opacity(
+            // 禁用态：不可点的占位（如无法解析来源）半透明弱化。
+            opacity: destructive
+                ? 0.35
+                : onPressed == null
+                ? 0.6
+                : 1.0,
+            child: activity
+                ? CupertinoActivityIndicator(color: fg, radius: 8)
+                : Icon(icon, size: 20, color: fg),
+          ),
+        ),
+      );
+    }
     final row = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1062,23 +1097,7 @@ class _AttachmentDownloadButton extends ConsumerWidget {
         ),
       ],
     );
-    if (compact) {
-      return CupertinoButton(
-        key: const ValueKey('attachment-download-button'),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        minimumSize: Size.zero,
-        onPressed: onPressed,
-        child: Opacity(
-          // 禁用态：不可点的占位（如无法解析来源）半透明弱化。
-          opacity: destructive
-              ? 0.35
-              : onPressed == null
-              ? 0.6
-              : 1.0,
-          child: row,
-        ),
-      );
-    }
+    // 非紧凑态（正文兜底区的整块按钮）：保留图标 + 文字。
     return CupertinoButton.filled(
       key: const ValueKey('attachment-download-button'),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -1213,7 +1232,8 @@ class _AttachmentDownloadButton extends ConsumerWidget {
           onPressed: () async {
             await controller.retry(task.id);
           },
-          icon: CupertinoIcons.arrow_clockwise,
+          // 图标不与刷新按钮的 arrow_clockwise 撞车（两者并排在同一导航栏）。
+          icon: CupertinoIcons.arrow_counterclockwise,
           label: l10n.downloadRetry,
         );
       }

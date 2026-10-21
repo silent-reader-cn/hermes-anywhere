@@ -3154,3 +3154,87 @@ return MediaQuery(
 ### 备注
 - 待发附件条（`attachment_pending_bar.dart`）已是横向 `ListView`（每项 132pt 宽）⇒ 多附件天然可横向滚动，无需改布局；「全部清空」按钮在 >1 个时自动出现。
 - 用户气泡侧多附件宫格（`user_attachment_block.dart` justified gallery）本就支持任意张数，无需改动。
+
+---
+
+## #205 图片预览右上角：下载按钮去字样化 + 新增「引用」按钮（上传到当前聊天附件）
+
+**分类**：UI 微调 + 功能新增　**状态**：改动待落　**发现**：2026-10-21（主人指示：「图像预览右上角的下载按钮字样去掉 颜色和大小改为和旁边的刷新按钮一致，刷新按钮左侧再加一个引用按钮，点击后可以将该图像上传到当前聊天的附件中」）
+
+### 位置
+
+- `lib/features/chat/widgets/chat_media_view.dart` — `AttachmentLightbox`（聊天附件全屏预览，导航栏 trailing = 刷新 + 下载）、`_AttachmentDownloadButton`（compact 态 = 16px 图标 + 文字）、`_MediaRefreshButton`（20px 白图标 + Tooltip）。
+- `lib/features/chat/chat_providers.dart` — 新增「当前聊天会话 ID」与「媒体上传 / 字节取回」可注入 provider。
+- `lib/l10n/app_localizations.dart` + `app_zh.arb` / `app_en.arb` — 新增词条。
+- 受影响既有测试：`test/features/chat/chat_media_bubble_test.dart`（断言导航栏下载按钮的「下载 / 已下载 / 重试」文字）。
+
+### 现状 vs 预期
+
+1. **下载按钮带字样且与刷新按钮不同款**：灯箱导航栏右上角下载按钮 = 16px `cloud_download` 图标 **+ 文字**（`下载` / `下载中…` / `已下载` / `重试`），旁边刷新按钮 = 20px 纯图标 + Tooltip ⇒ 并排时字号、图标尺寸、视觉重量都不一致。预期：下载按钮去掉文字只留图标，颜色与大小跟刷新按钮一致（媒体查看器下同为白字 20px）。
+2. **状态字样的去处**：下载态（下载中 / 已下载 / 重试 / 无法下载）原靠文字表达；去字样后改由**图标 + Tooltip** 承载（图标区分态，Tooltip 给完整文案）。「重试」图标由 `arrow_clockwise`（与刷新撞车）改为 `arrow_counterclockwise`。
+3. **缺「引用」入口**：主人想在看大图时把该图直接放进当前聊天的附件（待发附件条），随下一条消息发出去，现状无此入口。预期：刷新按钮**左侧**新增引用按钮，点击 → 取字节 → 上传到会话附件目录 → 落入 `pendingAttachmentsProvider(sessionId)` → 关闭灯箱回聊天页即可见待发附件条。
+
+### 落地（改动）
+
+- `_AttachmentDownloadButton` compact 态：去文字，图标 `size: 20`，前景色沿用既有 `fg`（媒体查看器 = 白，与刷新按钮同色同尺寸）；活动指示器 `radius 8`（与刷新态一致）；外层包 `Tooltip(message: label)` 承载状态文案；「重试」图标改 `arrow_counterclockwise`。非 compact（filled）分支保留原样。
+- 新增 `_MediaQuoteButton`（`ConsumerStatefulWidget`）：key `media-quote-button`，图标 `CupertinoIcons.quote_bubble`，`size: 20`、颜色同刷新按钮，Tooltip = `mediaQuoteToChat`；上传中换活动指示器并防连点。
+- 字节取回顺序：`bytes`（内存）→ `data:` URI 解 base64 → http(s) 先查媒体缓存（`mediaCacheService.get`）失败再走客户端下载 → 本地文件直读。
+- 上传：`ApiClient.uploadFile(sessionId, data, filename)` → `UploadResponse`；随后 `pendingAttachmentsProvider(sessionId).add(PendingAttachment(name/path/mime/size/is_image + thumbnailData))`，与输入栏粘贴/上传附件**同一条链路**（待发附件条、随下一条消息发出）。
+- 目标会话 ID：**优先灯箱自带的 `sessionId`**（从该会话的附件进入时最准），回退「当前聊天会话」（`resolveCurrentChatSessionId(ref)` —— **从 go_router 路由解析** `/chat/:sessionId`）；两者皆空 ⇒ 点按给出「当前没有打开的聊天会话」提示，不静默失败。
+  - ⚠️ **刻意不走 provider 维护**：`ChatPage` 在 `initState`/`dispose` 里写 provider 撞 Riverpod 两条硬约束 —— ① 生命周期内改 provider 抛「Tried to modify a provider while the widget tree was building」；② 改成帧后回调后，dispose 后读 ref 抛「Cannot use ref after the widget was disposed」，改用容器又抛「Tried to read a provider from a ProviderContainer that was already disposed」。**两次实测都真炸**（C5 守卫 404 项全红）。改从**路由**取：路由状态是只读真相，零生命周期、零 dispose 风险（读法与 `features/notifications/notification_providers.dart` `isCurrentChatRoute` 同源）。
+- 新增可注入 provider（便于测试替身）：`chatMediaUploaderProvider`（上传）、`chatMediaBytesLoaderProvider`（取字节）。
+- l10n：`mediaQuoteToChat` / `mediaQuoteFailed` / `mediaQuoteNoSession`（ARB 同步）。
+- 引用按钮放在**刷新按钮左侧**（主人指定的位置）；引用成功后 `Navigator.maybePop()` 关闭灯箱回聊天页，待发附件条即见。
+
+### 验收（实测）
+
+- [x] `C:/tmp/f.bat analyze` 零告警（含 info）
+- [x] 灯箱导航栏：下载按钮无文字、20px、Tooltip 可读状态；引用按钮在刷新按钮左侧（新增 `test/features/chat/chat_media_quote_button_test.dart`，9 例）
+- [x] 点引用 → 上传被调用 → `pendingAttachmentsProvider` 增加一条（目标会话：灯箱自带 id 优先，缺省回退「当前聊天的路由」）
+- [x] 引用失败 → 有明确错误提示，灯箱不关；无任何会话 → 提示「当前没有打开的聊天会话」而非静默
+- [x] 既有受影响的文字断言已按新契约改写（`chat_media_bubble_test.dart` 8 处改 `find.byTooltip(...)`）
+- [x] **反向验证（护栏非空转）**：① 尺寸退回 16px ⇒ 精确红 2 例；② 摘掉引用按钮 ⇒ 精确红 5 例
+- [x] 全量 `C:/tmp/f.bat test` 与基线一致（基线：5964 通过 / 241 跳过 / 1 失败 = `session_list dark` 金照偏移，既有）
+- [ ] 主人真机复验：看大图 → 点引用 → 回聊天页见待发附件条 → 随下一条消息发出
+
+### 过程备注（三处实测踩坑，已记）
+
+1. **Riverpod 生命周期写 provider 三连炸**：最初用 `currentChatSessionIdProvider` + `ChatPage` 维护「当前聊天会话」，实测连撞三条硬约束 —— ① 生命周期内改 provider ⇒ 「Tried to modify a provider while the widget tree was building」；② 改帧后回调 ⇒ dispose 后读 ref ⇒ 「Cannot use ref after the widget was disposed」；③ 改用容器 ⇒ 容器已 dispose ⇒ 「Tried to read a provider from a ProviderContainer that was already disposed」。**两次实测都真炸**（C5 守卫 404 项全红，基线同文件全绿 ⇒ 一眼定位到是自己引入）。**最终方案：改从 go_router 路由解析**（`resolveCurrentChatSessionId`），路由状态是只读真相，零生命周期、零 dispose 风险（读法与 `features/notifications/notification_providers.dart` `isCurrentChatRoute` 同源）。
+2. **下载按钮紧凑态有两条分支**：patch 时一度留下两处 `if (compact)`（新分支在前生效、旧分支成死代码）⇒ 已清死代码。
+3. **「引用」只对图像有意义**：初版在文档预览（PDF/Office）导航栏也渲染了引用按钮 ⇒ 已收敛为**仅媒体查看器**（图片）显示。
+4. **测试侧两个坑**（均已修）：① `AttachmentLightbox.isImage` **默认 true** ⇒ 断言「文档不显示引用按钮」必须显式传 `isImage: false`（否则被当成图片）；② 「当前聊天」既已改为**从路由解析**，测试里的自建 `GoRouter` 必须 `routerProvider.overrideWithValue(router)` 注入全局 provider（否则解析不到测试路由、用例假红）。
+
+---
+
+## #206 工作区文件浏览：安卓返回键在非根目录应回到上一级目录（而非退出页面）
+
+**分类**：问题（bug）　**状态**：已落，待主人真机复验　**发现**：2026-10-21（主人追加指示：「在进入工作区文件浏览的时候，如果在非根目录下，安卓的返回键应该被用于返回上一级目录而不是退出页面」）
+
+### 位置
+
+- `lib/features/workspace/workspace_page.dart` — `WorkspacePage`（会话工作区 `/workspace/:id`）。
+
+### 根因（探针实测钉死，非推理）
+
+旧实现（#88）把拦截挂在 **shell 的注册表链路上**（`AndroidBackInterceptorRegistry` + `AdaptiveShell._handleAndroidBack` 的第 1.5 步）。但该链路**对 push 出来的独立页完全无效**：
+
+- `/workspace/:id` 是 `context.push` 出来的**独立 route**；Android 返回键由 `RouterDelegate.popRoute()` 逐 navigator 调 `maybePop()`，**先命中本页这个栈顶 route**；它身上没有 PopScope ⇒ `popDisposition = pop` ⇒ 页面**直接被 pop 掉**，事件根本冒泡不到 shell 的拦截链。
+- 探针实测（`test/tmp_probe_back/probe_test.dart`，跑完即删）：`registryAsked before=0 after=0`（注册表**一次都没被问到**）、`workspace page still present: false`（页面已被 pop）。
+- 第二个探针（`probe2_test.dart`）验证修法可行性：给本页 route 挂 `PopScope(canPop: false)` ⇒ `workspacePopScopeFired=true`、页面保留 ⇒ **本页自己的 route 就是正确的拦截点**。
+- 对照实验：`git stash` 掉本改动后跑新用例 ⇒「非根目录」用例**变红**（`src` 出现 2 处 = 层级没回退）⇒ 证实主人报障属实，且本用例**非空转**。
+
+### 落地（改动）
+
+- `WorkspacePage` 的页面根包一层 `PopScope`：
+  - `canPop`：非根目录 = `false`（拦下自己，返回键不弹页）；根目录 = `true`（放行 pop）。
+  - `onPopInvokedWithResult`：`didPop == false` 且非根目录 ⇒ `navigateUp()`（回上一级目录）。
+  - **仅 Android** 生效（`defaultTargetPlatform == TargetPlatform.android`）：iOS 侧滑返回语义不同，不在此接管；桌面无系统返回键。
+- 保留原注册表机制（其它页面/未来场景仍可用），二者不冲突：PopScope 只在**本页是栈顶 route** 时才可能被问到。
+
+### 验收
+
+- [x] 端到端用例（真起 shell + push 路由栈 + 真系统返回键）：非根目录 ⇒ 回上一级目录且页面不退出；逐级返回每按一次退一级；iOS 不劫持
+- [x] 反向验证：撤掉拦截 ⇒ 精确红 1 例（「非根目录」），其余仍绿 ⇒ 护栏非空转
+- [x] `C:/tmp/f.bat analyze` 零告警
+- [x] 全量 `C:/tmp/f.bat test` 与基线一致（基线：5964 通过 / 241 跳过 / 1 失败 = `session_list dark` 金照偏移，既有）
+- [ ] 主人真机复验：安卓进入工作区文件浏览 → 进子目录 → 按返回键 ⇒ 回到上一级目录（而非退出页面）；根目录按返回 ⇒ 退出页面

@@ -39,6 +39,9 @@
   "bgWorkManagerStatusFailedShort": "未就绪",
   "refreshImage": "刷新图片",
   "refreshPreview": "刷新预览",
+  "mediaQuoteToChat": "引用到当前聊天",
+  "mediaQuoteFailed": "引用失败",
+  "mediaQuoteNoSession": "当前没有打开的聊天会话",
   "steerUnavailable": "发送失败：当前回复无法中途提示，内容已回到输入框。",
   "steerLeftoverNotice": "中途提示未被采用，内容已回到输入框。"
 }

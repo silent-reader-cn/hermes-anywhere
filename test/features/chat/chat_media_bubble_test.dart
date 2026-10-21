@@ -849,7 +849,7 @@ void main() {
         const ValueKey('attachment-download-button'),
       );
       expect(downloadBtn, findsOneWidget);
-      expect(find.text('下载'), findsOneWidget);
+      expect(find.byTooltip('下载'), findsOneWidget);
 
       // 点击下载按钮：先弹确认框，确认后走下载队列。
       await tester.tap(downloadBtn);
@@ -865,12 +865,12 @@ void main() {
         );
         await tester.pump();
         taskSettled =
-            find.text('已下载').evaluate().isNotEmpty ||
-            find.text('重试').evaluate().isNotEmpty;
+            find.byTooltip('已下载').evaluate().isNotEmpty ||
+            find.byTooltip('重试').evaluate().isNotEmpty;
       }
 
       // 验证下载成功标记（任务已完成 → 按钮显示「已下载」）
-      expect(find.text('已下载'), findsOneWidget);
+      expect(find.byTooltip('已下载'), findsOneWidget);
 
       // 关闭
       await tester.tap(find.byIcon(CupertinoIcons.clear_thick));
@@ -944,7 +944,7 @@ void main() {
 
       // 验证没有未捕获异常崩溃，按钮回到可重试状态
       expect(tester.takeException(), isNull);
-      expect(find.text('重试'), findsOneWidget);
+      expect(find.byTooltip('重试'), findsOneWidget);
     });
 
     testWidgets('图片 Lightbox 底部包含下载按钮且点击可触发下载落盘', (tester) async {
@@ -992,7 +992,7 @@ void main() {
         const ValueKey('attachment-download-button'),
       );
       expect(downloadBtn, findsOneWidget);
-      expect(find.text('下载'), findsOneWidget);
+      expect(find.byTooltip('下载'), findsOneWidget);
 
       // 点击下载，弹出确认对话框
       await tester.tap(downloadBtn);
@@ -1007,10 +1007,10 @@ void main() {
           () => Future<void>.delayed(const Duration(milliseconds: 50)),
         );
         await tester.pump();
-        if (find.text('已下载').evaluate().isNotEmpty) break;
+        if (find.byTooltip('已下载').evaluate().isNotEmpty) break;
       }
 
-      expect(find.text('已下载'), findsOneWidget);
+      expect(find.byTooltip('已下载'), findsOneWidget);
     });
 
     testWidgets('内存字节（未保存为本地文件）不应误判为「已下载/已保存」', (tester) async {
@@ -1054,9 +1054,9 @@ void main() {
         const ValueKey('attachment-download-button'),
       );
       expect(downloadBtn, findsOneWidget);
-      expect(find.text('下载'), findsOneWidget);
+      expect(find.byTooltip('下载'), findsOneWidget);
       expect(find.text('已保存'), findsNothing);
-      expect(find.text('已下载'), findsNothing);
+      expect(find.byTooltip('已下载'), findsNothing);
     });
 
     testWidgets('不可解析来源的附件显示禁用态并呈现「无法从此来源下载」', (tester) async {
@@ -1094,8 +1094,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 验证禁用态文案与不可点击
-      expect(find.text('无法从此来源下载'), findsOneWidget);
+      // 验证禁用态文案与不可点击（状态文案现在由 Tooltip 承载）。
+      expect(find.byTooltip('无法从此来源下载'), findsOneWidget);
       final downloadBtn = tester.widget<CupertinoButton>(
         find.byKey(const ValueKey('attachment-download-button')),
       );

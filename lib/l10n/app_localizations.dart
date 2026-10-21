@@ -672,6 +672,12 @@ class AppLocalizations {
   String get mediaImage => isEnglish ? 'Image' : '图片';
   String get refreshImage => isEnglish ? 'Refresh image' : '刷新图片';
   String get refreshPreview => isEnglish ? 'Refresh preview' : '刷新预览';
+  String get mediaQuoteToChat =>
+      isEnglish ? 'Quote into current chat' : '引用到当前聊天';
+  String get mediaQuoteFailed =>
+      isEnglish ? 'Failed to quote image' : '引用失败';
+  String get mediaQuoteNoSession =>
+      isEnglish ? 'No chat session is open' : '当前没有打开的聊天会话';
   String get downloadsTitle => isEnglish ? 'Downloads' : '下载';
   String get downloadStatusQueued => isEnglish ? 'Queued' : '等待中';
   String get downloadStatusDownloading => isEnglish ? 'Downloading…' : '下载中…';

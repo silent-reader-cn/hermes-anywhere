@@ -1,13 +1,18 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/api/api_client_upload.dart';
+import '../../core/cache/cache_providers.dart';
 import '../../core/connections/connection_providers.dart';
 import '../../core/models/chat_message.dart';
 import '../../core/models/tool_call.dart';
+import '../../core/models/upload_response.dart';
 import '../../core/utils/injected_message.dart';
+import '../../app/router.dart';
 import '../settings/tool_group_settings.dart';
 import 'chat_controller.dart';
 import 'chat_models.dart';
@@ -294,6 +299,76 @@ final chatControllerProvider =
     NotifierProvider.family<ChatController, ChatState, String>(
       ChatController.new,
     );
+
+/// 当前打开的**聊天会话** ID（从路由解析；null = 当前不在聊天页）。
+///
+/// 「把媒体引用到当前聊天」这类跨页面动作需要知道用户此刻在聊哪个会话。
+/// **刻意不走 provider 维护**（ChatPage 在 initState/dispose 里写 provider 会
+/// 撞 Riverpod 的两条硬约束：生命周期内改 provider 抛「Tried to modify a
+/// provider while the widget tree was building」；dispose 后的帧后回调读容器
+/// 又会抛「Tried to read a provider from a ProviderContainer that was already
+/// disposed」—— 两次实测都真炸）。改从**路由**取：路由状态是只读真相，
+/// 无生命周期、无 dispose 风险。
+///
+/// 读法与 `features/notifications/notification_providers.dart`
+/// `isCurrentChatRoute` 同源（`routerDelegate.currentConfiguration`）。
+String? resolveCurrentChatSessionId(WidgetRef ref) {
+  try {
+    final router = ref.read(routerProvider);
+    final config = router.routerDelegate.currentConfiguration;
+    final Uri uri = config.isEmpty
+        ? router.routeInformationProvider.value.uri
+        : config.uri;
+    final segments = uri.pathSegments;
+    if (segments.length >= 2 && segments[0] == 'chat') {
+      final id = segments[1];
+      return id.isEmpty ? null : id;
+    }
+    return null;
+  } catch (_) {
+    // 无路由上下文（测试/独立 widget）⇒ 视为「不在聊天页」。
+    return null;
+  }
+}
+
+/// 媒体上传执行器（把字节上传到会话附件目录）。
+///
+/// 抽象成 provider 是为了**测试可替身**：灯箱「引用」按钮的真实行为要验证
+/// 「上传被调用 → 附件进入待发附件条」，但不该在 widget 测试里真发网络请求。
+typedef ChatMediaUploader = Future<UploadResponse> Function({
+  required String sessionId,
+  required Uint8List data,
+  required String filename,
+});
+
+/// 媒体上传执行器 Provider（生产走 [ApiClient.uploadFile]）。
+final chatMediaUploaderProvider = Provider<ChatMediaUploader>((ref) {
+  final client = ref.watch(apiClientProvider);
+  return ({required sessionId, required data, required filename}) =>
+      client.uploadFile(sessionId: sessionId, data: data, filename: filename);
+});
+
+/// 媒体字节取回器（按 URL 取原始字节）。
+///
+/// 抽象成 provider 同上：灯箱「引用」需要把远端图 / data URI / 本地文件的
+/// 字节拿到手上再上传，测试用替身避免真实 IO 与网络。
+typedef ChatMediaBytesLoader = Future<Uint8List> Function(String url);
+
+/// 媒体字节取回器 Provider（生产：媒体缓存优先，失败再走客户端下载）。
+final chatMediaBytesLoaderProvider = Provider<ChatMediaBytesLoader>((ref) {
+  final cache = ref.watch(mediaCacheServiceProvider);
+  final client = ref.watch(apiClientProvider);
+  return (url) async {
+    // 媒体缓存优先：图片多半已在本地缓存（灯箱就是从它渲染的），命中即零网络。
+    try {
+      final file = await cache.get(url);
+      return await file.readAsBytes();
+    } catch (_) {
+      // 缓存未命中/失败 ⇒ 退回客户端直连下载。
+      return await client.downloadData(Uri.parse(url));
+    }
+  };
+});
 
 /// 回合完成回调（done / stream_end 成功收尾时由 [ChatController] 调用）。
 ///

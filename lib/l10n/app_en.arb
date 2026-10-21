@@ -39,6 +39,9 @@
   "bgWorkManagerStatusFailedShort": "Not ready",
   "refreshImage": "Refresh image",
   "refreshPreview": "Refresh preview",
+  "mediaQuoteToChat": "Quote into current chat",
+  "mediaQuoteFailed": "Failed to quote image",
+  "mediaQuoteNoSession": "No chat session is open",
   "steerUnavailable": "Send failed: steering is unavailable for this reply — your message is back in the input box.",
   "steerLeftoverNotice": "Steering hint was not used — your message is back in the input box."
 }

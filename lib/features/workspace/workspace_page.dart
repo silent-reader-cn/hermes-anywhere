@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_exception.dart';
@@ -125,6 +126,12 @@ class _WorkspacePageState extends ConsumerState<WorkspacePage> {
   static String _entryIdOf(WorkspaceEntry entry) =>
       entry.path ?? entry.name ?? '';
 
+  /// 是否由**本页自己的 route** 接管 Android 系统返回键（[PopScope]）。
+  ///
+  /// 仅 Android：iOS/桌面没有系统返回键（iOS 侧滑返回语义不同，不在这里接管）。
+  bool get _isAndroidBackHandledHere =>
+      defaultTargetPlatform == TargetPlatform.android;
+
   /// 该条目是否正是右栏预览中的文件。
   bool _isPreviewing(WorkspaceEntry entry) {
     final current = _widePreviewEntry;
@@ -142,6 +149,14 @@ class _WorkspacePageState extends ConsumerState<WorkspacePage> {
   /// Android 系统返回拦截：非根目录时消费返回 = 上一级目录；根目录放行
   /// （交还 shell 走 pop 退出页面）。仅当本页为当前顶层路由（文件预览页 /
   /// 弹窗未覆盖）且列表状态就绪时才消费。
+  ///
+  /// ⚠️ 这条注册表链路**对本页无效**：`/workspace/:id` 是 `context.push` 出来的
+  /// 独立 route，Android 返回键由 `RouterDelegate.popRoute()` 逐 navigator 调
+  /// `maybePop()`，**先命中本页这个栈顶 route** ⇒ 事件根本冒泡不到 shell 的
+  /// 拦截链（实测：注册表 asked=0、页面已被 pop 掉）。真拦截由 build 里的
+  /// [PopScope] 承担（挂在**本页自己的 route** 上）；此处保留注册仅为「本页不是
+  /// 栈顶 route 时（如文件预览页盖在上面）」的兜底，两者互不冲突：PopScope 只在
+  /// 本页是栈顶 route 时才可能被问到。
   bool _handleAndroidBack() {
     final route = ModalRoute.of(context);
     if (route == null || !route.isCurrent) return false;
@@ -196,52 +211,75 @@ class _WorkspacePageState extends ConsumerState<WorkspacePage> {
       }
     });
 
-    return CupertinoPageScaffold(
-      child: CustomScrollView(
-        key: const ValueKey('workspace-scroll'),
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          AdaptiveSliverNavigationBar(
-            title: l10n.files,
-            showMiddleOnNarrow: true,
-            // 返回回会话列表 '/' 兜底。
-            // 窄屏从会话列表 push 进入时栈为 [/, /workspace/:sid]，canPop 为
-            // true 由 canPop/pop 返回 / 无需 fallback；仅当直进深链或桌面刷新
-            // 后栈仅 [/workspace/:sid]，canPop false 时 fallback 应回 '/' 而
-            // 非 '/chat/:sid'（后者在从 /workspaces 管理页 push 进来等场景与
-            // “返回会话列表”预期偏离）。
-            leading: const AppBackButton(fallback: '/'),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AccessibleButton(
-                  key: const ValueKey('workspace-refresh'),
-                  label: l10n.refreshFileList,
-                  padding: EdgeInsets.zero,
-                  onPressed: () =>
-                      unawaited(ref.read(provider.notifier).refresh()),
-                  child: const Icon(CupertinoIcons.arrow_clockwise),
-                ),
-                const SizedBox(width: 14),
-                _UploadButton(
-                  uploading: state?.isUploading == true,
-                  onPressed: () => unawaited(_onUploadPressed()),
-                ),
-              ],
+    return PopScope(
+      // Android 系统返回键：本页非根目录时**消费**并回到上一级目录；根目录放行
+      // （交还导航栈 pop 退出页面）。
+      //
+      // ⚠️ 为什么必须挂在**本页自己的 route** 上（而不是 shell 的拦截链）：
+      // `/workspace/:id` 是 `context.push` 出来的独立 route，Android 返回键由
+      // `RouterDelegate.popRoute()` 逐 navigator 调 `maybePop()`，**先命中本页
+      // 这个栈顶 route**；它身上没有 PopScope ⇒ 直接被 pop 掉，事件根本冒泡
+      //不到 shell 的拦截链（实测：shell 注册表 asked=0、页面已被 pop）。
+      //
+      // `canPop` 随目录层级动态给：非根目录 = false（拦下自己，返回键不弹页），
+      // 根目录 = true（放行 pop，退出页面）。
+      //
+      // 只在 Android 生效（iOS/桌面无系统返回键，且 iOS 侧滑返回语义不同）。
+      canPop: !_isAndroidBackHandledHere || (state?.isAtRoot ?? true),
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (!(_isAndroidBackHandledHere)) return;
+        final current = ref.read(provider).valueOrNull;
+        if (current == null || current.isAtRoot) return;
+        unawaited(ref.read(provider.notifier).navigateUp());
+      },
+      child: CupertinoPageScaffold(
+        child: CustomScrollView(
+          key: const ValueKey('workspace-scroll'),
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            AdaptiveSliverNavigationBar(
+              title: l10n.files,
+              showMiddleOnNarrow: true,
+              // 返回回会话列表 '/' 兜底。
+              // 窄屏从会话列表 push 进入时栈为 [/, /workspace/:sid]，canPop 为
+              // true 由 canPop/pop 返回 / 无需 fallback；仅当直进深链或桌面刷新
+              // 后栈仅 [/workspace/:sid]，canPop false 时 fallback 应回 '/' 而
+              // 非 '/chat/:sid'（后者在从 /workspaces 管理页 push 进来等场景与
+              // “返回会话列表”预期偏离）。
+              leading: const AppBackButton(fallback: '/'),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AccessibleButton(
+                    key: const ValueKey('workspace-refresh'),
+                    label: l10n.refreshFileList,
+                    padding: EdgeInsets.zero,
+                    onPressed: () =>
+                        unawaited(ref.read(provider.notifier).refresh()),
+                    child: const Icon(CupertinoIcons.arrow_clockwise),
+                  ),
+                  const SizedBox(width: 14),
+                  _UploadButton(
+                    uploading: state?.isUploading == true,
+                    onPressed: () => unawaited(_onUploadPressed()),
+                  ),
+                ],
+              ),
             ),
-          ),
-          AppRefreshControl(
-            onRefresh: () => ref.read(provider.notifier).refresh(),
-          ),
-          // 宽屏（≥900）：左 340 文件树 + 右预览（铺满 + 可横向滚）。
-          // 窄屏（<900）：路径头 + 文件列表长卷 —— 逐像素不变。
-          if (isWide)
-            _buildWideHostSliver(_buildWideBody(async, state, crumbs))
-          else ...[
-            SliverToBoxAdapter(child: _buildPathHeader(state, crumbs)),
-            ..._buildContentSlivers(async, state),
+            AppRefreshControl(
+              onRefresh: () => ref.read(provider.notifier).refresh(),
+            ),
+            // 宽屏（≥900）：左 340 文件树 + 右预览（铺满 + 可横向滚）。
+            // 窄屏（<900）：路径头 + 文件列表长卷 —— 逐像素不变。
+            if (isWide)
+              _buildWideHostSliver(_buildWideBody(async, state, crumbs))
+            else ...[
+              SliverToBoxAdapter(child: _buildPathHeader(state, crumbs)),
+              ..._buildContentSlivers(async, state),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
