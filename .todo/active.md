@@ -7,40 +7,6 @@
 
 ---
 
-## #204 模型列表统一：设置页显示原始模型 id + 三处共用同一数据源
-
-**分类**：UI 一致性 / 数据源统一　**状态**：进行中（分支 `feat/model-list-unify-raw-id`）　**发现**：2026-10-21（主人：「设置中选择默认模型的选项，不要把模型名改成首字母大写和空格的形式，还用原模型名；显示方式遵照聊天记录中切换模型的地方；上下文弹窗与宽屏直接暴露的、以及聊天右下角与设置默认模型列表，数据源应该用一样的」）
-
-### 现状 vs 预期（实证根因，非推测）
-
-- **「首字母大写 + 空格」的来源是服务端，不是客户端**：服务端 `/api/models` 下发的 `label` 字段由 `api/routes.py:19912` 的 `_make_label()` 生成（连字符拆词 + 首字母大写 + 空格拼接），`api/config.py:1664+` 的静态表则直接写死 `"GPT-5.4 Mini"` 这类字面量。客户端只是原样显示 `ModelCatalogOption.displayName`。
-- **实证本机真实数据**：CPA 网关 `http://localhost:30004/v1/models` 的原始 id = `minimax-m3.1-flash` / `deepseek-v4-flash` / `gpt-5.6-sol`…；经服务端 `_make_label` 后即变成 `Minimax M3.1 Flash` 这类形态 ⇒ 主人看到的差异成立。
-- **三处数据源各不相同**：
-  1. 设置页 `_ModelPickerPage`（`lib/features/settings/settings_page.dart:2346-2538`）：`settingsControllerProvider` → `GET /api/models`（缓存目录，`settings_providers.dart:382`）+ live 覆盖（`settings_providers.dart:398-408` 的 `_tryOverlayLiveModels`）⇒ **有 provider 分组**，但每行显示服务端 `label`。
-  2. 上下文窗口弹窗 `_buildModelMenu`（`lib/features/chat/widgets/context_window_popover.dart:406-486`）：`chatAvailableModelsProvider` 优先（默认空 ⇒ 走 `client.modelsLive()` 兜底，`context_window_popover.dart:644-683`）⇒ 显示**原始 id 文本**。
-  3. 聊天窗口右下角 composer chip `_buildModelMenu`（`lib/features/chat/widgets/composer_meta_chips.dart:381-481`）：`availableModelIdsProvider`（`lib/core/providers/catalog_providers.dart:25-53`）→ `GET /api/models/live` ⇒ 显示**原始 id 文本**。
-- **预期（主人 2026-10-21 拍板）**：
-  1. 设置页模型列表**保留 provider 分组**，但每行显示**原始模型 id**（不再显示服务端 label）；分组标题仍来自 `/api/models`。
-  2. 设置页与聊天窗口右下角的模型列表**共用同一份数据源**（`/api/models/live` 口径）。
-  3. 上下文弹窗的模型下拉与宽屏输入栏右下角的模型 chip **合并成一个数据源**（消除「一处 `chatAvailableModelsProvider` 注入、一处 `availableModelIdsProvider`」的双轨）。
-
-### 落地范围
-
-- `lib/core/providers/catalog_providers.dart`：模型列表数据源收敛为**单一 provider**（`/api/models/live`），供设置页 / 上下文弹窗 / composer chip 三处共用；保留 `chatAvailableModelsProvider` 作为测试注入点语义。
-- `lib/features/chat/widgets/context_window_popover.dart`：删掉自带的 `_maybeFetchModels` 兜底拉取，改读共用 provider。
-- `lib/features/chat/widgets/composer_meta_chips.dart`：改读共用 provider（与弹层同一份）。
-- `lib/features/settings/settings_page.dart` `_ModelPickerPage`：每行标题从 `model.displayName` 改为原始 id；分组标题保留。
-- `lib/features/settings/settings_providers.dart`：默认模型行 `defaultModelLabel` 口径同步（显示原始 id，与列表一致）。
-
-### 验收
-
-- `flutter analyze` 零告警。
-- 设置页模型列表：每行文本 = 原始 id（如 `minimax-m3.1-flash`），**不再出现** `Minimax M3.1 Flash` 这类形态。
-- 三处（设置页 / 上下文弹窗 / composer chip）模型列表数据同源：用测试断言同源。
-- 既有设置页 / 弹窗 / chip 测试全绿；受影响断言同步更新。
-
----
-
 ## #202 窄屏筛选弹层：工作区段提到项目段之前（已落 main 并推送）
 
 **分类**：窄屏 UI 顺序　**状态**：已落 main（`6292a9a`）；**待主人真机复验观感**　**发现**：2026-10-15（主人：「顺便把窄屏会话项筛选中 工作区筛选放在项目筛选前面」）
