@@ -4010,8 +4010,9 @@ List<double>? _feasibleAngleWindow(
 /// 视觉与交互：
 /// - 向左上扇形区多层同心弧堆叠（R=132 起每层 +78px，随屏幕左上可用空间
 ///   自动扩圈，数量不设上限，逐层向外布满整屏扇区）；
-/// - 毛玻璃/半透明圆底气泡 + 细边框与投影；
-/// - 选中项放大高亮（Hermex 蓝底 + 浮动名称 badge）；未选中项显示圆底图标 + 独立微胶囊副标。
+/// - 圆底气泡 + 细边框与投影；
+/// - 命中项**只做「球高亮」**（Hermex 蓝底 + 实心图标 + 蓝色辉光）：不缩放、不位移，
+///   名称微胶囊所有项同一套（浅色模式不再出现近黑 badge 那种暗色观感）。
 class _FabWorkspaceArcMenu extends StatelessWidget {
   const _FabWorkspaceArcMenu({
     super.key,
@@ -4067,127 +4068,85 @@ class _FabWorkspaceArcMenu extends StatelessWidget {
     final cy = geom.center.dy;
 
     return [
-      // 气泡按钮（直径 44px）
+      // 气泡按钮（直径 44px）—— 命中项只做「球高亮」：蓝底 + 实心图标 + 辉光；
+      // **不缩放、不位移**（滑动长按时不产生视觉抖动）。
       Positioned(
         left: cx - 22,
         top: cy - 22,
         width: 44,
         height: 44,
-        child: AnimatedScale(
-          scale: isHovered ? 1.18 : 1.0,
-          duration: const Duration(milliseconds: 120),
-          curve: Curves.easeOutCubic,
-          child: Container(
-            key: ValueKey('fab-workspace-item-${workspace.path}'),
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
+        child: Container(
+          key: ValueKey('fab-workspace-item-${workspace.path}'),
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isHovered
+                ? const Color(0xFF007AFF)
+                : (isDark ? const Color(0xCC2C2C2E) : LightSurfaces.card),
+            border: Border.all(
               color: isHovered
-                  ? const Color(0xFF007AFF)
-                  : (isDark ? const Color(0xCC2C2C2E) : LightSurfaces.card),
-              border: Border.all(
-                color: isHovered
-                    ? CupertinoColors.white.withValues(alpha: 0.85)
-                    : (isDark
-                          ? const Color(0x33FFFFFF)
-                          : LightSurfaces.cardBorder),
-                width: isHovered ? 1.5 : 0.8,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: isHovered
-                      ? const Color(0x55007AFF)
-                      : const Color(0x1F000000),
-                  blurRadius: isHovered ? 12 : 6,
-                  spreadRadius: isHovered ? 1 : 0,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+                  ? CupertinoColors.white.withValues(alpha: 0.85)
+                  : (isDark
+                        ? const Color(0x33FFFFFF)
+                        : LightSurfaces.cardBorder),
+              width: isHovered ? 1.5 : 0.8,
             ),
-            child: Center(
-              child: Icon(
-                isHovered ? CupertinoIcons.folder_fill : CupertinoIcons.folder,
-                size: 21,
+            boxShadow: [
+              BoxShadow(
                 color: isHovered
-                    ? CupertinoColors.white
-                    : (isDark ? CupertinoColors.white : CupertinoColors.black),
+                    ? const Color(0x55007AFF)
+                    : const Color(0x1F000000),
+                blurRadius: isHovered ? 12 : 6,
+                spreadRadius: isHovered ? 1 : 0,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Center(
+            child: Icon(
+              isHovered ? CupertinoIcons.folder_fill : CupertinoIcons.folder,
+              size: 21,
+              color: isHovered
+                  ? CupertinoColors.white
+                  : (isDark ? CupertinoColors.white : CupertinoColors.black),
+            ),
+          ),
+        ),
+      ),
+      // 名称微胶囊：**所有项同一套**（命中项不改样式、不上下位移；浅色模式
+      // 下不再出现近黑 badge 那种暗色观感）。
+      Positioned(
+        left: cx - 35,
+        top: cy + 24,
+        width: 70,
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0x99000000) : LightSurfaces.card,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: isDark
+                    ? const Color(0x26FFFFFF)
+                    : LightSurfaces.cardBorder,
+                width: 0.5,
+              ),
+            ),
+            child: Text(
+              displayName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: kFontMicro,
+                fontWeight: FontWeight.w500,
+                color: isDark ? CupertinoColors.white : CupertinoColors.black,
               ),
             ),
           ),
         ),
       ),
-      // 选中时浮动完整标题 badge，未选中时展示小微胶囊副标
-      if (isHovered)
-        Positioned(
-          left: cx - 55,
-          top: cy - 46,
-          width: 110,
-          child: Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                // Inverse tooltip surface, not a light card: white text stays
-                // legible over both page and card (see the contrast audit).
-                color: isDark
-                    ? const Color(0xEE1C1C1E)
-                    : const Color(0xF0000000),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0x33FFFFFF), width: 0.5),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x33000000),
-                    blurRadius: 6,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Text(
-                displayName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: kFontMicro,
-                  fontWeight: FontWeight.w600,
-                  color: CupertinoColors.white,
-                ),
-              ),
-            ),
-          ),
-        )
-      else
-        Positioned(
-          left: cx - 35,
-          top: cy + 24,
-          width: 70,
-          child: Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0x99000000) : LightSurfaces.card,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: isDark
-                      ? const Color(0x26FFFFFF)
-                      : LightSurfaces.cardBorder,
-                  width: 0.5,
-                ),
-              ),
-              child: Text(
-                displayName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: kFontMicro,
-                  fontWeight: FontWeight.w500,
-                  color: isDark ? CupertinoColors.white : CupertinoColors.black,
-                ),
-              ),
-            ),
-          ),
-        ),
     ];
   }
 

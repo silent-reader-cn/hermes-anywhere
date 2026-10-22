@@ -288,6 +288,62 @@ void main() {
       expect(find.text('chat-ws-sess-1'), findsOneWidget);
     });
 
+    // 主人 2026-10-22 拍板：命中项**只做「球高亮」** —— 不缩放、不位移，
+    // 标签与其它项同款微胶囊（浅色模式不再出现近黑 badge 的暗色观感）。
+    testWidgets('命中项只做球高亮：不缩放、不位移，标签仍是球下方同款微胶囊',
+        (tester) async {
+      final api = FakeSessionListApi(sessions: [_buildSession('s1', '会话 1')]);
+      api.workspaces = [
+        const WorkspaceRoot(path: '/ws/code', name: 'Code Repo'),
+        const WorkspaceRoot(path: '/ws/docs', name: 'Docs Repo'),
+      ];
+
+      await pumpSessionListPage(tester, api);
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const ValueKey('session-list-new'))),
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+
+      final menu = find.byKey(const ValueKey('fab-workspace-menu'));
+      expect(menu, findsOneWidget);
+      final itemCode = find.byKey(const ValueKey('fab-workspace-item-/ws/code'));
+      expect(itemCode, findsOneWidget);
+
+      // 未命中：非蓝底
+      var decoration =
+          tester.widget<Container>(itemCode).decoration! as BoxDecoration;
+      expect(decoration.color, isNot(const Color(0xFF007AFF)));
+
+      await gesture.moveTo(tester.getCenter(itemCode));
+      await tester.pump(const Duration(milliseconds: 150));
+
+      // 命中：球变蓝（高亮）
+      decoration = tester.widget<Container>(itemCode).decoration! as BoxDecoration;
+      expect(decoration.color, const Color(0xFF007AFF));
+
+      // 不缩放：菜单内无 AnimatedScale，球尺寸恒 44
+      expect(
+        find.descendant(of: menu, matching: find.byType(AnimatedScale)),
+        findsNothing,
+      );
+      expect(tester.getSize(itemCode), const Size(44, 44));
+
+      // 标签仍是球下方那枚微胶囊（未上移、未换成近黑 badge 的黑字白底）
+      final label = find.text('Code Repo');
+      expect(label, findsOneWidget);
+      expect(
+        tester.getTopLeft(label).dy,
+        greaterThan(tester.getBottomLeft(itemCode).dy),
+      );
+      final textWidget = tester.widget<Text>(label);
+      expect(textWidget.style?.color, isNot(CupertinoColors.white));
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
     testWidgets('长按 FAB 弹出菜单后滑动到空白无效区松开：取消创建，不跳页', (tester) async {
       final api = FakeSessionListApi(sessions: [_buildSession('s1', '会话 1')]);
       api.workspaces = [
@@ -547,7 +603,7 @@ void main() {
   });
 
   group('FabWorkspaceItemGeometry 多层同心弧几何与项间距无重叠验证', () {
-    test('2~14 项时任意两项中心距 > 56px（48+8），hover 放大 1.18 后间隙 > 8px', () {
+    test('2~14 项时任意两项中心距 > 56px（48+8），命中项不放大后间隙 > 8px', () {
       const fabCenter = Offset(342.0, 792.0); // 常见移动端 FAB 中心 (390x844 竖屏)
 
       for (var total = 2; total <= 14; total++) {
@@ -572,9 +628,9 @@ void main() {
                 'total=$total, adjacent items ($i, ${i + 1}) dist=$dist <= 56.0',
           );
 
-          // 外接圆无交集（基础半径 22px，放大 1.18 后单项半径 25.96px）
+          // 外接圆无交集（球半径恒 22px：命中项只换配色，**不缩放**）
           const rNormal = 22.0;
-          const rHovered = 22.0 * 1.18;
+          const rHovered = 22.0;
           final clearance = dist - (rHovered + rNormal);
           expect(
             clearance,
