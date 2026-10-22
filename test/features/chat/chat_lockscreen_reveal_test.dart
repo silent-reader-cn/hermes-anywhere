@@ -16,6 +16,7 @@ import 'package:hermes_ui/features/chat/chat_controller.dart';
 import 'package:hermes_ui/features/chat/chat_providers.dart';
 import 'package:hermes_ui/features/chat/chat_state.dart';
 import 'package:hermes_ui/features/notifications/notification_providers.dart';
+import 'package:hermes_ui/features/settings/smooth_streaming_settings.dart';
 
 import '../../helpers/fake_chat_api.dart';
 import '../../helpers/in_memory_secure_storage.dart';
@@ -429,6 +430,22 @@ class _FakeClock {
   void advance(Duration duration) => now = now.add(duration);
 }
 
+/// 平滑输出开关的**固定开启**替身（供 ProviderContainer override 用）。
+///
+/// 平滑输出默认关闭（主人 2026-10-22 改），而本文件用例全部依赖 reveal
+/// 逐词路径 ⇒ 用 override 显式钉住「开」，避免再依赖「默认开」的隐式前提。
+class _SmoothStreamingOn extends SmoothStreamingController {
+  @override
+  bool build() => true;
+}
+
+/// 速度档位的**固定标准档**替身（默认档已是极快，故显式钉住标准）。
+class _SmoothStreamingSpeedStandard extends SmoothStreamingSpeedController {
+  @override
+  SmoothStreamingSpeedPreset build() =>
+      SmoothStreamingSpeedPreset.standard;
+}
+
 class _NoopCacheService extends CacheService {
   _NoopCacheService(super.db);
   @override
@@ -469,6 +486,12 @@ ProviderContainer _buildContainer(
       ),
       appDatabaseProvider.overrideWithValue(db),
       cacheServiceProvider.overrideWithValue(cache),
+      // 平滑输出默认**关闭**（主人 2026-10-22 改）⇒ 本组用例全部依赖
+      // reveal 逐词路径，故在此显式开启，并显式选「标准」档（默认档已是极快）。
+      smoothStreamingProvider.overrideWith(() => _SmoothStreamingOn()),
+      smoothStreamingSpeedProvider.overrideWith(
+        () => _SmoothStreamingSpeedStandard(),
+      ),
     ],
   );
   addTearDown(() async {

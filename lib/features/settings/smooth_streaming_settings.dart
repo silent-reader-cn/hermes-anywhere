@@ -35,7 +35,10 @@ enum SmoothStreamingSpeedPreset {
     isAdaptive: false,
   ),
 
-  /// 标准（默认）：64ms interval, 2 units/tick, 2 CJK/chunk, 3s max lag, 固定。
+  /// 标准：64ms interval, 2 units/tick, 2 CJK/chunk, 3s max lag, 固定。
+  ///
+  /// ⚠️ **不再是默认档**（主人 2026-10-22 改）：默认档已改为 [veryFast]。
+  /// 本档保留为「想要稳定匀速、不追积压」时的手动选项。
   standard(
     id: 'standard',
     displayName: '标准',
@@ -115,25 +118,30 @@ enum SmoothStreamingSpeedPreset {
     }
   }
 
-  /// 根据持久化 ID 或名称解析档位，容错回退为 [standard]。
+  /// 根据持久化 ID 或名称解析档位，容错回退为 [veryFast]。
+  ///
+  /// ⚠️ **回退档 = 极快**（主人 2026-10-22 定）：「平滑输出」默认**关闭**，
+  /// 开启时默认档位为**极快**（`veryFast`）—— 主人要的是「一开就快」，不是
+  /// 「一开就慢悠悠地逐字敲」。故此处（**键缺失**）与下方未知值兜底（**键
+  /// 存在但无法识别**）都回退到 [veryFast]，两处口径必须一致。
   static SmoothStreamingSpeedPreset fromId(String? id) {
-    if (id == null || id.isEmpty) return SmoothStreamingSpeedPreset.standard;
+    if (id == null || id.isEmpty) return SmoothStreamingSpeedPreset.veryFast;
     for (final preset in SmoothStreamingSpeedPreset.values) {
       if (preset.id == id || preset.name == id) {
         return preset;
       }
     }
-    return SmoothStreamingSpeedPreset.standard;
+    return SmoothStreamingSpeedPreset.veryFast;
   }
 }
 
-/// 平滑打字机输出偏好设置 Provider（持久化到 shared_preferences，默认开启）。
+/// 平滑打字机输出偏好设置 Provider（持久化到 shared_preferences，默认关闭）。
 final smoothStreamingProvider =
     NotifierProvider<SmoothStreamingController, bool>(
       SmoothStreamingController.new,
     );
 
-/// 平滑打字机速度档位 Provider（持久化到 shared_preferences，默认 standard）。
+/// 平滑打字机速度档位 Provider（持久化到 shared_preferences，默认 veryFast）。
 final smoothStreamingSpeedProvider =
     NotifierProvider<
       SmoothStreamingSpeedController,
@@ -145,15 +153,19 @@ class SmoothStreamingController extends Notifier<bool> {
   /// 持久化 Key。
   static const String keySmoothStreaming = kSmoothStreamingKey;
 
-  /// 读取平滑输出偏好设置的静态辅助（默认 true）。
+  /// 读取平滑输出偏好设置的静态辅助（默认 false）。
+  ///
+  /// ⚠️ **默认关闭**（主人 2026-10-22 定）：平滑输出是「打字机演出的额外一层」，
+  /// 不是消息正确到达的前提 —— 默认开着会让每条回复都先慢速逐字演一遍，
+  /// 主人要的是**默认直接出结果**，需要手感时再手动开。
   static Future<bool> loadSmoothStreamingPref({
     SharedPreferences? customPrefs,
   }) async {
     try {
       final prefs = customPrefs ?? await SharedPreferences.getInstance();
-      return prefs.getBool(keySmoothStreaming) ?? true;
+      return prefs.getBool(keySmoothStreaming) ?? false;
     } catch (_) {
-      return true;
+      return false;
     }
   }
 
@@ -163,7 +175,7 @@ class SmoothStreamingController extends Notifier<bool> {
   bool build() {
     _hasCustomState = false;
     unawaited(_load());
-    return true;
+    return false;
   }
 
   Future<void> _load() async {
@@ -199,7 +211,7 @@ class SmoothStreamingSpeedController
   /// 持久化 Key。
   static const String keySmoothStreamingSpeed = kSmoothStreamingSpeedKey;
 
-  /// 读取平滑打字机速度偏好设置的静态辅助（默认 standard）。
+  /// 读取平滑打字机速度偏好设置的静态辅助（默认 veryFast）。
   static Future<SmoothStreamingSpeedPreset> loadSmoothStreamingSpeedPref({
     SharedPreferences? customPrefs,
   }) async {
@@ -208,7 +220,7 @@ class SmoothStreamingSpeedController
       final id = prefs.getString(keySmoothStreamingSpeed);
       return SmoothStreamingSpeedPreset.fromId(id);
     } catch (_) {
-      return SmoothStreamingSpeedPreset.standard;
+      return SmoothStreamingSpeedPreset.veryFast;
     }
   }
 
@@ -218,7 +230,7 @@ class SmoothStreamingSpeedController
   SmoothStreamingSpeedPreset build() {
     _hasCustomState = false;
     unawaited(_load());
-    return SmoothStreamingSpeedPreset.standard;
+    return SmoothStreamingSpeedPreset.veryFast;
   }
 
   Future<void> _load() async {

@@ -372,10 +372,24 @@ void main() {
       );
     });
 
-    test('标准档（默认）：16ms merge + 64ms 固定 2 词 reveal', () {
+    test('标准档：16ms merge + 64ms 固定 2 词 reveal', () {
       fakeAsync((async) {
         final api = _FakeChatApi();
         final container = _buildContainer(api, _FakeClock());
+        // 平滑输出默认**关闭**（主人 2026-10-22 改）⇒ 本测试显式开启，
+        // 并显式选「标准」档（默认档已是极快，见 speed provider）。
+        unawaited(
+          container.read(smoothStreamingProvider.notifier).setSmoothStreaming(
+            true,
+          ),
+        );
+        unawaited(
+          container
+              .read(smoothStreamingSpeedProvider.notifier)
+              .setSpeed(SmoothStreamingSpeedPreset.standard),
+        );
+        async.flushMicrotasks();
+
         final controller = container.read(chatControllerProvider('').notifier);
         unawaited(controller.send('hi'));
         async.flushMicrotasks();
@@ -424,6 +438,12 @@ void main() {
       fakeAsync((async) {
         final api = _FakeChatApi();
         final container = _buildContainer(api, _FakeClock());
+        // 平滑输出默认关闭 ⇒ 显式开启；档位显式选极快（亦为默认档）。
+        unawaited(
+          container.read(smoothStreamingProvider.notifier).setSmoothStreaming(
+            true,
+          ),
+        );
         unawaited(
           container
               .read(smoothStreamingSpeedProvider.notifier)
@@ -474,6 +494,19 @@ void main() {
       fakeAsync((async) {
         final api = _FakeChatApi();
         final container = _buildContainer(api, _FakeClock());
+        // 平滑输出默认关闭 ⇒ 显式开启；初始显式选标准档。
+        unawaited(
+          container.read(smoothStreamingProvider.notifier).setSmoothStreaming(
+            true,
+          ),
+        );
+        unawaited(
+          container
+              .read(smoothStreamingSpeedProvider.notifier)
+              .setSpeed(SmoothStreamingSpeedPreset.standard),
+        );
+        async.flushMicrotasks();
+
         final controller = container.read(chatControllerProvider('').notifier);
         unawaited(controller.send('hi'));
         async.flushMicrotasks();
@@ -518,6 +551,12 @@ void main() {
         final api = _FakeChatApi();
         final clock = _FakeClock();
         final container = _buildContainer(api, clock);
+        // 平滑输出默认关闭 ⇒ 显式开启；档位显式选逐字。
+        unawaited(
+          container.read(smoothStreamingProvider.notifier).setSmoothStreaming(
+            true,
+          ),
+        );
         unawaited(
           container
               .read(smoothStreamingSpeedProvider.notifier)
@@ -603,6 +642,19 @@ void main() {
       fakeAsync((async) {
         final api = _FakeChatApi();
         final container = _buildContainer(api, _FakeClock());
+        // 平滑输出默认关闭 ⇒ 显式开启；档位显式选标准档（64ms tick）。
+        unawaited(
+          container.read(smoothStreamingProvider.notifier).setSmoothStreaming(
+            true,
+          ),
+        );
+        unawaited(
+          container
+              .read(smoothStreamingSpeedProvider.notifier)
+              .setSpeed(SmoothStreamingSpeedPreset.standard),
+        );
+        async.flushMicrotasks();
+
         final controller = container.read(chatControllerProvider('').notifier);
         unawaited(controller.send('hi'));
         async.flushMicrotasks();

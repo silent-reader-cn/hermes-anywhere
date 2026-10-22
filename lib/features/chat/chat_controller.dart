@@ -2438,10 +2438,13 @@ class ChatController extends FamilyNotifier<ChatState, String> {
   ///
   /// - 慢档（1-3 档）：固定每 tick 单元数，不随积压自适应加速。
   /// - 快档（4-5 档）：保留自适应加速（base=档位单元数，上限 32）。
+  ///
+  /// 默认档取 [SmoothStreamingSpeedPreset.veryFast]（与设置项默认档一致，
+  /// 主人 2026-10-22 定）。
   @visibleForTesting
   static int adaptiveWordUnitsPerTick(
     int backlog, [
-    SmoothStreamingSpeedPreset speed = SmoothStreamingSpeedPreset.standard,
+    SmoothStreamingSpeedPreset speed = SmoothStreamingSpeedPreset.veryFast,
   ]) {
     if (backlog <= 0) return 0;
     if (!speed.isAdaptive) {

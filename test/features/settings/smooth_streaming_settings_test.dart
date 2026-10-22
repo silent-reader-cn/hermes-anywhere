@@ -20,12 +20,12 @@ void main() {
   });
 
   group('SmoothStreamingController 状态与持久化', () {
-    test('默认值为 true', () {
+    test('默认值为 false（默认关闭）', () {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
       final state = container.read(smoothStreamingProvider);
-      expect(state, isTrue);
+      expect(state, isFalse);
     });
 
     test('初始状态从 SharedPreferences 读取', () async {
@@ -145,26 +145,26 @@ void main() {
       );
       expect(
         SmoothStreamingSpeedPreset.fromId(null),
-        SmoothStreamingSpeedPreset.standard,
+        SmoothStreamingSpeedPreset.veryFast,
       );
       expect(
         SmoothStreamingSpeedPreset.fromId(''),
-        SmoothStreamingSpeedPreset.standard,
+        SmoothStreamingSpeedPreset.veryFast,
       );
       expect(
         SmoothStreamingSpeedPreset.fromId('unknown_invalid_preset'),
-        SmoothStreamingSpeedPreset.standard,
+        SmoothStreamingSpeedPreset.veryFast,
       );
     });
   });
 
   group('SmoothStreamingSpeedController 状态与持久化', () {
-    test('默认值为 standard', () {
+    test('默认值为 veryFast（极快）', () {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
       final state = container.read(smoothStreamingSpeedProvider);
-      expect(state, SmoothStreamingSpeedPreset.standard);
+      expect(state, SmoothStreamingSpeedPreset.veryFast);
     });
 
     test('初始状态从 SharedPreferences 读取', () async {
@@ -182,7 +182,7 @@ void main() {
       expect(state, SmoothStreamingSpeedPreset.charByChar);
     });
 
-    test('未知值回退为 standard', () async {
+    test('未知值回退为 veryFast（极快）', () async {
       SharedPreferences.setMockInitialValues({
         kSmoothStreamingSpeedKey: 'invalid',
       });
@@ -194,7 +194,7 @@ void main() {
       await controller.load();
 
       final state = container.read(smoothStreamingSpeedProvider);
-      expect(state, SmoothStreamingSpeedPreset.standard);
+      expect(state, SmoothStreamingSpeedPreset.veryFast);
     });
 
     test('setSpeed 修改配置并写入 SharedPreferences', () async {
@@ -264,24 +264,48 @@ void main() {
       expect(find.text('平滑输出'), findsOneWidget);
       expect(find.text('逐字平滑输出，积压时自适应加速'), findsOneWidget);
 
-      // 默认开启，速度选择行可见，且默认显示「标准」
-      expect(tester.widget<CupertinoSwitch>(switchFinder).value, isTrue);
+      // 默认关闭；速度选择行随开关隐藏
+      expect(tester.widget<CupertinoSwitch>(switchFinder).value, isFalse);
+      expect(
+        find.byKey(const ValueKey('settings-smooth-streaming-speed')),
+        findsNothing,
+      );
+
+      // 打开开关 → 速度行出现，默认档位「极快」
+      await tester.tap(switchFinder);
+      await tester.pumpAndSettle();
+
+      expect(container.read(smoothStreamingProvider), isTrue);
       final speedTileFinder = find.byKey(
         const ValueKey('settings-smooth-streaming-speed'),
       );
       expect(speedTileFinder, findsOneWidget);
       expect(find.text('打字机速度'), findsOneWidget);
-      expect(find.text('标准'), findsOneWidget);
+      // 默认档位「极快」：档位名在设置行 trailing 里，用 trailing 定位，
+      // 避免与 ActionSheet 里的同名档位撞车
+      final speedRow = find.byKey(
+        const ValueKey('settings-smooth-streaming-speed'),
+      );
+      expect(
+        find.descendant(
+          of: speedRow,
+          matching: find.text('极快'),
+        ),
+        findsOneWidget,
+      );
 
       // 点击速度行打开 ActionSheet
       await tester.tap(speedTileFinder);
       await tester.pumpAndSettle();
 
       expect(find.byType(CupertinoActionSheet), findsOneWidget);
-      expect(find.text('逐字'), findsOneWidget);
-      expect(find.text('慢'), findsOneWidget);
-      expect(find.text('快'), findsOneWidget);
-      expect(find.text('极快'), findsOneWidget);
+      // 档位名用 ActionSheet 内的 key 定位（设置行 trailing 也显示同名档位）
+      for (final id in ['charByChar', 'slow', 'standard', 'fast', 'veryFast']) {
+        expect(
+          find.byKey(ValueKey('smooth-streaming-speed-$id')),
+          findsOneWidget,
+        );
+      }
 
       // 选中「逐字」
       final charByCharAction = find.byKey(
@@ -299,7 +323,16 @@ void main() {
       );
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getString(kSmoothStreamingSpeedKey), 'charByChar');
-      expect(find.text('逐字'), findsOneWidget);
+      // 设置行 trailing 显示「逐字」（用行内定位，避免同名元素撞车）
+      expect(
+        find.descendant(
+          of: find.byKey(
+            const ValueKey('settings-smooth-streaming-speed'),
+          ),
+          matching: find.text('逐字'),
+        ),
+        findsOneWidget,
+      );
 
       // 点击切换为关闭平滑输出
       await tester.tap(switchFinder);
@@ -324,7 +357,15 @@ void main() {
         find.byKey(const ValueKey('settings-smooth-streaming-speed')),
         findsOneWidget,
       );
-      expect(find.text('逐字'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(
+            const ValueKey('settings-smooth-streaming-speed'),
+          ),
+          matching: find.text('逐字'),
+        ),
+        findsOneWidget,
+      );
       expect(
         container.read(smoothStreamingSpeedProvider),
         SmoothStreamingSpeedPreset.charByChar,

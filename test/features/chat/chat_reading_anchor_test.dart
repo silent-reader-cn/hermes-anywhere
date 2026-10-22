@@ -8,8 +8,34 @@ import 'package:hermes_ui/core/models/server_catalog.dart';
 import 'package:hermes_ui/features/chat/chat_page.dart';
 import 'package:hermes_ui/features/chat/chat_providers.dart';
 import 'package:hermes_ui/features/chat/widgets/chat_message_list.dart';
+import 'package:hermes_ui/features/settings/smooth_streaming_settings.dart';
 
 import '../../helpers/fake_chat_api.dart';
+
+/// 平滑输出开关的**固定开启**替身。
+///
+/// 平滑输出默认关闭（主人 2026-10-22 改），而本文件的滚动锚定断言按
+/// 「16ms merge + 64ms reveal tick」的节奏推进 ⇒ 显式钉住「开 + 标准档」，
+/// 不再依赖「默认开」的隐式前提。
+class _SmoothStreamingOn extends SmoothStreamingController {
+  @override
+  bool build() => true;
+}
+
+/// 速度档位的**固定标准档**替身（默认档已是极快）。
+class _SmoothStreamingSpeedStandard extends SmoothStreamingSpeedController {
+  @override
+  SmoothStreamingSpeedPreset build() =>
+      SmoothStreamingSpeedPreset.standard;
+}
+
+/// 本文件统一的 provider override（平滑输出开 + 标准档）。
+List<Override> _smoothStreamingOverrides() => [
+  smoothStreamingProvider.overrideWith(() => _SmoothStreamingOn()),
+  smoothStreamingSpeedProvider.overrideWith(
+    () => _SmoothStreamingSpeedStandard(),
+  ),
+];
 
 void main() {
   group('#14 阅读锚定测试', () {
@@ -51,7 +77,10 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [chatApiProvider.overrideWithValue(api)],
+          overrides: [
+            chatApiProvider.overrideWithValue(api),
+            ..._smoothStreamingOverrides(),
+          ],
           child: const CupertinoApp(
             home: ChatPage(sessionId: 's-reading-anchor'),
           ),
@@ -121,7 +150,10 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [chatApiProvider.overrideWithValue(api)],
+          overrides: [
+            chatApiProvider.overrideWithValue(api),
+            ..._smoothStreamingOverrides(),
+          ],
           child: const CupertinoApp(
             home: ChatPage(sessionId: 's-user-send'),
           ),
@@ -194,7 +226,10 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [chatApiProvider.overrideWithValue(api)],
+          overrides: [
+            chatApiProvider.overrideWithValue(api),
+            ..._smoothStreamingOverrides(),
+          ],
           child: const CupertinoApp(
             home: ChatPage(sessionId: 's-unpin'),
           ),
