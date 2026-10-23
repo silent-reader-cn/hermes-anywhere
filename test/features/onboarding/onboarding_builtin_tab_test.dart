@@ -517,7 +517,7 @@ void main() {
       await tester.pumpWidget(buildTestApp(bundledAvailable: true));
       await tester.pumpAndSettle();
 
-      // 验证卡片与文案存在
+      // 验证空态：提示 + 两个真出口都在
       expect(
         find.byKey(const ValueKey('onboarding-missing-agent-card')),
         findsOneWidget,
@@ -534,11 +534,20 @@ void main() {
       );
       expect(find.text('我装好了，重新检测'), findsOneWidget);
 
-      // 验证「启动并连接」按钮置灰（onPressed is null）
-      final actionBtn = tester.widget<CupertinoButton>(
-        find.byKey(const ValueKey('onboarding-builtin-action-btn')),
+      // 整页空态：正常页的标题 / 状态胶囊 / 端口密码设置 / 启动按钮一概不渲染
+      expect(find.text('Hermes 内置服务'), findsNothing);
+      expect(
+        find.byKey(const ValueKey('onboarding-builtin-status-capsule')),
+        findsNothing,
       );
-      expect(actionBtn.onPressed, isNull);
+      expect(
+        find.byKey(const ValueKey('onboarding-sidecar-port-input')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('onboarding-builtin-action-btn')),
+        findsNothing,
+      );
 
       // 模拟用户安装就绪后点击「我装好了，重新检测」
       installed = true;
@@ -547,7 +556,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 缺失卡收起，启动按钮解禁
+      // 空态收起，回到正常内置服务页：启动按钮出现且可点
       expect(
         find.byKey(const ValueKey('onboarding-missing-agent-card')),
         findsNothing,
@@ -892,6 +901,82 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('未启动'), findsOneWidget);
+    });
+  });
+
+  // 2026-10-23 观感整理：胶囊右浮到标题行尾、设置项常显不折叠、按钮贴页底。
+  group('布局 — 胶囊右浮 / 设置常显 / 按钮贴底', () {
+    testWidgets('设置项常显，且折叠入口已不存在', (tester) async {
+      await tester.pumpWidget(buildTestApp(bundledAvailable: true));
+      await tester.pumpAndSettle();
+
+      // 折叠载体已删除：没有可点开的「高级设置」行
+      expect(
+        find.byKey(const ValueKey('onboarding-advanced-disclosure')),
+        findsNothing,
+      );
+      // 四项设置一次性可见（不点任何东西）
+      expect(
+        find.byKey(const ValueKey('onboarding-sidecar-port-input')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('onboarding-sidecar-host-input')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('onboarding-sidecar-password-input')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('onboarding-sidecar-start-on-login-switch')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('状态胶囊与标题同一行，并浮到行尾最右', (tester) async {
+      await tester.pumpWidget(buildTestApp(bundledAvailable: true));
+      await tester.pumpAndSettle();
+
+      final titleRect = tester.getRect(find.text('Hermes 内置服务'));
+      final capsuleRect = tester.getRect(
+        find.byKey(const ValueKey('onboarding-builtin-status-capsule')),
+      );
+      final portRect = tester.getRect(
+        find.byKey(const ValueKey('onboarding-sidecar-port-input')),
+      );
+      final screenSize =
+          tester.view.physicalSize / tester.view.devicePixelRatio;
+
+      // 同一行（垂直中心相差不超过文字高度量级）
+      expect(capsuleRect.center.dy, closeTo(titleRect.center.dy, 10));
+      // 在标题右侧，且不被压缩到零宽
+      expect(capsuleRect.left, greaterThan(titleRect.right));
+      expect(capsuleRect.width, greaterThan(40));
+      // 浮到内容区右缘（左右内边距 24），也就是比下方设置卡内的输入框更靠右
+      expect(capsuleRect.right, closeTo(screenSize.width - 24, 1));
+      expect(capsuleRect.right, greaterThan(portRect.right));
+    });
+
+    testWidgets('启动按钮贴页底，且位于设置项下方', (tester) async {
+      await tester.pumpWidget(buildTestApp(bundledAvailable: true));
+      await tester.pumpAndSettle();
+
+      final btnRect = tester.getRect(
+        find.byKey(const ValueKey('onboarding-builtin-action-btn')),
+      );
+      final portRect = tester.getRect(
+        find.byKey(const ValueKey('onboarding-sidecar-port-input')),
+      );
+      final screenSize =
+          tester.view.physicalSize / tester.view.devicePixelRatio;
+
+      // 设置项在按钮上方
+      expect(btnRect.top, greaterThan(portRect.bottom));
+      // 贴页底（底部内边距 24）且左右内边距 24
+      expect(btnRect.bottom, closeTo(screenSize.height - 24, 1));
+      expect(btnRect.left, closeTo(24, 1));
+      expect(btnRect.right, closeTo(screenSize.width - 24, 1));
     });
   });
 }

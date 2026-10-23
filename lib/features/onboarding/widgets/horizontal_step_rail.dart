@@ -1,8 +1,14 @@
 import 'package:flutter/cupertino.dart';
+import 'package:hermes_ui/app/theme/typography_tokens.dart';
 
 import '../../../app/theme/light_surfaces.dart';
 import '../../../app/theme/status_colors.dart';
-import '../../../app/theme/typography_tokens.dart';
+
+/// 步骤点直径（圆内序号/对勾、连接线的垂直锚点都以它为基准）。
+const double kStepRailDotSize = 26;
+
+/// 连接线粗细。
+const double kStepRailSegmentHeight = 2;
 
 /// 圆点三态 + 失败态（供测试断言用；渲染由 [HorizontalStepRail] 决定）。
 enum StepRailDotState {
@@ -30,12 +36,16 @@ enum StepRailDotState {
 /// 也统一走横向步骤条，不另起垂直列表」。
 class HorizontalStepRail extends StatelessWidget {
   /// 构造横向步骤条。
+  ///
+  /// [surfaceColor]：圆点未达态的兜底底色，必须等于**该条轨所在容器的底色**
+  /// （页面底 / 卡片底），用来盖住下层连接线。缺省取页面底色。
   const HorizontalStepRail({
     super.key,
     required this.labels,
     required this.currentIndex,
     this.doneCount,
     this.failedIndex,
+    this.surfaceColor,
   }) : assert(labels.length > 0);
 
   /// 各步短名（标签区只放短词，长说明挪进当前步的详情卡）。
@@ -49,6 +59,9 @@ class HorizontalStepRail extends StatelessWidget {
 
   /// 失败步下标（为 null 表示没有失败步）。
   final int? failedIndex;
+
+  /// 圆点未达态的兜底底色（= 轨所在容器底色，用来盖住背后的连接线）。
+  final Color? surfaceColor;
 
   /// 单步的解析后状态（供测试与内部渲染共用同一判据）。
   static StepRailDotState resolveDotState(
@@ -72,35 +85,56 @@ class HorizontalStepRail extends StatelessWidget {
         ? const Color(0xFF3A3A3C)
         : const Color(0xFFE2E2E6);
     final done = (doneCount ?? currentIndex).clamp(0, labels.length);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
+    // 一条横向网格：每步占等宽一列，圆点与标签都在**同一列内居中** ⇒ 标签
+    // 天然落在各自圆点的正下方（旧实现把圆点摆在「段线之间」、标签另起一行
+    // 按 1/N 等分，两套坐标不同源，首末两个标签必然偏出去）。
+    // 连接线单独画在底层，从首圆圆心连到末圆圆心。
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columnWidth = constraints.maxWidth / labels.length;
+        return Stack(
           children: [
-            for (var i = 0; i < labels.length; i++) ...[
-              if (i > 0)
-                Expanded(child: Container(height: 2, color: segmentColor)),
-              _buildDot(context, i, done),
-            ],
-          ],
-        ),
-        const SizedBox(height: 9),
-        Row(
-          children: [
-            for (var i = 0; i < labels.length; i++)
-              Expanded(
-                child: Text(
-                  labels[i],
-                  key: ValueKey<String>('step-rail-label-$i'),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: _labelStyle(context, i, done),
-                ),
+            Positioned(
+              left: columnWidth / 2,
+              right: columnWidth / 2,
+              top: (kStepRailDotSize - kStepRailSegmentHeight) / 2,
+              child: Container(
+                height: kStepRailSegmentHeight,
+                color: segmentColor,
               ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    for (var i = 0; i < labels.length; i++)
+                      Expanded(
+                        child: Center(child: _buildDot(context, i, done)),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 9),
+                Row(
+                  children: [
+                    for (var i = 0; i < labels.length; i++)
+                      Expanded(
+                        child: Text(
+                          labels[i],
+                          key: ValueKey<String>('step-rail-label-$i'),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: _labelStyle(context, i, done),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -112,6 +146,13 @@ class HorizontalStepRail extends StatelessWidget {
       failedIndex: failedIndex,
     );
     final isDark = CupertinoTheme.brightnessOf(context) == Brightness.dark;
+    // 圆点的兜底底色 = 轨所在容器底色（页面底或卡片底）：只为盖住背后那条
+    // 连接线，不参与状态语义。显式传 surfaceColor 时优先用它。
+    final pageBackground =
+        surfaceColor ??
+        (isDark
+            ? CupertinoColors.systemBackground.resolveFrom(context)
+            : LightSurfaces.page);
     // 未达态描边：设计稿 #C8C8CC / 深色 #48484A。
     final pendingBorder = isDark
         ? const Color(0xFF48484A)
@@ -172,11 +213,13 @@ class HorizontalStepRail extends StatelessWidget {
     }
     return Container(
       key: ValueKey<String>('step-rail-dot-$index'),
-      width: 26,
-      height: 26,
+      width: kStepRailDotSize,
+      height: kStepRailDotSize,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: fill,
+        // 未达态也必须带**不透明页底色**：连接线画在圆点下层，透明底会让线
+        // 从圈里穿过去（主人 2026-10-23 指出）。完成/当前/失败本来就有实底。
+        color: fill ?? pageBackground,
         shape: BoxShape.circle,
         border: fill == null ? Border.all(color: pendingBorder, width: 1.5) : null,
       ),

@@ -956,9 +956,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
   List<Widget> _buildContentChildren(AppLocalizations l10n) {
     return [
       _buildHeader(l10n),
-      const SizedBox(height: 16),
-      _buildProgressRow(l10n),
-      const SizedBox(height: 14),
+      const SizedBox(height: 18),
       _buildStepRail(l10n),
       const SizedBox(height: 14),
       _buildCurrentStepCard(l10n),
@@ -1017,74 +1015,6 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
               context,
               LightSurfaces.textSecondary,
               dark: secondaryText,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildProgressRow(AppLocalizations l10n) {
-    final completed = _completedCount;
-    final total = InstallStageKey.values.length;
-    final progress = (completed / total).clamp(0.0, 1.0);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              l10n.installWizardProgressText(completed, total),
-              key: const ValueKey('wizard-progress-label'),
-              style: TextStyle(
-                fontSize: kFontCaption,
-                color: LightSurfaces.resolve(
-                  context,
-                  LightSurfaces.textSecondary,
-                  dark: secondaryText,
-                ),
-              ),
-            ),
-            Text(
-              '${(progress * 100).toInt()}%',
-              style: TextStyle(
-                fontSize: kFontCaption,
-                fontWeight: FontWeight.bold,
-                color: LightSurfaces.resolve(
-                  context,
-                  LightSurfaces.textSecondary,
-                  dark: secondaryText,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 7),
-        Container(
-          height: 4,
-          decoration: BoxDecoration(
-            color: LightSurfaces.resolve(
-              context,
-              LightSurfaces.divider,
-              dark: CupertinoColors.systemGrey5,
-            ),
-            borderRadius: BorderRadius.circular(2),
-          ),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: FractionallySizedBox(
-              widthFactor: progress,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: LightSurfaces.resolve(
-                    context,
-                    LightSurfaces.userDetail,
-                    dark: const Color(0xFF007AFF),
-                  ),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
             ),
           ),
         ),
@@ -1691,6 +1621,13 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
             currentIndex: index,
             doneCount: done,
             failedIndex: status.state == TailscaleState.failed ? index : null,
+            // 这条轨在卡片里：圆点兜底底色要取卡片底，否则未达点会画成
+            // 一块比卡片略深的灰饼（盖线用，必须与背后缸体同色）。
+            surfaceColor: LightSurfaces.resolve(
+              context,
+              LightSurfaces.card,
+              dark: CupertinoColors.secondarySystemGroupedBackground,
+            ),
           ),
           const SizedBox(height: 12),
           Row(
@@ -2380,125 +2317,139 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
   // The terminal remains an inverse surface in both themes. Its grey/green
   // content is readable on the fixed dark background; do not apply light grey.
   Widget _buildLogConsole(AppLocalizations l10n) {
-    return Container(
-      decoration: BoxDecoration(
-        color: CupertinoColors.darkBackgroundGray,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: LightSurfaces.resolve(
-            context,
-            LightSurfaces.divider,
-            dark: CupertinoColors.separator,
+    // 卡片自带 10 圆角 + 0.5 描边：外层 ClipRRect 把内部黑色日志区一起裁成同
+    // 一圆角，避免「黑块方角从卡片圆角里戳出来」。
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        decoration: BoxDecoration(
+          color: CupertinoColors.darkBackgroundGray,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: LightSurfaces.resolve(
+              context,
+              LightSurfaces.divider,
+              dark: CupertinoColors.separator,
+            ),
+            width: 0.5,
           ),
-          width: 0.5,
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    const Icon(
-                      CupertinoIcons.chevron_left_slash_chevron_right,
-                      size: 14,
-                      color: CupertinoColors.systemGrey,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      l10n.installGuideLogs,
-                      style: const TextStyle(
-                        fontSize: kFontCaption,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 标题行：内距压到 6，并把两个文字按钮的点击热区下限从
+            // CupertinoButton 默认的 44 收到 20 —— 否则这一行无论日志展开还是
+            // 收起都白占 ~60pt，比下面的日志正文还高。
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 8, 6),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        CupertinoIcons.chevron_left_slash_chevron_right,
+                        size: 14,
                         color: CupertinoColors.systemGrey,
-                        fontWeight: FontWeight.bold,
                       ),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    CupertinoButton(
-                      padding: EdgeInsets.zero,
-                      onPressed: () {
-                        unawaited(
-                          Clipboard.setData(
-                            ClipboardData(text: _logs.join('\n')),
-                          ),
-                        );
-                      },
-                      child: Text(
-                        l10n.installGuideCopyLogs,
-                        style: TextStyle(
-                          // TODO(type): 按钮文字用了说明档 12，应 kFontButton 13；本批保持原值
-                          fontSize: kFontButton,
-                          color:
-                              CupertinoTheme.brightnessOf(context) ==
-                                  Brightness.light
-                              ? CupertinoColors.white
-                              : null,
+                      const SizedBox(width: 6),
+                      Text(
+                        l10n.installGuideLogs,
+                        style: const TextStyle(
+                          fontSize: kFontCaption,
+                          color: CupertinoColors.systemGrey,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    CupertinoButton(
-                      padding: EdgeInsets.zero,
-                      onPressed: () {
-                        setState(() => _showLogs = !_showLogs);
-                      },
-                      child: Text(
-                        _showLogs
-                            ? l10n.installGuideHideLogs
-                            : l10n.installGuideShowLogs,
-                        style: TextStyle(
-                          fontSize: kFontButton,
-                          color:
-                              CupertinoTheme.brightnessOf(context) ==
-                                  Brightness.light
-                              ? CupertinoColors.white
-                              : null,
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(0, 20),
+                        onPressed: () {
+                          unawaited(
+                            Clipboard.setData(
+                              ClipboardData(text: _logs.join('\n')),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          l10n.installGuideCopyLogs,
+                          style: TextStyle(
+                            // TODO(type): 按钮文字用了说明档 12，应 kFontButton 13；本批保持原值
+                            fontSize: kFontButton,
+                            color:
+                                CupertinoTheme.brightnessOf(context) ==
+                                    Brightness.light
+                                ? CupertinoColors.white
+                                : null,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          if (_showLogs)
-            Container(
-              height: 140,
-              padding: const EdgeInsets.all(10),
-              color: CupertinoColors.black,
-              child: _logs.isEmpty
-                  ? Text(
-                      l10n.installWizardLogWaiting,
-                      style: const TextStyle(
-                        fontSize: kFontCode,
-                        color: CupertinoColors.systemGrey,
-                        fontFamily: 'monospace',
-                      ),
-                    )
-                  : ListView.builder(
-                      controller: _logScrollController,
-                      itemCount: _logs.length,
-                      itemBuilder: (context, idx) {
-                        return Text(
-                          _logs[idx],
-                          style: const TextStyle(
-                            // TODO(type): 等宽日志行用 11，语义应 kFontCode 12；本批保持原值
-                            fontSize: kFontCode,
-                            color: CupertinoColors.systemGreen,
-                            fontFamily: 'monospace',
+                      const SizedBox(width: 10),
+                      CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(0, 20),
+                        onPressed: () {
+                          setState(() => _showLogs = !_showLogs);
+                        },
+                        child: Text(
+                          _showLogs
+                              ? l10n.installGuideHideLogs
+                              : l10n.installGuideShowLogs,
+                          style: TextStyle(
+                            fontSize: kFontButton,
+                            color:
+                                CupertinoTheme.brightnessOf(context) ==
+                                    Brightness.light
+                                ? CupertinoColors.white
+                                : null,
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-        ],
+            if (_showLogs)
+              // 黑底日志区必须吃满卡片整宽：旧写法的 Container 只包住那行
+              // 「等待安装启动…」文字，左侧一小块黑、右侧露出灰色卡片底 ——
+              // 就是「半个黑块」的观感来源。
+              Container(
+                width: double.infinity,
+                height: 140,
+                padding: const EdgeInsets.all(10),
+                color: CupertinoColors.black,
+                child: _logs.isEmpty
+                    ? Text(
+                        l10n.installWizardLogWaiting,
+                        style: const TextStyle(
+                          fontSize: kFontCode,
+                          color: CupertinoColors.systemGrey,
+                          fontFamily: 'monospace',
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: _logScrollController,
+                        itemCount: _logs.length,
+                        itemBuilder: (context, idx) {
+                          return Text(
+                            _logs[idx],
+                            style: const TextStyle(
+                              // TODO(type): 等宽日志行用 11，语义应 kFontCode 12；本批保持原值
+                              fontSize: kFontCode,
+                              color: CupertinoColors.systemGreen,
+                              fontFamily: 'monospace',
+                            ),
+                          );
+                        },
+                      ),
+              ),
+          ],
+        ),
       ),
     );
   }

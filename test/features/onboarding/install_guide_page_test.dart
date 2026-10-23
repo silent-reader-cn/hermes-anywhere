@@ -547,10 +547,16 @@ void main() {
     );
     expect(current.border, isNull);
 
-    // 未达步（2~5）= 无填充 + 1.5px 灰边 #C8C8CC。
+    // 未达步（2~5）= 页底色实心底（盖住背后的连接线，防「线穿过圆圈」）
+    // + 1.5px 灰边 #C8C8CC。
     for (var i = 1; i < 5; i++) {
       final pending = dotDecoration(tester, i);
-      expect(pending.color, isNull, reason: '未达步不应有填充');
+      expect(
+        pending.color,
+        LightSurfaces.page,
+        reason: '未达步要带不透明页底色，否则下层连接线会从圈里穿过去',
+      );
+      expect(pending.color!.a, 1.0, reason: '底色必须完全不透明');
       expect(pending.border!.top.width, 1.5);
     }
 
@@ -561,12 +567,11 @@ void main() {
     expect(label.style!.fontWeight, FontWeight.w600);
     expect(label.style!.color, isNot(LightSurfaces.textSecondary));
 
-    // 进度文案改 0 / 5 步骤（原 0 / 4）。
+    // 进度条已移除（2026-10-23：上方百分比条 + 「进度 x / 5 步骤」标签不再
+    // 渲染，进度只由步骤轨的圆点三态表达）。
     expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('wizard-progress-label')))
-          .data,
-      '进度: 0 / 5 步骤',
+      find.byKey(const ValueKey('wizard-progress-label')),
+      findsNothing,
     );
   });
 
@@ -620,16 +625,27 @@ void main() {
       '执行中…',
     );
     // 第 5 步未达。
-    expect(dotDecoration(tester, 4).color, isNull);
+    // 第 5 步未达（页底色实心 + 灰边，盖住连接线）。
+    expect(dotDecoration(tester, 4).color, LightSurfaces.page);
 
     expect(psInstaller.stagesExecuted, ['prereqs', 'agent', 'deps']);
     expect(sidecarService.startCalls, 1, reason: '「启动服务」步必须真的拉起内置服务');
+    // 第 4 步未 close 前不能算完成（与轨上蓝点、执行中自洽）：轨上前 3 点绿、
+    // 第 4 点为当前蓝点、第 5 点未达。进度条已移除，进度只由圆点表达。
+    for (var i = 0; i < 3; i++) {
+      final done = dotDecoration(tester, i);
+      expect(done.color, isNotNull);
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey<String>('step-rail-dot-$i')),
+          matching: find.byIcon(CupertinoIcons.checkmark),
+        ),
+        findsOneWidget,
+      );
+    }
     expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('wizard-progress-label')))
-          .data,
-      '进度: 3 / 5 步骤',
-      reason: '第 4 步未 close 前不能报 4/5（与轨上蓝点、执行中自洽）',
+      find.byKey(const ValueKey('wizard-progress-label')),
+      findsNothing,
     );
     // 服务本体确实在跑，由服务状态行独立表达（与步骤状态解耦）。
     expect(
@@ -952,12 +968,12 @@ void main() {
           .data,
       '等待中',
     );
+    // 进度条已移除：第 5 步为当前步（蓝点），状态文案由详情卡表达。
     expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('wizard-progress-label')))
-          .data,
-      '进度: 4 / 5 步骤',
+      find.byKey(const ValueKey('wizard-progress-label')),
+      findsNothing,
     );
+    expect(dotDecoration(tester, 4).color, LightSurfaces.userDetail);
 
     // 重新生成 → 再要一次码，码面跟着变。
     await tester.tap(
@@ -1000,10 +1016,8 @@ void main() {
       expect(dotDecoration(tester, i).color, isNotNull);
     }
     expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('wizard-progress-label')))
-          .data,
-      '进度: 5 / 5 步骤',
+      find.byKey(const ValueKey('wizard-progress-label')),
+      findsNothing,
     );
     expect(
       tester

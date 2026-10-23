@@ -22,10 +22,12 @@ import 'onboarding_field_style.dart';
 ///
 /// 包含：
 /// 1. agent 缺失卡（探测 Hermes 引擎是否安装，缺失则插卡引导到安装向导）；
-/// 2. 状态胶囊（未启动 / 启动中 / 运行中 host:port / 重启中 / 启动失败）；
-/// 3. 大按钮「启动并连接」完整链（start -> 等 running -> 自动 login -> builtin upsert+activate -> 跳转）；
+/// 2. 标题行：标题左、状态胶囊（未启动 / 启动中 / 运行中 host:port / 重启中 /
+///    启动失败）浮到行尾最右；
+/// 3. 设置区常显（端口 / 监听 IP / 密码脱敏与编辑 / 开机自启开关），不再折叠；
 /// 4. 失败态就地红字提示 + 重试按钮；
-/// 5. 高级设置折叠（端口 / 监听 IP / 密码脱敏与编辑 / 开机自启开关）。
+/// 5. 大按钮「启动并连接」固定页底（start -> 等 running -> 自动 login ->
+///    builtin upsert+activate -> 跳转），始终可见不被设置区挤出屏幕。
 class BuiltinTab extends ConsumerStatefulWidget {
   const BuiltinTab({super.key});
 
@@ -37,8 +39,7 @@ class _BuiltinTabState extends ConsumerState<BuiltinTab> {
   bool _isStartingAndConnecting = false;
   String? _errorMessage;
 
-  // 高级设置折叠状态与控制器（默认展开）
-  bool _isAdvancedExpanded = true;
+  // 设置区控制器（设置项常显，无折叠态）
   final TextEditingController _hostController = TextEditingController();
   final TextEditingController _portController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -332,176 +333,177 @@ class _BuiltinTabState extends ConsumerState<BuiltinTab> {
 
     final isAgentInstalled = ref.watch(agentEnvPresentProvider).value ?? false;
 
-    return ListView(
-      shrinkWrap: true,
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+    // 缺引擎时整页只留「提示 + 两个出口」：标题/胶囊/设置/启动按钮全都不渲染，
+    // 因为它们此刻全是死控件（点了也起不来），留着只会让人以为坏了一半。
+    if (!isAgentInstalled) {
+      return _buildAgentMissingPage(l10n);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (!isAgentInstalled) ...[
-          _buildMissingAgentCard(l10n),
-          const SizedBox(height: 12),
-        ],
-        Text(
-          l10n.onboardingBuiltinTitle,
-          // TODO(type): 未进梯子（Tab 页标题，宜 kFontPageTitle 17）
-          style: const TextStyle(
-            fontSize: kFontPageTitleMd,
-            fontWeight: FontWeight.bold,
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+            children: [
+              // 标题行：标题占左、状态胶囊浮到行尾最右（对齐设置页「标题 +
+              // 右侧状态」的读法，不再单独占一整行）。两侧都用 Flexible：
+              // 空间不足时标题优先保形、胶囊自己截断，绝不出现标题被胶囊挤成
+              // 「Hermes 内置…」的丑相。
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // 标题吃固有宽度（不参与弹性分配，绝不被压缩）；胶囊拿剩下的
+                  // 全部空间并右浮，因此端口能完整显示，只有极端窄屏才截断。
+                  Text(
+                    l10n.onboardingBuiltinTitle,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: kFontPageTitleMd,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: _buildStatusCapsule(l10n, sidecarState, sidecarConfig),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                l10n.onboardingBuiltinSubtitle,
+                style: TextStyle(
+                  fontSize: kFontBody,
+                  color: LightSurfaces.resolve(
+                    context,
+                    LightSurfaces.textSecondary,
+                    dark: secondaryText,
+                  ),
+                ),
+              ),
+              if (sidecarState.status == SidecarStatus.failed ||
+                  _errorMessage != null) ...[
+                const SizedBox(height: 12),
+                _buildErrorSection(l10n, sidecarState, isAgentInstalled),
+              ],
+              const SizedBox(height: 18),
+              // 设置项常显（原「高级设置」折叠已去掉，四项一次性可见）
+              _buildSettingsSection(context, l10n),
+            ],
           ),
         ),
-        const SizedBox(height: 6),
-        Text(
-          l10n.onboardingBuiltinSubtitle,
-          style: TextStyle(
-            fontSize: kFontBody,
-            color: LightSurfaces.resolve(
-              context,
-              LightSurfaces.textSecondary,
-              dark: secondaryText,
+        // 底部固定操作区：按钮贴页底，设置项再多也不会把它挤出屏幕
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+          child: SizedBox(
+            width: double.infinity,
+            child: _buildActionButton(
+              l10n,
+              sidecarState,
+              isBuiltinActiveAndRunning,
+              isAgentInstalled,
             ),
           ),
         ),
-        const SizedBox(height: 16),
-        Row(children: [_buildStatusCapsule(l10n, sidecarState, sidecarConfig)]),
-        if (sidecarState.status == SidecarStatus.failed ||
-            _errorMessage != null) ...[
-          const SizedBox(height: 12),
-          _buildErrorSection(l10n, sidecarState, isAgentInstalled),
-        ],
-        const SizedBox(height: 24),
-        SizedBox(
-          width: double.infinity,
-          child: _buildActionButton(
-            l10n,
-            sidecarState,
-            isBuiltinActiveAndRunning,
-            isAgentInstalled,
-          ),
-        ),
-        const SizedBox(height: 20),
-        _buildAdvancedDisclosure(context, l10n),
       ],
     );
   }
 
-  /// 顶部 agent 缺失卡
-  Widget _buildMissingAgentCard(AppLocalizations l10n) {
-    return Container(
-      key: const ValueKey('onboarding-missing-agent-card'),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: LightSurfaces.resolve(
-          context,
-          LightSurfaces.tintWarning,
-          dark: CupertinoColors.systemOrange
-              .resolveFrom(context)
-              .withValues(alpha: 0.12),
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: LightSurfaces.resolve(
-            context,
-            LightSurfaces.cardBorder,
-            dark: CupertinoColors.systemOrange
-                .resolveFrom(context)
-                .withValues(alpha: 0.35),
-          ),
-          width: 0.8,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+  /// 缺 Hermes 引擎时的**整页空态**（2026-10-23 重设计）。
+  ///
+  /// 原先是在正常页顶部插一张黄色提示卡，下面照旧摆标题 / 状态胶囊 / 端口密码
+  /// 设置 / 「启动并连接」大按钮 —— 但缺引擎时这些全是死控件（按钮置灰、胶囊
+  /// 永远停在未启动），页面看起来像「坏了一半」。现在整页只留三样：一个警示
+  /// 图标 + 一句人话解释 + 两个真出口（进安装向导 / 装好后重新检测）。
+  Widget _buildAgentMissingPage(AppLocalizations l10n) {
+    final secondary = LightSurfaces.resolve(
+      context,
+      LightSurfaces.textSecondary,
+      dark: secondaryText,
+    );
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Column(
+            key: const ValueKey('onboarding-missing-agent-card'),
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Icon(
-                CupertinoIcons.exclamationmark_triangle_fill,
-                color: statusOrangeText.resolveFrom(context),
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  l10n.agentGateNotDetectedTitle,
-                  style: TextStyle(
-                    fontSize: kFontItemTitle,
-                    fontWeight: FontWeight.w600,
+              // 警示图标：琥珀底圆 + 三角感叹，作为整屏唯一的视觉锚点
+              Center(
+                child: Container(
+                  key: const ValueKey('onboarding-missing-agent-icon'),
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: LightSurfaces.resolve(
+                      context,
+                      LightSurfaces.tintWarning,
+                      dark: CupertinoColors.systemOrange
+                          .resolveFrom(context)
+                          .withValues(alpha: 0.12),
+                    ),
+                  ),
+                  child: Icon(
+                    CupertinoIcons.exclamationmark_triangle_fill,
+                    size: 32,
                     color: statusOrangeText.resolveFrom(context),
                   ),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            l10n.agentGateNotDetectedDesc,
-            style: TextStyle(
-              fontSize: kFontLabel,
-              color: LightSurfaces.resolve(
-                context,
-                LightSurfaces.textSecondary,
-                dark: secondaryText,
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: CupertinoButton(
-                  key: const ValueKey('onboarding-install-agent-btn'),
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 8,
-                    horizontal: 8,
-                  ),
-                  color: LightSurfaces.resolve(
-                    context,
-                    statusOrangeText.resolveFrom(context),
-                    dark: CupertinoColors.activeOrange,
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                  onPressed: _openInstallGuide,
-                  child: Text(
-                    l10n.agentGateViewInstallGuide,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      // TODO(type): 按钮文字用了正文档 14，应 kFontButton 13；本批保持原值
-                      fontSize: kFontButton,
-                      fontWeight: FontWeight.w600,
-                      color: CupertinoColors.white,
-                    ),
-                  ),
+              const SizedBox(height: 18),
+              Text(
+                l10n.agentGateNotDetectedTitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: kFontPageTitleMd,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: CupertinoButton(
-                  key: const ValueKey('onboarding-recheck-agent-btn'),
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 8,
-                    horizontal: 8,
-                  ),
-                  color: LightSurfaces.resolve(
-                    context,
-                    LightSurfaces.pressed,
-                    dark: CupertinoColors.systemGrey5,
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                  onPressed: () => unawaited(_recheckAgent()),
-                  child: Text(
-                    l10n.agentGateRecheckDone,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      // TODO(type): 按钮文字用了正文档 14，应 kFontButton 13；本批保持原值
-                      fontSize: kFontButton,
-                      fontWeight: FontWeight.w600,
-                      color: CupertinoColors.label.resolveFrom(context),
-                    ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.agentGateNotDetectedDesc,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: kFontBody,
+                  height: 1.45,
+                  color: secondary,
+                ),
+              ),
+              const SizedBox(height: 24),
+              CupertinoButton.filled(
+                key: const ValueKey('onboarding-install-agent-btn'),
+                // 与全仓其它主按钮同口径：浅色压 userDetail，深色交给
+                // Cupertino 自己的 systemBlue（暗色下白字对比 4.0，属既有规范）
+                color: CupertinoTheme.brightnessOf(context) == Brightness.light
+                    ? LightSurfaces.userDetail
+                    : null,
+                onPressed: _openInstallGuide,
+                child: Text(l10n.agentGateViewInstallGuide),
+              ),
+              const SizedBox(height: 4),
+              CupertinoButton(
+                key: const ValueKey('onboarding-recheck-agent-btn'),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                onPressed: () => unawaited(_recheckAgent()),
+                child: Text(
+                  l10n.agentGateRecheckDone,
+                  style: TextStyle(
+                    fontSize: kFontButton,
+                    fontWeight: FontWeight.w600,
+                    color: statusBlueText.resolveFrom(context),
                   ),
                 ),
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -533,12 +535,9 @@ class _BuiltinTabState extends ConsumerState<BuiltinTab> {
     } else {
       switch (sidecarState.status) {
         case SidecarStatus.running:
-          final effectiveHost =
-              (config.host == '0.0.0.0' || config.host.isEmpty)
-              ? '127.0.0.1'
-              : config.host;
-          text =
-              '● ${l10n.onboardingBuiltinRunning} $effectiveHost:${config.port}';
+          // 胶囊只带端口（IP 在下方设置卡「监听 IP」行可见）：标题行空间有限，
+          // 带全 host:port 在手机宽度会被截成「127.0.0.1:8…」，反而像坏了。
+          text = '● ${l10n.onboardingBuiltinRunning} · ${config.port}';
           textColor = statusGreenText.resolveFrom(context);
           bgColor = LightSurfaces.resolve(
             context,
@@ -597,6 +596,9 @@ class _BuiltinTabState extends ConsumerState<BuiltinTab> {
       ),
       child: Text(
         text,
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontSize: kFontLabel,
           fontWeight: FontWeight.w600,
@@ -713,53 +715,24 @@ class _BuiltinTabState extends ConsumerState<BuiltinTab> {
     );
   }
 
-  /// 高级设置折叠
-  Widget _buildAdvancedDisclosure(BuildContext context, AppLocalizations l10n) {
+  /// 设置区（常显，无折叠入口）
+  Widget _buildSettingsSection(BuildContext context, AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        GestureDetector(
-          key: const ValueKey('onboarding-advanced-disclosure'),
-          behavior: HitTestBehavior.opaque,
-          onTap: () {
-            setState(() {
-              _isAdvancedExpanded = !_isAdvancedExpanded;
-            });
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              children: [
-                Text(
-                  l10n.onboardingAdvancedSettings,
-                  style: TextStyle(
-                    // TODO(type): 内容区行名用了侧栏档 14，宜 kFontItemTitle 15；本批保持原值
-                    fontSize: kFontItemTitle,
-                    fontWeight: FontWeight.w500,
-                    color: LightSurfaces.resolve(
-                      context,
-                      LightSurfaces.textSecondary,
-                      dark: secondaryText,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Icon(
-                  _isAdvancedExpanded
-                      ? CupertinoIcons.chevron_down
-                      : CupertinoIcons.chevron_right,
-                  size: 14,
-                  color: LightSurfaces.resolve(
-                    context,
-                    LightSurfaces.textSecondary,
-                    dark: secondaryText,
-                  ),
-                ),
-              ],
+        Text(
+          l10n.onboardingAdvancedSettings,
+          style: TextStyle(
+            fontSize: kFontItemTitle,
+            fontWeight: FontWeight.w500,
+            color: LightSurfaces.resolve(
+              context,
+              LightSurfaces.textSecondary,
+              dark: secondaryText,
             ),
           ),
         ),
-        if (_isAdvancedExpanded) _buildAdvancedSettingsContent(context, l10n),
+        _buildAdvancedSettingsContent(context, l10n),
       ],
     );
   }

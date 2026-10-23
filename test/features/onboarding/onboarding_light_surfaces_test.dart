@@ -200,47 +200,50 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final card = tester.widget<Container>(
-        find.byKey(const ValueKey('onboarding-missing-agent-card')),
-      );
-      final decoration = card.decoration! as BoxDecoration;
       final context = tester.element(find.byType(BuiltinTab));
+      final iconCircle = tester.widget<Container>(
+        find.byKey(const ValueKey('onboarding-missing-agent-icon')),
+      );
+      final circleColor = (iconCircle.decoration! as BoxDecoration).color!;
+      final warningIcon = tester.widget<Icon>(
+        find.descendant(
+          of: find.byKey(const ValueKey('onboarding-missing-agent-icon')),
+          matching: find.byType(Icon),
+        ),
+      );
       final install = tester.widget<CupertinoButton>(
         find.byKey(const ValueKey('onboarding-install-agent-btn')),
       );
+      final recheck = tester.widget<CupertinoButton>(
+        find.byKey(const ValueKey('onboarding-recheck-agent-btn')),
+      );
+      // 图标色恒为语义橙（深色档底圈是半透明橙，无法直接算对比度，故锁色值）
+      expect(warningIcon.color, statusOrangeText.resolveFrom(context));
       if (brightness == Brightness.light) {
-        expect(decoration.color, LightSurfaces.tintWarning);
-        expect(decoration.border!.top.color, LightSurfaces.cardBorder);
+        // 琥珀底圆：浅色档取 token 的 tintWarning，图标对底圈仍需 ≥4.5
+        expect(circleColor, LightSurfaces.tintWarning);
         expect(
-          _contrast(statusOrangeText.resolveFrom(context), decoration.color!),
+          _contrast(statusOrangeText.resolveFrom(context), circleColor),
           greaterThanOrEqualTo(4.5),
         );
-        expect(
-          _contrast(LightSurfaces.textSecondary, decoration.color!),
-          greaterThanOrEqualTo(4.5),
-        );
+        // 主按钮：白字压主色
         expect(
           _contrast(CupertinoColors.white, install.color!),
           greaterThanOrEqualTo(4.5),
         );
       } else {
         expect(
-          decoration.color,
+          circleColor,
           CupertinoColors.systemOrange
               .resolveFrom(context)
               .withValues(alpha: 0.12),
         );
-        expect(
-          decoration.border!.top.color,
-          CupertinoColors.systemOrange
-              .resolveFrom(context)
-              .withValues(alpha: 0.35),
-        );
-        expect(
-          install.color,
-          CupertinoColors.activeOrange.resolveFrom(context),
-        );
+        // 深色档主按钮交给 Cupertino 默认（与全仓暗色主按钮同口径）
+        expect(install.color, isNull);
       }
+      // 次按钮是无底文字按钮（不再是灰底方块），必须真的存在且可点
+      expect(recheck.color, isNull);
+      expect(recheck.onPressed, isNotNull);
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
     });
