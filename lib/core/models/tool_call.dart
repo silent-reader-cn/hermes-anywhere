@@ -1103,8 +1103,26 @@ class ToolCallGroup {
 
     // ③ 两解都越界 → 丢弃该条（既有语义，不抛）。
     if (candidates.isEmpty) return null;
-    // ④ 唯一解直接采用。
-    if (candidates.length == 1) return candidates.first;
+    // ④ 唯一解：**仍要过一道 tid 自证**。
+    //
+    // 另一解越界不等于这个解就是对的 —— 它可能是**坐标空间错位**的产物：done 帧给的是
+    // 全量 tool_calls（全转写下标），而 messages 被客户端裁成尾部窗口，此时「全量前缀的
+    // 小下标」恰好落在窗口内 ⇒ 唯一候选、且指向窗口前段一条无关的 assistant 行。
+    // 后果：会话最早那批工具被整批挂到窗口前段的回合上（现象：回合过程胶囊 ×N 远超真值、
+    // 末条正文之后冒出历史工具卡、相邻卡不合并）。
+    //
+    // 判据：候选行**声明了稳定工具 id**，却一个都不是本 tid ⇒ 这条调用不属于本行，丢弃
+    // （宁可少挂也不许错位挂载）。生成式 id（`message-tool-x-y`）不作证据。
+    if (candidates.length == 1) {
+      final only = candidates.first;
+      if (tid != null && tid.trim().isNotEmpty) {
+        final declared = _declaredStableToolIDs(messages[only], only);
+        if (declared.isNotEmpty && !declared.contains(tid.trim())) {
+          return null;
+        }
+      }
+      return only;
+    }
 
     // ⑤ 重叠歧义：先按 tid 自证，认不出则回落新版口径（相对）。
     if (tid != null && tid.trim().isNotEmpty) {
@@ -1145,6 +1163,36 @@ class ToolCallGroup {
       if (toolCall.id == target) return true;
     }
     return false;
+  }
+
+  /// 该行声明的**稳定**工具 id 集合（生成式 `message-tool-x-y` 不计）。
+  ///
+  /// 用途：坐标自证的反面判据 ——「这行确实声明了工具，但一个都不是本 tid」⇒ 本调用
+  /// 不属于这行，属于坐标空间错位，必须丢弃而不是硬挂。
+  static Set<String> _declaredStableToolIDs(
+    ChatMessage message,
+    int messageIndex,
+  ) {
+    if (message.role != 'assistant') return const <String>{};
+    const noResults = <String, String>{};
+    final toolCalls =
+        _openAIToolCalls(
+          message,
+          messageIndex: messageIndex,
+          resultsByToolID: noResults,
+        ) +
+        _anthropicToolCalls(
+          message,
+          messageIndex: messageIndex,
+          resultsByToolID: noResults,
+        );
+    final ids = <String>{};
+    for (final toolCall in toolCalls) {
+      final id = toolCall.id.trim();
+      if (id.isEmpty || id.startsWith('message-tool-')) continue;
+      ids.add(id);
+    }
+    return ids;
   }
 
   static List<ToolCallGroup> _groupsFromMessageMetadata(

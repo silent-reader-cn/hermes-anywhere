@@ -3512,12 +3512,19 @@ class ChatController extends FamilyNotifier<ChatState, String> {
     // 不裁窗 ⇒ state.messages 落地即从 50 行膨胀到整表 ⇒ 列表整体重建
     // （且随会话长度线性恶化）。此处按与 REST 一致的窗口裁尾。
     final allLoaded = detail.messages ?? const <ChatMessage>[];
-    final loaded = _tailWindow(allLoaded, _transcriptWindowSize);
+    final window = _tailWindowRange(allLoaded, _transcriptWindowSize);
+    final loaded = window.rows;
+    // 窗口首行在「服务端返回的 messages 数组」里的下标（done 帧是全量 ⇒ > 0；
+    // 服务端若改成窗口形态 ⇒ 0，下面全部换算自动退化为恒等）。
+    final windowStart = window.start;
     final merged = _mergingLoadedMessages(
       loaded,
       state.messages,
       currentStreamingId,
     );
+    // `_mergingLoadedMessages` 以 loaded 为基底，只在尾部追加（流式行）或中部插入
+    // （local- 乐观提问）—— 首行恒为 loaded 首行 ⇒ 窗口起点不变，这是下面坐标换算的前提。
+    final windowOffset = (detail.messagesOffset ?? 0) + windowStart;
     DiagnosticsService.instance.log(
       level: DiagnosticsLogLevel.info,
       tag: 'chat_done',
@@ -3533,22 +3540,32 @@ class ChatController extends FamilyNotifier<ChatState, String> {
         'message_count': detail.messageCount,
         'window_size': _transcriptWindowSize,
         'messages_offset': state.messagesOffset,
+        'window_start': windowStart,
       },
     );
-    final persisted = detail.toolCalls ?? const <PersistedToolCall>[];
+    // ⚠️ done 帧的 tool_calls 是**全转写坐标**（服务端 `_session_payload_with_full_messages`
+    // 不做 rebase / 裁剪），必须按窗口起点换算到窗口坐标。否则 `assistant_msg_idx`
+    // 的「相对候选」会把会话最早那批工具当成窗口内下标，整批错位挂到窗口前段的回合上
+    // —— 实测该会话全量 tool_calls 前 82 条 = {终端:43, 视觉分析:21}，与界面过程胶囊
+    // 逐字一致（真值只有 6/1）。
+    final persisted = _persistedToolCallsForWindow(
+      detail.toolCalls ?? const <PersistedToolCall>[],
+      windowStart: windowStart,
+      windowLength: merged.length,
+    );
     _lastPersistedToolCalls = persisted;
     _recordPersistedMessageCount(detail.messageCount);
     final persistedGroups = ToolCallGroup.groups(
       persistedToolCalls: persisted,
       messages: merged,
-      messageOffset: state.messagesOffset,
+      messageOffset: windowOffset,
       coalesce: _coalesceTools,
     );
     final liveGroups = _archiveLiveToolCallsToGroups();
     final reanchoredLiveGroups = _reanchorGroupsToMessages(
       liveGroups,
       merged,
-      messageOffset: state.messagesOffset,
+      messageOffset: windowOffset,
       oldStreamingId: currentStreamingId,
     );
     final groups = ToolCallGroup.merging(
@@ -3557,13 +3574,13 @@ class ChatController extends FamilyNotifier<ChatState, String> {
     );
     final serverDerivedReasoning = ReasoningGroup.groups(
       messages: merged,
-      messageOffset: state.messagesOffset,
+      messageOffset: windowOffset,
     );
     final liveReasoning = _archiveLiveReasoningToGroups();
     final reanchoredLiveReasoning = _reanchorReasoningToMessages(
       liveReasoning,
       merged,
-      messageOffset: state.messagesOffset,
+      messageOffset: windowOffset,
       oldStreamingId: currentStreamingId,
     );
     final reasoningGroups = ReasoningGroup.merging(
@@ -3590,7 +3607,7 @@ class ChatController extends FamilyNotifier<ChatState, String> {
         snapshotFromDetail.inputTokens != null;
     state = state.copyWith(
       messages: merged,
-      messagesOffset: detail.messagesOffset ?? state.messagesOffset,
+      messagesOffset: windowOffset,
       hasOlderMessages:
           detail.messageCount != null && detail.messageCount! > merged.length,
       displayTitle: (title == null || title.isEmpty)
@@ -5739,12 +5756,22 @@ class ChatController extends FamilyNotifier<ChatState, String> {
   ///
   /// 数组语义：**尾部 = 最新**（`chat_message_list.dart` 的
   /// `index = itemCount - 1 - rawIndex` 反转映射，最新渲染在视觉底部）。
-  static List<ChatMessage> _tailWindow(
+  static List<ChatMessage> _tailWindow(List<ChatMessage> messages, int size) =>
+      _tailWindowRange(messages, size).rows;
+
+  /// 与 [_tailWindow] 同语义，但**同时返回窗口起点**（入参数组内的下标）。
+  ///
+  /// done 帧路径必须拿到这个起点：服务端 done 帧给的是全量 messages + 全量
+  /// tool_calls（`assistant_msg_idx` 是全转写下标），裁窗后若不把 persisted 调用同步
+  /// 换算到窗口坐标，`_resolveLoadedMessageIndex` 的「相对候选优先」会把**全量前缀**
+  /// 当成窗口相对下标 ⇒ 整批历史工具被挂到窗口前段的回合上
+  /// （现象：过程胶囊 ×N 远超真值、末条正文之后冒出历史工具卡、相邻卡不合并）。
+  static ({List<ChatMessage> rows, int start}) _tailWindowRange(
     List<ChatMessage> messages,
     int size,
   ) {
     if (size <= 0 || messages.length <= size) {
-      return messages;
+      return (rows: messages, start: 0);
     }
     // 从尾部往前找第 size 条可渲染行的起点。
     var start = messages.length;
@@ -5775,7 +5802,7 @@ class ChatController extends FamilyNotifier<ChatState, String> {
       //
       // 正确语义（对齐服务端 `routes.py::_message_window_for_display`）：
       // 服务端数可渲染行不满 limit 时 `start_idx` 停在 0 ⇒ 窗口 = 全部行。
-      return messages;
+      return (rows: messages, start: 0);
     }
     // 保留窗口起点之前紧邻的、属于窗口内工具调用的结果行。
     final windowToolCallIds = <String>{};
@@ -5790,7 +5817,46 @@ class ChatController extends FamilyNotifier<ChatState, String> {
       if (id == null || !windowToolCallIds.contains(id)) break;
       start--;
     }
-    return messages.sublist(start);
+    return (rows: messages.sublist(start), start: start);
+  }
+
+  /// 把「服务端返回的 messages 数组坐标」的 persisted 工具调用铺到**当前窗口坐标**。
+  ///
+  /// done 帧的形状是 `messages = 全量`、`tool_calls = 全量`，客户端只对 messages 做了
+  /// [_tailWindow] 裁尾；而 REST `/api/session` 那一侧服务端自己会
+  /// `_tool_calls_for_message_window()` rebase + 裁剪。两条路径的坐标口径由此分叉 ——
+  /// 这里把 done 路径拉回到「窗口相对」，使 `assistant_msg_idx` 的两解候选重合、坐标唯一。
+  ///
+  /// 若 done 帧本身已是窗口形态（`windowStart == 0`）则原样返回，行为不变。
+  static List<PersistedToolCall> _persistedToolCallsForWindow(
+    List<PersistedToolCall> persisted, {
+    required int windowStart,
+    required int windowLength,
+  }) {
+    if (persisted.isEmpty || windowStart <= 0) return persisted;
+    final end = windowStart + windowLength;
+    final out = <PersistedToolCall>[];
+    for (final call in persisted) {
+      final idx = call.assistantMsgIdx;
+      if (idx == null) {
+        // 无下标：没有坐标可换算，交给元数据兜底安置（保持既有语义）。
+        out.add(call);
+        continue;
+      }
+      // 窗口外的调用不属于本次落地：它们要么已在更早的窗口里落过，要么根本没进窗口。
+      if (idx < windowStart || idx >= end) continue;
+      out.add(
+        PersistedToolCall(
+          name: call.name,
+          snippet: call.snippet,
+          tid: call.tid,
+          assistantMsgIdx: idx - windowStart,
+          args: call.args,
+          isError: call.isError,
+        ),
+      );
+    }
+    return out;
   }
 
   /// 测试用转发（[ChatController] 是 `FamilyNotifier`，静态方法可直接调，
@@ -5800,6 +5866,23 @@ class ChatController extends FamilyNotifier<ChatState, String> {
     List<ChatMessage> messages,
     int size,
   ) => _tailWindow(messages, size);
+
+  @visibleForTesting
+  static ({List<ChatMessage> rows, int start}) tailWindowRangeForTesting(
+    List<ChatMessage> messages,
+    int size,
+  ) => _tailWindowRange(messages, size);
+
+  @visibleForTesting
+  static List<PersistedToolCall> persistedToolCallsForWindowForTesting(
+    List<PersistedToolCall> persisted, {
+    required int windowStart,
+    required int windowLength,
+  }) => _persistedToolCallsForWindow(
+    persisted,
+    windowStart: windowStart,
+    windowLength: windowLength,
+  );
 
   /// 该行是否计入「可见行」预算（对齐服务端 `_message_counts_as_renderable_for_window`）。
   ///
