@@ -17,6 +17,7 @@ import '../../core/models/session.dart';
 import '../../core/models/tool_call.dart';
 import '../../core/models/upload_response.dart';
 import '../../core/utils/uuid.dart';
+import '../../core/utils/injection_markers.dart';
 import '../../core/connections/connection_providers.dart';
 import '../../app/locale/locale_resolver.dart';
 import '../../l10n/app_localizations.dart';
@@ -3634,7 +3635,7 @@ class ChatController extends FamilyNotifier<ChatState, String> {
 
   /// 服务端 transcript 与本地合并：local- 乐观消息保留插回；本地流式内容
   /// 与服务端取「更长/更新的」，前缀包含去重（chat_spec.md §5.5 最低档）。
-  List<ChatMessage> _mergingLoadedMessages(
+  static List<ChatMessage> _mergingLoadedMessages(
     List<ChatMessage> loaded,
     List<ChatMessage> current,
     String? streamingMessageId,
@@ -3689,12 +3690,19 @@ class ChatController extends FamilyNotifier<ChatState, String> {
         .map((m) => m.messageId)
         .whereType<String>()
         .toSet();
+    // 陈旧乐观行（早于服务端窗口首行）不再插回本轮：判据与 REST 合并共用
+    // 一份（见 `isStaleOptimisticEcho`）。旧实现无条件插回 ⇒ 旧提问气泡
+    // 冒到本轮回复下方，且每轮收尾都重新出现（2026-10-23 真机）。
     final localToInsert = current
         .where(
           (m) =>
               (m.messageId ?? '').startsWith('local-') &&
               !loadedIds.contains(m.messageId) &&
-              !_duplicatesLoadedUserMessage(m, result),
+              !_duplicatesLoadedUserMessage(m, result) &&
+              !isStaleOptimisticEcho(
+                m,
+                result.isEmpty ? null : result.first,
+              ),
         )
         .toList();
     if (localToInsert.isNotEmpty) {
@@ -3713,21 +3721,30 @@ class ChatController extends FamilyNotifier<ChatState, String> {
 
   /// local- 乐观 user 消息与加载 transcript 的最后一条 user 消息内容相同
   /// （服务端已确认该消息）→ 视为重复，不再保留。
-  bool _duplicatesLoadedUserMessage(
+  ///
+  /// **必须走归一化比对**：服务端落库的 user 行带 `[Workspace::v1: …]` /
+  /// `[Attached files: …]` 注入标记，乐观消息只有用户原文 —— 直接比原文恒定
+  /// 不相等 ⇒ 每条带工作区/附件的提问都被判成「服务端还没有」而反复插回，
+  /// 真机现象：会话第一句的用户气泡每轮收尾又冒到本轮末尾（2026-10-23）。
+  static bool _duplicatesLoadedUserMessage(
     ChatMessage local,
     List<ChatMessage> loaded,
   ) {
     if (local.role != 'user') return false;
-    final localContent = local.content?.trim();
-    if (localContent == null || localContent.isEmpty) return false;
+    final localKey = _userMessageKey(local.content);
+    if (localKey.isEmpty) return false;
     for (var i = loaded.length - 1; i >= 0; i--) {
       final message = loaded[i];
-      if (message.role == 'user' &&
-          (message.content ?? '').trim() == localContent) {
-        return true;
-      }
+      if (message.role != 'user') continue;
+      if (_userMessageKey(message.content) == localKey) return true;
     }
     return false;
+  }
+
+  /// user 消息内容比对键：剥离注入标记 + 折叠空白。
+  static String _userMessageKey(String? raw) {
+    if (raw == null || raw.isEmpty) return '';
+    return stripInjectionMarkers(raw).replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
   void _applyTurnTps(String? currentStreamingId, double tps) {
@@ -5866,6 +5883,16 @@ class ChatController extends FamilyNotifier<ChatState, String> {
     List<ChatMessage> messages,
     int size,
   ) => _tailWindow(messages, size);
+
+  /// 收尾合并（done 帧路径）的公开测试入口：`_mergingLoadedMessages` 是纯函数，
+  /// 但它是私有成员；跨文件守卫测试需要直接驱动它（旧提问气泡会不会被插回
+  /// 本轮末尾，只能在这一层断言）。
+  @visibleForTesting
+  static List<ChatMessage> mergingLoadedMessagesForTesting(
+    List<ChatMessage> loaded,
+    List<ChatMessage> current, {
+    String? streamingMessageId,
+  }) => _mergingLoadedMessages(loaded, current, streamingMessageId);
 
   @visibleForTesting
   static ({List<ChatMessage> rows, int start}) tailWindowRangeForTesting(

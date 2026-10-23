@@ -72,10 +72,17 @@ List<ChatMessage> diffMergeMessages({
   );
 
   final result = <ChatMessage>[];
+  // 陈旧乐观回声统一退场（判据见 [isStaleOptimisticEcho]）：这类行既不该
+  // 当头部历史保留（同一条提问会渲染两遍），也不该当尾部未落库项留下。
+  final firstServerMessage = serverMessages.isEmpty ? null : serverMessages.first;
+  bool keepLocal(int index) => !isStaleOptimisticEcho(
+    localMessages[index],
+    firstServerMessage,
+  );
 
   // 头部保留：早于首个命中项的本地历史消息（分页加载的更早记录）
   for (var i = 0; i < firstMatchedLocalIdx; i++) {
-    result.add(localMessages[i]);
+    if (keepLocal(i)) result.add(localMessages[i]);
   }
 
   // 中部窗口：以服务端顺序为主，原地 patch 命中项，补入缺失项，并保留本地夹在中间未命中的项
@@ -87,7 +94,8 @@ List<ChatMessage> diffMergeMessages({
 
     if (matchedLIdx != null) {
       while (currentLocalIdx < matchedLIdx) {
-        if (!matchedLocalIndices.contains(currentLocalIdx)) {
+        if (!matchedLocalIndices.contains(currentLocalIdx) &&
+            keepLocal(currentLocalIdx)) {
           result.add(localMessages[currentLocalIdx]);
         }
         currentLocalIdx++;
@@ -120,7 +128,8 @@ List<ChatMessage> diffMergeMessages({
   }
 
   while (currentLocalIdx <= lastMatchedLocalIdx) {
-    if (!matchedLocalIndices.contains(currentLocalIdx)) {
+    if (!matchedLocalIndices.contains(currentLocalIdx) &&
+        keepLocal(currentLocalIdx)) {
       result.add(localMessages[currentLocalIdx]);
     }
     currentLocalIdx++;
@@ -128,7 +137,7 @@ List<ChatMessage> diffMergeMessages({
 
   // 尾部保留：晚于最后一个命中项的本地未落库项（如发送中的乐观消息）
   for (var i = lastMatchedLocalIdx + 1; i < localMessages.length; i++) {
-    if (!matchedLocalIndices.contains(i)) {
+    if (!matchedLocalIndices.contains(i) && keepLocal(i)) {
       result.add(localMessages[i]);
     }
   }
@@ -189,6 +198,26 @@ List<ChatMessage> dedupeServerUserMessages(List<ChatMessage> serverMessages) {
     result.add(msg);
   }
   return result;
+}
+
+/// 判断本地乐观 user 行是否已是「陈旧回声」：**早于服务端窗口最早一行**。
+///
+/// 场景（2026-10-23 真机）：本地遗留一条 `local-*` 提问行（乐观消息始终没被
+/// 服务端行接过身份），而服务端 transcript 早已推进到更后面 ⇒ 它所属那一段
+/// 已经越过/落库，再把它当「本地未落库消息」保留或插回，就会出现：
+/// - 收尾合并里被插到「最后一个 user 边界之后」→ 旧气泡冒到本轮回复下方；
+/// - REST 合并里被当头部历史留着 → 同一条提问渲染两遍。
+///
+/// 判据只取时间戳（缺任一侧时间戳时保守保留，绝不因此丢用户内容）。
+bool isStaleOptimisticEcho(ChatMessage local, ChatMessage? firstServer) {
+  final id = local.messageId ?? '';
+  if (!id.startsWith('local-')) return false;
+  if (local.role != 'user') return false;
+  final ts = local.timestamp;
+  final firstTs = firstServer?.timestamp;
+  if (ts == null || ts <= 0) return false;
+  if (firstTs == null || firstTs <= 0) return false;
+  return ts < firstTs;
 }
 
 /// 判断本地消息与服务端消息是否匹配。
