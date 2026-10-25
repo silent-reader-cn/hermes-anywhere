@@ -608,7 +608,8 @@ void main() {
       );
       final installer = DefaultPowershellInstaller(processExecutor: proc);
 
-      expect(await installer.getManifest(), <String>['prereqs', 'agent', 'deps']);
+      expect(await installer.getManifest(), <String>['prerequisites', 'repository', 'venv', 'python-deps', 'config',
+        'products', 'setup', 'gateway', 'complete']);
     });
   });
 

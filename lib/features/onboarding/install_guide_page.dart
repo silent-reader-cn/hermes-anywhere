@@ -84,6 +84,9 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
   final ScrollController _logScrollController = ScrollController();
   bool _showLogs = true;
 
+  /// 官方 install.ps1 的 stage 名单（懒加载 + 缓存，见 [_resolveStageManifest]）。
+  List<String>? _stageManifest;
+
   // ── 网络环境探测（首屏检查卡第 4 行） ─────────────────────────────────
   bool _networkReachable = false;
   bool _networkChecking = true;
@@ -418,34 +421,22 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
         case InstallStageKey.prereqs:
           _appendLog(l10n.installWizardLogPrereqs);
           await psInstaller.ensureScriptCached();
-          await for (final event in psInstaller.runStage('prereqs')) {
-            _handleInstallerEvent(event);
-            if (event.type == InstallerEventType.stageFailure) {
-              _failureReason = event.reason ?? l10n.installWizardFailPrereqs;
-              return false;
-            }
-          }
-          return true;
+          return await _runStageGroup(
+            InstallStepGroup.prerequisites,
+            l10n.installWizardFailPrereqs,
+          );
         case InstallStageKey.agent:
           _appendLog(l10n.installWizardLogAgent);
-          await for (final event in psInstaller.runStage('agent')) {
-            _handleInstallerEvent(event);
-            if (event.type == InstallerEventType.stageFailure) {
-              _failureReason = event.reason ?? l10n.installWizardFailAgent;
-              return false;
-            }
-          }
-          return true;
+          return await _runStageGroup(
+            InstallStepGroup.repository,
+            l10n.installWizardFailAgent,
+          );
         case InstallStageKey.agentDeps:
           _appendLog(l10n.installWizardLogDeps);
-          await for (final event in psInstaller.runStage('deps')) {
-            _handleInstallerEvent(event);
-            if (event.type == InstallerEventType.stageFailure) {
-              _failureReason = event.reason ?? l10n.installWizardFailAgentDeps;
-              return false;
-            }
-          }
-          return true;
+          return await _runStageGroup(
+            InstallStepGroup.dependencies,
+            l10n.installWizardFailAgentDeps,
+          );
         case InstallStageKey.service:
           return await _executeServiceStage();
         case InstallStageKey.pairing:
@@ -460,11 +451,68 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
   }
 
   void _handleInstallerEvent(InstallerEvent event) {
+    if (event.type == InstallerEventType.stageFailure) {
+      // 失败帧的原文是一条 JSON 机器帧（`{"ok":false,"stage":...}`），日志台给
+      // 人看的是 reason；只打原文会让人看到一堆转义符号还得自己猜（主人 2026-10-25
+      // 截图里的 `unknown stage: prereqs` 就是这么冒出来的）。
+      _appendLog('[${event.stage ?? 'info'}] ${event.reason ?? event.raw}');
+      return;
+    }
     if (event.message != null && event.message!.isNotEmpty) {
       _appendLog('[${event.stage ?? 'info'}] ${event.message}');
     } else if (event.raw.isNotEmpty) {
       _appendLog(event.raw);
     }
+  }
+
+  /// 跑完一个抽象步对应的全部官方 stage（名字链来自 `-Manifest`）。
+  ///
+  /// 为什么一步可能跑多个 stage：官方 2026-10 把「装依赖」拆成
+  /// `venv → python-deps → config → products → complete` 五个独立 stage，每个
+  /// 是一次独立 PowerShell 进程；顺序不能乱（venv 必须先于 python-deps，
+  /// products/complete 收尾）。
+  Future<bool> _runStageGroup(
+    InstallStepGroup group,
+    String fallbackReason,
+  ) async {
+    final psInstaller = ref.read(powershellInstallerProvider);
+    final l10n = _l10n();
+    final chain = resolveInstallStageChain(group, await _resolveStageManifest());
+    for (var i = 0; i < chain.length; i++) {
+      final stageName = chain[i];
+      if (chain.length > 1) {
+        _appendLog(
+          l10n.installWizardLogStageProgress(i + 1, chain.length, stageName),
+        );
+      }
+      var failed = false;
+      await for (final event in psInstaller.runStage(stageName)) {
+        _handleInstallerEvent(event);
+        if (event.type == InstallerEventType.stageFailure) {
+          _failureReason = event.reason ?? fallbackReason;
+          failed = true;
+          break;
+        }
+      }
+      if (failed) return false;
+    }
+    return true;
+  }
+
+  /// 取官方脚本的 stage 名单（一次向导只取一次：每次 `-Manifest` 都要起一个
+  /// PowerShell 进程，约 1~2s）。取不到就返回空表，由
+  /// [resolveInstallStageChain] 退回首项候选。
+  Future<List<String>> _resolveStageManifest() async {
+    final cached = _stageManifest;
+    if (cached != null) return cached;
+    List<String> manifest;
+    try {
+      manifest = await ref.read(powershellInstallerProvider).getManifest();
+    } catch (_) {
+      manifest = const <String>[];
+    }
+    _stageManifest = manifest;
+    return manifest;
   }
 
   // ---------------------------------------------------------------------------
@@ -995,31 +1043,139 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     );
   }
 
+  /// 标题行：左侧标题/副标题，右侧浮动主操作 icon button。
+  ///
+  /// 主操作原先挂在页面最下方，窄窗口或手机远程桌面（主人 2026-10-25 截图）下
+  /// 要滚到内容末尾才看得见 ——「开始安装」干脆不在首屏，用户以为没有下一步。
+  /// 移到标题行右侧后，任何窗口高度下都在首屏，且不随内容滚走。
   Widget _buildHeader(AppLocalizations l10n) {
-    return Column(
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          l10n.installGuideTitle,
-          style: const TextStyle(
-            fontSize: kFontPageTitleLg,
-            fontWeight: FontWeight.bold,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.installGuideTitle,
+                style: const TextStyle(
+                  fontSize: kFontPageTitleLg,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                l10n.installGuideSubtitle,
+                style: TextStyle(
+                  fontSize: kFontBody,
+                  color: LightSurfaces.resolve(
+                    context,
+                    LightSurfaces.textSecondary,
+                    dark: secondaryText,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 6),
-        Text(
-          l10n.installGuideSubtitle,
-          style: TextStyle(
-            fontSize: kFontBody,
-            color: LightSurfaces.resolve(
-              context,
-              LightSurfaces.textSecondary,
-              dark: secondaryText,
-            ),
-          ),
-        ),
+        const SizedBox(width: 12),
+        _buildHeaderAction(l10n),
       ],
     );
+  }
+
+  /// 标题行右侧的主操作（圆形 icon button）。
+  ///
+  /// 各阶段的主 CTA：开始安装 / 安装中(转圈) / 重试 / 保存并继续 / 完成。
+  /// 禁用态用灰底而不是隐掉 —— 按钮位置固定，用户不会觉得「按钮跑了」。
+  Widget _buildHeaderAction(AppLocalizations l10n) {
+    final spec = _headerActionSpec(l10n);
+    final primaryColor = CupertinoTheme.brightnessOf(context) == Brightness.light
+        ? LightSurfaces.userDetail
+        : CupertinoTheme.of(context).primaryColor;
+    final disabled = spec.onPressed == null;
+    return Semantics(
+      button: true,
+      enabled: !disabled,
+      label: spec.tooltip,
+      child: CupertinoButton(
+        key: spec.key,
+        padding: EdgeInsets.zero,
+        minimumSize: const Size(40, 40),
+        onPressed: spec.onPressed,
+        // icon-only 按钮：语义标签由上面的 Semantics 提供（本页是 Cupertino
+        // 体系，没有 Material 的 Tooltip 可用）。
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: disabled
+                ? CupertinoColors.systemGrey4.resolveFrom(context)
+                : primaryColor,
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: spec.busy
+              ? const CupertinoActivityIndicator(color: CupertinoColors.white)
+              : Icon(spec.icon, size: 20, color: CupertinoColors.white),
+        ),
+      ),
+    );
+  }
+
+  /// 当前阶段的主操作描述（每个阶段都有出口，不会返回空）。
+  _HeaderActionSpec _headerActionSpec(AppLocalizations l10n) {
+    switch (_phase) {
+      case GuidePhase.idle:
+        return _HeaderActionSpec(
+          key: const ValueKey('install-guide-start-btn'),
+          icon: CupertinoIcons.play_fill,
+          tooltip: l10n.installGuideStartInstall,
+          onPressed: () => _startOrResumeInstallation(),
+        );
+      case GuidePhase.installing:
+        return _HeaderActionSpec(
+          key: const ValueKey('install-guide-installing-btn'),
+          icon: CupertinoIcons.hourglass,
+          tooltip: l10n.installGuideInstalling,
+          busy: true,
+        );
+      case GuidePhase.failed:
+        // 错误卡里也有「重试当前步骤」；标题行这颗是免滚动的快捷入口，
+        // key 与卡片内按钮区分（卡片内那颗被既有用例按 key 点击）。
+        return _HeaderActionSpec(
+          key: const ValueKey('install-guide-header-retry-btn'),
+          icon: CupertinoIcons.arrow_clockwise,
+          tooltip: l10n.installGuideRetryStage,
+          onPressed: () => _startOrResumeInstallation(_failedStage),
+        );
+      case GuidePhase.configuringModel:
+        return _HeaderActionSpec(
+          key: const ValueKey('install-guide-save-model-btn'),
+          icon: CupertinoIcons.checkmark_alt,
+          tooltip: l10n.installGuideSaveAndContinue,
+          busy: _savingModel,
+          onPressed: _savingModel
+              ? null
+              : () => _submitModelConfigAndContinue(skip: false),
+        );
+      case GuidePhase.pairing:
+        return _HeaderActionSpec(
+          key: const ValueKey('wizard-pairing-skip-btn'),
+          icon: CupertinoIcons.checkmark_alt,
+          tooltip: l10n.installWizardPairingSkip,
+          busy: _finishing,
+          onPressed: _finishing ? null : _finishWizard,
+        );
+      case GuidePhase.done:
+        return _HeaderActionSpec(
+          key: const ValueKey('wizard-pairing-finish-btn'),
+          icon: CupertinoIcons.checkmark_alt,
+          tooltip: l10n.finish,
+          busy: _finishing,
+          onPressed: _finishing ? null : _finishWizard,
+        );
+    }
   }
 
   Widget _buildStepRail(AppLocalizations l10n) {
@@ -2482,7 +2638,10 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     ];
   }
 
-  /// 宽屏下按钮在内容列尾部自然滚动（设计稿 R1-B 口径）；窄屏给固定底栏。
+  /// 底栏：只放次级弱操作与收尾提示（主 CTA 已 float 到标题行右侧）。
+  ///
+  /// 这样窄窗口下即使滚不到底，也不影响推进主线 —— 看不见的只是「暂不配置」
+  /// 「跳过配对」这类可选动作。
   Widget _buildBottomBar(AppLocalizations l10n) {
     return _buildFooterActions(l10n);
   }
@@ -2491,132 +2650,54 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     if (_phase == GuidePhase.configuringModel) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+        child: CupertinoButton(
+          key: const ValueKey('install-guide-skip-model-btn'),
+          padding: EdgeInsets.zero,
+          onPressed: _savingModel
+              ? null
+              : () => _submitModelConfigAndContinue(skip: true),
+          child: Text(
+            l10n.installGuideSkipModelConfig,
+            style: TextStyle(fontSize: kFontButton, color: _secondary),
+          ),
+        ),
+      );
+    }
+    if (_phase == GuidePhase.pairing || _phase == GuidePhase.done) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: double.infinity,
-              child: CupertinoButton.filled(
-                color: CupertinoTheme.brightnessOf(context) == Brightness.light
-                    ? LightSurfaces.userDetail
-                    : null,
-                key: const ValueKey('install-guide-save-model-btn'),
-                onPressed: _savingModel
-                    ? null
-                    : () => _submitModelConfigAndContinue(skip: false),
-                child: _savingModel
-                    ? CupertinoActivityIndicator(
-                        color:
-                            CupertinoTheme.brightnessOf(context) ==
-                                Brightness.light
-                            ? LightSurfaces.textSecondary
-                            : null,
-                      )
-                    : Text(l10n.installGuideSaveAndContinue),
-              ),
-            ),
-            const SizedBox(height: 6),
-            CupertinoButton(
-              key: const ValueKey('install-guide-skip-model-btn'),
-              padding: EdgeInsets.zero,
-              onPressed: _savingModel
-                  ? null
-                  : () => _submitModelConfigAndContinue(skip: true),
-              child: Text(
-                l10n.installGuideSkipModelConfig,
-                style: TextStyle(fontSize: kFontButton, color: _secondary),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    if (_phase == GuidePhase.idle) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-        child: SizedBox(
-          width: double.infinity,
-          child: CupertinoButton.filled(
-            color: CupertinoTheme.brightnessOf(context) == Brightness.light
-                ? LightSurfaces.userDetail
-                : null,
-            key: const ValueKey('install-guide-start-btn'),
-            onPressed: () => _startOrResumeInstallation(),
-            child: Text(l10n.installGuideStartInstall),
-          ),
-        ),
-      );
-    }
-    if (_phase == GuidePhase.installing) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-        child: SizedBox(
-          width: double.infinity,
-          child: CupertinoButton(
-            color: CupertinoColors.systemGrey4,
-            onPressed: null,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const CupertinoActivityIndicator(),
-                const SizedBox(width: 8),
-                Text(
-                  l10n.installGuideInstalling,
-                  style: const TextStyle(color: CupertinoColors.black),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-    if (_phase == GuidePhase.pairing) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-        child: Column(
-          children: [
-            ..._finishTailChildren(l10n),
-            SizedBox(
-              width: double.infinity,
-              child: CupertinoButton(
-                key: const ValueKey('wizard-pairing-skip-btn'),
-                padding: EdgeInsets.zero,
-                onPressed: _finishing ? null : _finishWizard,
-                child: _finishing
-                    ? const CupertinoActivityIndicator()
-                    : Text(
-                        l10n.installWizardPairingSkip,
-                        style: TextStyle(fontSize: kFontButton, color: _secondary),
-                      ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    if (_phase == GuidePhase.done) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-        child: Column(
-          children: [
-            ..._finishTailChildren(l10n),
-            SizedBox(
-              width: double.infinity,
-              child: CupertinoButton.filled(
-                color: CupertinoTheme.brightnessOf(context) == Brightness.light
-                    ? LightSurfaces.userDetail
-                    : null,
-                key: const ValueKey('wizard-pairing-finish-btn'),
-                onPressed: _finishing ? null : _finishWizard,
-                child: _finishing
-                    ? const CupertinoActivityIndicator()
-                    : Text(l10n.finish),
-              ),
-            ),
-          ],
+          children: _finishTailChildren(l10n),
         ),
       );
     }
     return const SizedBox.shrink();
   }
+}
+
+/// 标题行主操作按钮的描述（icon / 提示 / 回调 / 忙碌态）。
+class _HeaderActionSpec {
+  const _HeaderActionSpec({
+    required this.key,
+    required this.icon,
+    required this.tooltip,
+    this.onPressed,
+    this.busy = false,
+  });
+
+  /// 按钮 key（测试与既有用例按 key 定位主操作）。
+  final Key key;
+
+  /// 图标（icon-only 按钮）。
+  final IconData icon;
+
+  /// 无障碍标签 + 悬停提示（icon-only 按钮必须有文字语义）。
+  final String tooltip;
+
+  /// 点击回调；null = 禁用态。
+  final Future<void> Function()? onPressed;
+
+  /// 忙碌态：显示转圈而不是图标。
+  final bool busy;
 }

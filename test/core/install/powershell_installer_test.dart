@@ -145,6 +145,21 @@ void main() {
       expect(event.stages, ['prereqs', 'agent', 'deps']);
     });
 
+    test('解析 manifest 帧：官方当前输出对象数组（取 name）', () {
+      // 官方 2026-10 起 -Manifest 输出 {protocol_version, stages:[{name,title,
+      // category,needs_user_input}]}；只认字符串项会让整条安装链退化成硬编码
+      // 旧名 —— 那正是「unknown stage: prereqs」的根因。
+      const line =
+          '{"protocol_version":1,"stages":['
+          '{"name":"prerequisites","title":"System prerequisites",'
+          '"category":"runtime","needs_user_input":false},'
+          '{"name":"venv","title":"Create Python environment",'
+          '"category":"runtime","needs_user_input":false}]}';
+      final event = InstallerEvent.parseLine(line);
+      expect(event.type, InstallerEventType.manifest);
+      expect(event.stages, ['prerequisites', 'venv']);
+    });
+
     test('解析 stage_start / start 帧', () {
       const line = '{"event": "stage_start", "stage": "prereqs", "title": "环境检查"}';
       final event = InstallerEvent.parseLine(line);
@@ -270,7 +285,10 @@ void main() {
       final installer = DefaultPowershellInstaller(processExecutor: proc);
 
       final stages = await installer.getManifest();
-      expect(stages, ['prereqs', 'agent', 'deps']);
+      // 降级清单必须与当前官方脚本的 stage 名单一致：旧名
+      // （prereqs/agent/deps）会被脚本判 `unknown stage` 并 exit 2。
+      expect(stages, ['prerequisites', 'repository', 'venv', 'python-deps', 'config',
+        'products', 'setup', 'gateway', 'complete']);
     });
 
     test('runStage：流式产生事件帧并正常完成', () async {
@@ -315,6 +333,68 @@ void main() {
 
       final failure = events.firstWhere((e) => e.type == InstallerEventType.stageFailure);
       expect(failure.reason, contains('无法启动 PowerShell 进程'));
+    });
+  });
+
+  group('resolveInstallStageChain', () {
+    // 新协议：官方把「装依赖」拆成多个独立 stage，一步要跑完整条链。
+    const newProtocol = [
+      'prerequisites',
+      'repository',
+      'venv',
+      'python-deps',
+      'config',
+      'products',
+      'setup',
+      'gateway',
+      'complete',
+    ];
+    // 旧协议：三个单 stage。
+    const oldProtocol = ['prereqs', 'agent', 'deps'];
+
+    test('新协议：每步取到 manifest 里真实存在的 stage 名', () {
+      expect(
+        resolveInstallStageChain(InstallStepGroup.prerequisites, newProtocol),
+        ['prerequisites'],
+      );
+      expect(
+        resolveInstallStageChain(InstallStepGroup.repository, newProtocol),
+        ['repository'],
+      );
+      expect(
+        resolveInstallStageChain(InstallStepGroup.dependencies, newProtocol),
+        ['venv', 'python-deps', 'config', 'products', 'complete'],
+      );
+    });
+
+    test('旧协议：仍按旧名单步执行（不因找不到新名就报错）', () {
+      expect(
+        resolveInstallStageChain(InstallStepGroup.prerequisites, oldProtocol),
+        ['prereqs'],
+      );
+      expect(
+        resolveInstallStageChain(InstallStepGroup.repository, oldProtocol),
+        ['agent'],
+      );
+      expect(
+        resolveInstallStageChain(InstallStepGroup.dependencies, oldProtocol),
+        ['deps'],
+      );
+    });
+
+    test('manifest 为空（取不到名单）→ 退回首项候选（当前官方名）', () {
+      for (final group in InstallStepGroup.values) {
+        final chain = resolveInstallStageChain(group, const <String>[]);
+        expect(chain, [installStepStageCandidates[group]!.first]);
+      }
+    });
+
+    test('候选全不命中 → 退回首项，让脚本自己报 unknown stage（不静默降级）', () {
+      final chain = resolveInstallStageChain(
+        InstallStepGroup.prerequisites,
+        const ['something-else'],
+      );
+      expect(chain, ['prerequisites']);
     });
   });
 }

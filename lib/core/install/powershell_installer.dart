@@ -142,12 +142,26 @@ class InstallerEvent {
         // 3. 处理具名 event 结构
         final event =
             decoded['event']?.toString() ?? decoded['type']?.toString();
+
+        // 3a. 官方 `-Manifest` 的实际输出是
+        // `{protocol_version, stages: [{name, title, category, ...}]}` ——
+        // **没有** `event` 字段。只按 event 名分支会永远落进 default，名单便永远
+        // 取不到（调用方只能硬编码旧名）。故先按「带 stages 数组」识别。
+        final rawStages = decoded['stages'];
+        if (event == null && rawStages is List) {
+          return InstallerEvent.manifest(
+            _manifestStagesOf(rawStages),
+            raw: line,
+          );
+        }
+
         switch (event) {
           case 'manifest':
-            final list = (decoded['stages'] as List<dynamic>?)
-                    ?.map((e) => e.toString())
-                    .toList() ??
-                const [];
+            // 兼容显式打 event:manifest 的旧脚本；项可以是对象
+            // （`{name, title, ...}`）或字符串，两种都要读出 stage 名。
+            final list = rawStages is List
+                ? _manifestStagesOf(rawStages)
+                : const <String>[];
             return InstallerEvent.manifest(list, raw: line);
           case 'stage_start':
           case 'start':
@@ -202,6 +216,20 @@ class InstallerEvent {
       // 非 JSON 格式 → 降级为 log
     }
     return InstallerEvent.log(trimmed, raw: line);
+  }
+
+  /// 从 manifest 的 `stages` 数组里读出 stage 名列表（兼容对象项与字符串项）。
+  static List<String> _manifestStagesOf(List<dynamic> raw) => raw
+      .map(_stageNameOf)
+      .where((name) => name.isNotEmpty)
+      .toList(growable: false);
+
+  /// 从 manifest 的单项里取 stage 名（兼容字符串项与对象项）。
+  static String _stageNameOf(dynamic item) {
+    if (item is Map) {
+      return (item['name'] ?? item['stage'] ?? '').toString();
+    }
+    return item?.toString() ?? '';
   }
 }
 
@@ -326,7 +354,19 @@ class DefaultPowershellInstaller implements PowershellInstaller {
     } catch (_) {
       // 忽略异常，降级到默认清单
     }
-    return const ['prereqs', 'agent', 'deps'];
+    // 取不到 manifest 时按当前官方脚本的 stage 名单兜底：旧名
+    // （prereqs/agent/deps）已被脚本判 unknown stage，不能再用作默认值。
+    return const [
+      'prerequisites',
+      'repository',
+      'venv',
+      'python-deps',
+      'config',
+      'products',
+      'setup',
+      'gateway',
+      'complete',
+    ];
   }
 
   @override
@@ -427,3 +467,51 @@ class DefaultPowershellInstaller implements PowershellInstaller {
 final powershellInstallerProvider = Provider<PowershellInstaller>(
   (ref) => DefaultPowershellInstaller(),
 );
+
+/// 客户端安装轨的抽象步：只描述「要跑官方脚本的哪一段」。
+///
+/// 与 UI 的 5 步轨（环境检查 / 拉取 / 依赖 / 启动服务 / 配对）解耦：UI 步数会
+/// 随产品调整，这里只认官方脚本的语义段。
+enum InstallStepGroup { prerequisites, repository, dependencies }
+
+/// 抽象步 → 官方 `install.ps1` 的 stage 名候选（按执行顺序）。
+///
+/// 官方 2026-10 改版把 stage 从 `prereqs / agent / deps` 重命名为
+/// `prerequisites / repository / venv / python-deps / config / products /
+/// complete`，并把「装依赖」拆成多个独立 stage。客户端此前硬编码旧名，脚本
+/// 直接判 `unknown stage: prereqs` 后 exit 2 ⇒ 第一步必然失败。
+///
+/// 这里同时保留两代名字，**真实跑哪几个由 `-Manifest` 的实际名单决定**
+/// （见 [resolveInstallStageChain]）。硬编码单一名字是这次故障的根因，不许回退。
+const Map<InstallStepGroup, List<String>> installStepStageCandidates = {
+  InstallStepGroup.prerequisites: ['prerequisites', 'prereqs'],
+  InstallStepGroup.repository: ['repository', 'agent'],
+  InstallStepGroup.dependencies: [
+    'venv',
+    'python-deps',
+    'config',
+    'products',
+    'complete',
+    'deps',
+  ],
+};
+
+/// 把抽象步解析成 manifest 里真实存在的 stage 名链。
+///
+/// - manifest 命中哪个候选就跑哪个：新协议一次跑多个 stage
+///   （venv → python-deps → config → products → complete），旧协议只跑 `deps`；
+/// - manifest 为空（脚本不认 `-Manifest` 或解析失败）时退回候选表首项，即当前
+///   官方脚本的名字；
+/// - 候选全不命中时同样退回首项 —— 让脚本自己报 `unknown stage` 并把原因原样
+///   上抛给用户，不做静默降级（静默降级会变成「装了一半、界面显示成功」）。
+List<String> resolveInstallStageChain(
+  InstallStepGroup group,
+  List<String> manifest,
+) {
+  final candidates = installStepStageCandidates[group] ?? const <String>[];
+  if (candidates.isEmpty) return const <String>[];
+  if (manifest.isEmpty) return <String>[candidates.first];
+  final known = manifest.toSet();
+  final matched = candidates.where(known.contains).toList(growable: false);
+  return matched.isEmpty ? <String>[candidates.first] : matched;
+}

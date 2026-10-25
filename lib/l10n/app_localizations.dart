@@ -2786,10 +2786,19 @@ extension AppLocalizationsInstallWizard on AppLocalizations {
       ? '===> [2/5] Fetching and installing the Hermes Agent source ...'
       : '===> [2/5] 拉取与安装 Hermes Agent 源码 ...';
 
-  /// 日志台：[3/5] 装 Agent 依赖。
+  /// 日志台：装 Agent 依赖。
   String get installWizardLogDeps => isEnglish
       ? '===> [3/5] Setting up the Agent Python virtualenv and dependencies ...'
       : '===> [3/5] 安装 Agent Python 虚拟环境及依赖 ...';
+
+  /// 日志台：一个抽象步内的多个官方 stage 进度（后接序号 / 总数 / stage 名）。
+  ///
+  /// 官方 2026-10 把「装依赖」拆成 venv / python-deps / config / products /
+  /// complete 等多个 stage，不标进度的话日志会长时间只剩一行，看起来像卡死。
+  String installWizardLogStageProgress(int index, int total, String stage) =>
+      isEnglish
+      ? '── official stage $index/$total: $stage'
+      : '── 官方 stage $index/$total：$stage';
 
   /// 日志台：[4/5] 拉起内置服务。
   String get installWizardLogService => isEnglish
