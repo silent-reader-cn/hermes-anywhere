@@ -79,6 +79,10 @@ class _FakePowershellInstaller implements PowershellInstaller {
   Map<String, String> stageFailures = {};
   final List<String> stagesExecuted = [];
 
+  /// 非空时首个 stage 会挂在这道闸上 —— 供「进行中」UI 用例稳定观察 loading
+  /// 态（fake 默认同步完成，一帧内就跑完了，抓不到 installing 那一瞬）。
+  Completer<void>? hangGate;
+
   @override
   Future<String> ensureScriptCached({
     String url = PowershellInstaller.defaultScriptUrl,
@@ -97,6 +101,10 @@ class _FakePowershellInstaller implements PowershellInstaller {
     String? hermesHome,
   }) async* {
     stagesExecuted.add(stageName);
+    final gate = hangGate;
+    if (gate != null && !gate.isCompleted) {
+      await gate.future;
+    }
     yield InstallerEvent.stageStart(stageName, title: 'Starting $stageName');
     yield InstallerEvent.log('Running step $stageName...', stage: stageName);
 
@@ -575,23 +583,18 @@ void main() {
     );
   });
 
-  testWidgets('首屏：详情卡只留说明（不再重复步骤名）+ 检查卡 4 行（含新增「网络环境」）', (tester) async {
+  testWidgets('首屏：向导条下方不再有说明卡 + 检查卡 4 行（含新增「网络环境」）', (tester) async {
     await tester.pumpWidget(buildTestApp(tester));
     await openGuide(tester);
 
-    // 步骤名只在向导条上出现一处：详情卡不再复述（主人 2026-10-25 反馈的重复项）。
+    // 步骤名只由向导条承载（主人 2026-10-25 反馈的重复项）。
     expect(find.text('环境检查'), findsOneWidget);
+    // 向导条下方那张说明卡整体移除：当前步由轨上高亮表达，状态交给
+    // 胶囊 loading / 轨上色点 / 错误卡（主人 2026-10-25 拍板）。
     expect(
-      find.byKey(const ValueKey('wizard-current-step-title')),
+      find.byKey(const ValueKey('wizard-current-step-card')),
       findsNothing,
-      reason: '详情卡里的步骤名与向导条重复，已删除',
-    );
-    // 详情卡保留「这一步做什么」的说明句。
-    expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('wizard-current-step-desc')))
-          .data,
-      contains('Python'),
+      reason: '说明卡与向导条重复，已整体移除',
     );
     expect(find.byKey(const ValueKey('wizard-prereq-check-card')), findsOneWidget);
     expect(find.byKey(const ValueKey('wizard-check-windows')), findsOneWidget);
@@ -602,6 +605,32 @@ void main() {
       findsOneWidget,
       reason: '检查卡第 4 行「网络环境」为本批新增',
     );
+  });
+
+  testWidgets('进行中状态由右上角胶囊的 loading 表达（不再靠说明卡文字）', (tester) async {
+    final gate = Completer<void>();
+    psInstaller.hangGate = gate;
+    await tester.pumpWidget(buildTestApp(tester));
+    await openGuide(tester);
+
+    await tester.tap(find.byKey(const ValueKey('install-guide-start-btn')));
+    await tester.pump();
+
+    final pill = find.byKey(const ValueKey('install-guide-installing-btn'));
+    expect(pill, findsOneWidget, reason: '安装中换用独立 key 的胶囊');
+    expect(
+      find.descendant(
+        of: pill,
+        matching: find.byType(CupertinoActivityIndicator),
+      ),
+      findsOneWidget,
+      reason: '进行中的状态由胶囊内的 loading 图标表达（主人 2026-10-25 口径）',
+    );
+    // 说明卡已移除 ⇒ 页面上不再有「执行中…」这类文字状态。
+    expect(find.text('执行中…'), findsNothing);
+
+    gate.complete();
+    await settleInstall(tester);
   });
 
   testWidgets('安装推进：「启动服务」步为当前时前三步转完成态（绿底白勾）', (tester) async {
@@ -623,15 +652,9 @@ void main() {
       );
     }
     // 第 4 步（启动服务）服务已起、但仍在等用户收尾（模型配置 → 下一步）：
-    // 轨上为当前步（主色底），详情卡状态「执行中…」，进度只算前 3 步 ——
-    // 主人复验要求这三处口径必须自洽（不许出现「蓝点 + 已完成」）。
+    // 轨上为当前步（主色底），进度只算前 3 步 —— 要求自洽（不许出现
+    // 「蓝点 + 已完成」）。状态文字随说明卡一并移除，进行中由胶囊 loading 表达。
     expect(dotDecoration(tester, 3).color, LightSurfaces.userDetail);
-    expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('wizard-current-step-status')))
-          .data,
-      '执行中…',
-    );
     // 第 5 步未达。
     // 第 5 步未达（页底色实心 + 灰边，盖住连接线）。
     expect(dotDecoration(tester, 4).color, LightSurfaces.page);
@@ -955,15 +978,10 @@ void main() {
     // 详情卡是「手机配对 / 等待中」。
     expect(dotDecoration(tester, 3).color, isNotNull);
     expect(dotDecoration(tester, 4).color, LightSurfaces.userDetail);
-    // 步骤名只由向导条承载（详情卡不重复）。
+    // 步骤名只由向导条承载。
     expect(find.text('手机配对'), findsOneWidget);
-    expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('wizard-current-step-status')))
-          .data,
-      '等待中',
-    );
-    // 进度条已移除：第 5 步为当前步（蓝点），状态文案由详情卡表达。
+    // 进度条已移除：第 5 步为当前步（蓝点），等待态由配对卡内的
+    // 「等待手机接入…」表达（说明卡已整体移除）。
     expect(
       find.byKey(const ValueKey('wizard-progress-label')),
       findsNothing,
@@ -999,14 +1017,8 @@ void main() {
     pairing.emitAccepted('iPhone 15 Pro');
     await tester.pumpAndSettle();
 
-    expect(find.text('手机已连上'), findsOneWidget);
-    // 验收态标题是「新信息」（向导条仍写「手机配对」）⇒ 详情卡显示它。
-    expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('wizard-current-step-title')))
-          .data,
-      '手机已连上',
-    );
+    // 说明卡已移除 ⇒ 验收态由配对成功卡承载（设备名 + 「刚刚配对」）。
+    expect(find.byKey(const ValueKey('wizard-paired-card')), findsOneWidget);
     expect(find.text('iPhone 15 Pro'), findsOneWidget);
     expect(find.text('刚刚配对'), findsOneWidget);
     expect(
@@ -1020,12 +1032,6 @@ void main() {
     expect(
       find.byKey(const ValueKey('wizard-progress-label')),
       findsNothing,
-    );
-    expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('wizard-current-step-status')))
-          .data,
-      '已完成',
     );
 
     await tester.tap(find.byKey(const ValueKey('wizard-pairing-finish-btn')));

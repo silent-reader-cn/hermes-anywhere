@@ -213,51 +213,6 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     }
   }
 
-  String _stepDesc(AppLocalizations l10n, InstallStageKey stage) {
-    switch (stage) {
-      case InstallStageKey.prereqs:
-        return l10n.installGuideStagePrereqsDesc;
-      case InstallStageKey.agent:
-        return l10n.installGuideStageAgentDesc;
-      case InstallStageKey.agentDeps:
-        return l10n.installGuideStageDepsDesc;
-      case InstallStageKey.service:
-        return l10n.installWizardDescService;
-      case InstallStageKey.pairing:
-        return _accepted != null
-            ? l10n.installWizardPairedSub
-            : l10n.installWizardDescPairing;
-    }
-  }
-
-  IconData _stepIcon(InstallStageKey stage) {
-    switch (stage) {
-      case InstallStageKey.prereqs:
-        return CupertinoIcons.checkmark_shield;
-      case InstallStageKey.agent:
-        return CupertinoIcons.arrow_down_circle;
-      case InstallStageKey.agentDeps:
-        return CupertinoIcons.cube_box;
-      case InstallStageKey.service:
-        return CupertinoIcons.antenna_radiowaves_left_right;
-      case InstallStageKey.pairing:
-        return CupertinoIcons.qrcode;
-    }
-  }
-
-  String _stepStatusText(AppLocalizations l10n, StageStatus status) {
-    switch (status) {
-      case StageStatus.pending:
-        return l10n.installGuideStatusPending;
-      case StageStatus.running:
-        return l10n.installWizardStageRunning;
-      case StageStatus.success:
-        return l10n.installGuideStatusSuccess;
-      case StageStatus.failed:
-        return l10n.failedStatus;
-    }
-  }
-
   /// 当前 locale 的文案包。
   ///
   /// 与直接 `AppLocalizations.of(context)` 的区别：安装/配对是长跑的异步链，用户
@@ -1006,8 +961,6 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
       _buildHeader(l10n),
       const SizedBox(height: 18),
       _buildStepRail(l10n),
-      const SizedBox(height: 14),
-      _buildCurrentStepCard(l10n),
       ..._buildCurrentStepBody(l10n),
       if (_phase == GuidePhase.failed) ...[
         const SizedBox(height: 16),
@@ -1225,96 +1178,6 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
       currentIndex: _currentStepIndex,
       doneCount: doneCount,
       failedIndex: _failedStageIndex,
-    );
-  }
-
-  /// 当前步说明条（圆角 10 / 0.5px 描边 / 18px 主色图标 + 说明 + 右侧状态）。
-  ///
-  /// 为什么不再显示步骤名（主人 2026-10-25 反馈「上方五步向导条已经有了，
-  /// 下方为什么还重复一遍」）：轨上每一格都写着步骤名、当前格还是主色高亮，
-  /// 卡里再复述一次标题纯属占位。卡的价值只剩两件轨上放不下的信息 ——
-  /// ① 这一步在做什么（说明句）；② 当前状态的**文字**（绿点/蓝点对色弱和
-  /// 远距离不友好，文字更确定）。
-  Widget _buildCurrentStepCard(AppLocalizations l10n) {
-    final index = _currentStepIndex.clamp(
-      0,
-      InstallStageKey.values.length - 1,
-    );
-    final stage = InstallStageKey.values[index];
-    final status = _stageStatuses[stage] ?? StageStatus.pending;
-    // 只有当本步的展示名与向导条上的名字**不同**时才显示标题 —— 那才是新信息。
-    // 例：配对步在手机接入后改成验收态「手机已连上」，而向导条仍写「手机配对」；
-    // 其余情况标题与轨上重复，不再复述（主人 2026-10-25 反馈）。
-    final titleOverride =
-        stage == InstallStageKey.pairing && _accepted != null
-        ? l10n.installWizardPairedTitle
-        : null;
-    final Color statusColor;
-    switch (status) {
-      case StageStatus.success:
-        statusColor = statusGreenText.resolveFrom(context);
-        break;
-      case StageStatus.failed:
-        statusColor = statusRedText.resolveFrom(context);
-        break;
-      case StageStatus.pending:
-      case StageStatus.running:
-        statusColor = _secondary;
-        break;
-    }
-    return _card(
-      key: const ValueKey('wizard-current-step-card'),
-      padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            _stepIcon(stage),
-            size: 18,
-            color: LightSurfaces.resolve(
-              context,
-              LightSurfaces.userDetail,
-              dark: const Color(0xFF007AFF),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (titleOverride != null) ...[
-                  Text(
-                    titleOverride,
-                    key: const ValueKey('wizard-current-step-title'),
-                    style: const TextStyle(
-                      fontSize: kFontItemTitle,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                ],
-                Text(
-                  _stepDesc(l10n, stage),
-                  key: const ValueKey('wizard-current-step-desc'),
-                  style: TextStyle(
-                    fontSize: titleOverride != null
-                        ? kFontCaption
-                        : kFontLabel,
-                    height: 1.45,
-                    color: _secondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            _stepStatusText(l10n, status),
-            key: const ValueKey('wizard-current-step-status'),
-            style: TextStyle(fontSize: kFontCaption, color: statusColor),
-          ),
-        ],
-      ),
     );
   }
 
