@@ -1546,33 +1546,27 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     final port = config?.port ?? 0;
     final status =
         _stageStatuses[InstallStageKey.service] ?? StageStatus.pending;
-    final String serviceValue;
-    final Color? serviceValueColor;
+    // 服务状态不再单开一行：它原来和「允许局域网设备访问」右侧报的是同一个地址
+    // （主人 2026-10-25 反馈「已开启 · 0.0.0.0:8787」与「● 运行中 0.0.0.0:8787」
+    // 重复）。运行态并入那一行，失败原因仍由错误卡承载。
+    final String lanValue;
+    final Color? lanValueColor;
     if (_serviceAddress.isNotEmpty) {
-      // 服务本身真的在跑 —— 无论步骤是否已 close，这一行都据实报「运行中」。
-      serviceValue = l10n.installWizardServiceRunning(
+      // 服务真的在跑 —— 无论步骤是否 close，都据实报「运行中 + 地址」。
+      lanValue = l10n.installWizardServiceRunning(
         _serviceAddress.split(':').first,
         int.tryParse(_serviceAddress.split(':').last) ?? port,
       );
-      serviceValueColor = statusGreenText.resolveFrom(context);
+      lanValueColor = statusGreenText.resolveFrom(context);
+    } else if (status == StageStatus.running) {
+      lanValue = l10n.webuiStatusStarting;
+      lanValueColor = null;
+    } else if (_lanEnabled && host.isNotEmpty) {
+      lanValue = l10n.installWizardLanOn(host, port);
+      lanValueColor = statusGreenText.resolveFrom(context);
     } else {
-      switch (status) {
-        case StageStatus.running:
-          serviceValue = l10n.webuiStatusStarting;
-          serviceValueColor = null;
-          break;
-        case StageStatus.failed:
-          serviceValue = _serviceFailureReason.isEmpty
-              ? l10n.onboardingBuiltinNotStarted
-              : _serviceFailureReason;
-          serviceValueColor = statusRedText.resolveFrom(context);
-          break;
-        case StageStatus.pending:
-        case StageStatus.success:
-          serviceValue = l10n.onboardingBuiltinNotStarted;
-          serviceValueColor = null;
-          break;
-      }
+      lanValue = l10n.installWizardLanOff;
+      lanValueColor = null;
     }
     return [
       const SizedBox(height: 12),
@@ -1585,12 +1579,8 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
               icon: CupertinoIcons.antenna_radiowaves_left_right,
               iconColor: _secondary,
               title: l10n.installWizardLanTitle,
-              value: _lanEnabled && host.isNotEmpty
-                  ? l10n.installWizardLanOn(host, port)
-                  : l10n.installWizardLanOff,
-              valueColor: _lanEnabled
-                  ? statusGreenText.resolveFrom(context)
-                  : null,
+              value: lanValue,
+              valueColor: lanValueColor,
             ),
             _rowDivider(),
             _statRow(
@@ -1604,20 +1594,6 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
             ),
             _rowDivider(),
             _tailscaleRow(l10n),
-            _rowDivider(),
-            _statRow(
-              titleKey: 'wizard-service-status-row',
-              iconKey: 'wizard-service-status-icon',
-              icon: _serviceAddress.isNotEmpty
-                  ? CupertinoIcons.checkmark_circle_fill
-                  : CupertinoIcons.hourglass,
-              iconColor: _serviceAddress.isNotEmpty
-                  ? statusGreenText.resolveFrom(context)
-                  : _secondary,
-              title: l10n.webuiStatusTitle,
-              value: serviceValue,
-              valueColor: serviceValueColor,
-            ),
           ],
         ),
       ),

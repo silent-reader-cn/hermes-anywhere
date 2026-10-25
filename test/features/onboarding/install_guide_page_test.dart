@@ -655,23 +655,14 @@ void main() {
       find.byKey(const ValueKey('wizard-progress-label')),
       findsNothing,
     );
-    // 服务本体确实在跑，由服务状态行独立表达（与步骤状态解耦）。
+    // 服务本体确实在跑 —— 运行态并入「允许局域网设备访问」行（不再单开
+    // 「服务状态」行：两行原来报的是同一个地址，主人 2026-10-25 反馈重复）。
     expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('wizard-service-status-row')))
-          .data,
-      '服务状态',
+      find.byKey(const ValueKey('wizard-service-status-row')),
+      findsNothing,
+      reason: '服务状态行已并入局域网行',
     );
     expect(find.text('● 运行中 0.0.0.0:8787'), findsOneWidget);
-    // 该行图标也须据实为绿勾（与「运行中」文一致），不能停在等待态沙漏。
-    expect(
-      tester
-          .widget<Icon>(
-            find.byKey(const ValueKey('wizard-service-status-icon')),
-          )
-          .icon,
-      CupertinoIcons.checkmark_circle_fill,
-    );
   }, skip: !Platform.isWindows);
 
   testWidgets('步骤失败：轨上失败步为红底白叉 + 错误卡片可重试', (tester) async {
