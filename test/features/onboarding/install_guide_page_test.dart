@@ -575,15 +575,23 @@ void main() {
     );
   });
 
-  testWidgets('首屏：详情卡 = 「环境检查」 + 检查卡 4 行（含新增「网络环境」）', (tester) async {
+  testWidgets('首屏：详情卡只留说明（不再重复步骤名）+ 检查卡 4 行（含新增「网络环境」）', (tester) async {
     await tester.pumpWidget(buildTestApp(tester));
     await openGuide(tester);
 
+    // 步骤名只在向导条上出现一处：详情卡不再复述（主人 2026-10-25 反馈的重复项）。
+    expect(find.text('环境检查'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('wizard-current-step-title')),
+      findsNothing,
+      reason: '详情卡里的步骤名与向导条重复，已删除',
+    );
+    // 详情卡保留「这一步做什么」的说明句。
     expect(
       tester
-          .widget<Text>(find.byKey(const ValueKey('wizard-current-step-title')))
+          .widget<Text>(find.byKey(const ValueKey('wizard-current-step-desc')))
           .data,
-      '环境检查',
+      contains('Python'),
     );
     expect(find.byKey(const ValueKey('wizard-prereq-check-card')), findsOneWidget);
     expect(find.byKey(const ValueKey('wizard-check-windows')), findsOneWidget);
@@ -956,12 +964,8 @@ void main() {
     // 详情卡是「手机配对 / 等待中」。
     expect(dotDecoration(tester, 3).color, isNotNull);
     expect(dotDecoration(tester, 4).color, LightSurfaces.userDetail);
-    expect(
-      tester
-          .widget<Text>(find.byKey(const ValueKey('wizard-current-step-title')))
-          .data,
-      '手机配对',
-    );
+    // 步骤名只由向导条承载（详情卡不重复）。
+    expect(find.text('手机配对'), findsOneWidget);
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('wizard-current-step-status')))
@@ -1005,6 +1009,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('手机已连上'), findsOneWidget);
+    // 验收态标题是「新信息」（向导条仍写「手机配对」）⇒ 详情卡显示它。
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('wizard-current-step-title')))
+          .data,
+      '手机已连上',
+    );
     expect(find.text('iPhone 15 Pro'), findsOneWidget);
     expect(find.text('刚刚配对'), findsOneWidget);
     expect(

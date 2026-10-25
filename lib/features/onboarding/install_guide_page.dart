@@ -1228,8 +1228,13 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     );
   }
 
-  /// 当前步详情卡（圆角 10 / 0.5px 描边 / 内距 13-14 / 18px 主色图标 + 标题 15
-  /// + 副行 + 右侧状态），照设计稿 §5「当前步详情」。
+  /// 当前步说明条（圆角 10 / 0.5px 描边 / 18px 主色图标 + 说明 + 右侧状态）。
+  ///
+  /// 为什么不再显示步骤名（主人 2026-10-25 反馈「上方五步向导条已经有了，
+  /// 下方为什么还重复一遍」）：轨上每一格都写着步骤名、当前格还是主色高亮，
+  /// 卡里再复述一次标题纯属占位。卡的价值只剩两件轨上放不下的信息 ——
+  /// ① 这一步在做什么（说明句）；② 当前状态的**文字**（绿点/蓝点对色弱和
+  /// 远距离不友好，文字更确定）。
   Widget _buildCurrentStepCard(AppLocalizations l10n) {
     final index = _currentStepIndex.clamp(
       0,
@@ -1237,6 +1242,13 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     );
     final stage = InstallStageKey.values[index];
     final status = _stageStatuses[stage] ?? StageStatus.pending;
+    // 只有当本步的展示名与向导条上的名字**不同**时才显示标题 —— 那才是新信息。
+    // 例：配对步在手机接入后改成验收态「手机已连上」，而向导条仍写「手机配对」；
+    // 其余情况标题与轨上重复，不再复述（主人 2026-10-25 反馈）。
+    final titleOverride =
+        stage == InstallStageKey.pairing && _accepted != null
+        ? l10n.installWizardPairedTitle
+        : null;
     final Color statusColor;
     switch (status) {
       case StageStatus.success:
@@ -1270,20 +1282,24 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _stepTitle(l10n, stage),
-                  key: const ValueKey('wizard-current-step-title'),
-                  style: const TextStyle(
-                    fontSize: kFontItemTitle,
-                    fontWeight: FontWeight.w600,
+                if (titleOverride != null) ...[
+                  Text(
+                    titleOverride,
+                    key: const ValueKey('wizard-current-step-title'),
+                    style: const TextStyle(
+                      fontSize: kFontItemTitle,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
+                  const SizedBox(height: 4),
+                ],
                 Text(
                   _stepDesc(l10n, stage),
+                  key: const ValueKey('wizard-current-step-desc'),
                   style: TextStyle(
-                    // TODO(type): 设计稿 11.5，梯子无此档；本批按 kFontCaption(12)
-                    fontSize: kFontCaption,
+                    fontSize: titleOverride != null
+                        ? kFontCaption
+                        : kFontLabel,
                     height: 1.45,
                     color: _secondary,
                   ),
