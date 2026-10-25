@@ -2664,23 +2664,16 @@ extension AppLocalizationsInstallWizard on AppLocalizations {
   String get installWizardCredentialTitle =>
       isEnglish ? 'Access Credential' : '访问凭据';
 
-  /// 凭据行值。
+  /// 凭据行值：只指路「密码在哪看」。
   ///
-  /// 为什么保留「不使用明文密码」这句：凭据里的 password 是**秘密**
-  /// （`core/pairing/pairing_client.dart` 的安全铁律：不写日志、不进 toString、
-  /// 不进错误 detail）⇒ 向导里**不显示明文密码**，手机接入靠配对码交接。
-  /// 但**桌面浏览器直连**仍需要密码 ⇒ 补一句真实路径，让用户找得到。
-  String get installWizardCredentialValue => isEnglish
-      ? 'Handed over via pairing code · no plaintext password'
-      : '配对码交接 · 不使用明文密码';
-
-  /// 凭据行值（带「密码在哪看」的指路）。
-  ///
-  /// 与 [installWizardCredentialValue] 同义但多了指路：桌面浏览器直连要密码，
-  /// 而密码只在「设置 → 桌面 → 内置 WebUI 服务」里（遮罩 + 眼睛图标可显隐）。
+  /// 为什么不再写「配对码交接 / 不使用明文密码」（主人 2026-10-25 反馈）：
+  /// ① 手机端配对向导本身就把「输 6 位配对码」讲透了（M3 页），桌面向导再喊一遍
+  ///    只是噪音；② 向导里从来不显示明文密码，用户也不需要知道"怎么交接"，
+  ///    他真正要知道的是**桌面浏览器直连时密码在哪**。
+  /// 密码只在「设置 → 桌面 → 内置 WebUI 服务」里（遮罩 + 眼睛图标可显隐）。
   String get installWizardCredentialValueWithPath => isEnglish
-      ? 'Pairing code · password in Settings → Desktop → Built-in WebUI'
-      : '配对码交接 · 密码见「设置 → 桌面 → 内置 WebUI 服务」';
+      ? 'Password in Settings → Desktop → Built-in WebUI'
+      : '密码见「设置 → 桌面 → 内置 WebUI 服务」';
 
   /// 服务状态行值（运行中）。
   String installWizardServiceRunning(String host, int port) =>

@@ -891,7 +891,6 @@ void main() {
       expect(l10n.installWizardLanOn('0.0.0.0', 8787), '已开启 · 0.0.0.0:8787');
       expect(l10n.installWizardLanOff, '仅本机（127.0.0.1）');
       expect(l10n.installWizardCredentialTitle, '访问凭据');
-      expect(l10n.installWizardCredentialValue, '配对码交接 · 不使用明文密码');
       expect(l10n.installWizardServiceRunning('0.0.0.0', 8787), '● 运行中 0.0.0.0:8787');
       expect(l10n.installWizardNextPairing, '下一步：配对');
       expect(l10n.installWizardPairingWaiting, '等待手机接入…');

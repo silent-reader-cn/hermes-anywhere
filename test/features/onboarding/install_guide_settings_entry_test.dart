@@ -130,9 +130,8 @@ void main() {
       );
       expect(
         l10n.installWizardCredentialValueWithPath,
-        isNot(contains('不使用明文密码')),
-        reason: '带指路的版本改说「密码见…」；原「不使用明文密码」那句仍在'
-            'installWizardCredentialValue 里保留',
+        isNot(contains('配对码交接')),
+        reason: '手机端配对向导已把配对码讲透 ⇒ 凭据行不再重复该措辞，只说密码在哪',
       );
     });
   });
