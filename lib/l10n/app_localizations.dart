@@ -1577,6 +1577,19 @@ class AppLocalizations {
       isEnglish ? 'Start One-Click Install' : '开始一键安装';
   String get installGuideInstalling => isEnglish ? 'Installing...' : '正在安装...';
   String get installGuideRetry => isEnglish ? 'Retry' : '重试';
+
+  /// 标题行胶囊按钮：开始（两字，比整句式 startInstall 短得多）。
+  String get installGuidePillStart => isEnglish ? 'Install' : '开始';  // pill-start
+
+  /// 标题行胶囊按钮：进行中（忙碌态；转圈图标已表达进行中，文字只做定性）。
+  String get installGuidePillInstalling =>
+      isEnglish ? 'Running' : '进行';  // pill-installing
+
+  /// 标题行胶囊按钮：保存（模型配置步，等价于「保存并继续」）。
+  String get installGuidePillSave => isEnglish ? 'Save' : '保存';  // pill-save
+
+  /// 标题行胶囊按钮：跳过（手机配对步，等价于「跳过配对」）。
+  String get installGuidePillSkip => isEnglish ? 'Skip' : '跳过';  // pill-skip
   String get installGuideRetryStage =>
       isEnglish ? 'Retry Failed Step' : '重试当前步骤';
   String get installGuideCompleted =>

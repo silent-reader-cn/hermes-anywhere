@@ -1084,10 +1084,14 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     );
   }
 
-  /// 标题行右侧的主操作（圆形 icon button）。
+  /// 标题行右侧的主操作（胶囊按钮：icon + 短文案）。
   ///
   /// 各阶段的主 CTA：开始安装 / 安装中(转圈) / 重试 / 保存并继续 / 完成。
   /// 禁用态用灰底而不是隐掉 —— 按钮位置固定，用户不会觉得「按钮跑了」。
+  ///
+  /// 为什么是胶囊而不是纯圆形 icon：40px 圆在标题行显得过大（主人 2026-10-25
+  /// 反馈），且 icon-only 单靠语义标签猜不出动作。压到 30px 高、横向放 12px
+  /// 短文案，既不抢标题，又让人一眼知道点下去会发生什么。
   Widget _buildHeaderAction(AppLocalizations l10n) {
     final spec = _headerActionSpec(l10n);
     final primaryColor = CupertinoTheme.brightnessOf(context) == Brightness.light
@@ -1101,23 +1105,41 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
       child: CupertinoButton(
         key: spec.key,
         padding: EdgeInsets.zero,
-        minimumSize: const Size(40, 40),
+        // CupertinoButton 默认最小尺寸 44×44，会把胶囊顶回 44 高。
+        minimumSize: const Size(0, 30),
         onPressed: spec.onPressed,
         // icon-only 按钮：语义标签由上面的 Semantics 提供（本页是 Cupertino
         // 体系，没有 Material 的 Tooltip 可用）。
         child: Container(
-          width: 40,
-          height: 40,
+          height: 30,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
             color: disabled
                 ? CupertinoColors.systemGrey4.resolveFrom(context)
                 : primaryColor,
-            shape: BoxShape.circle,
+            borderRadius: BorderRadius.circular(15),
           ),
-          alignment: Alignment.center,
-          child: spec.busy
-              ? const CupertinoActivityIndicator(color: CupertinoColors.white)
-              : Icon(spec.icon, size: 20, color: CupertinoColors.white),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (spec.busy)
+                const CupertinoActivityIndicator(
+                  radius: 6,
+                  color: CupertinoColors.white,
+                )
+              else
+                Icon(spec.icon, size: 14, color: CupertinoColors.white),
+              const SizedBox(width: 6),
+              Text(
+                spec.label,
+                style: const TextStyle(
+                  fontSize: kFontCaption,
+                  fontWeight: FontWeight.w600,
+                  color: CupertinoColors.white,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1130,6 +1152,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
         return _HeaderActionSpec(
           key: const ValueKey('install-guide-start-btn'),
           icon: CupertinoIcons.play_fill,
+          label: l10n.installGuidePillStart,
           tooltip: l10n.installGuideStartInstall,
           onPressed: () => _startOrResumeInstallation(),
         );
@@ -1137,6 +1160,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
         return _HeaderActionSpec(
           key: const ValueKey('install-guide-installing-btn'),
           icon: CupertinoIcons.hourglass,
+          label: l10n.installGuidePillInstalling,
           tooltip: l10n.installGuideInstalling,
           busy: true,
         );
@@ -1146,6 +1170,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
         return _HeaderActionSpec(
           key: const ValueKey('install-guide-header-retry-btn'),
           icon: CupertinoIcons.arrow_clockwise,
+          label: l10n.installGuideRetry,
           tooltip: l10n.installGuideRetryStage,
           onPressed: () => _startOrResumeInstallation(_failedStage),
         );
@@ -1153,6 +1178,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
         return _HeaderActionSpec(
           key: const ValueKey('install-guide-save-model-btn'),
           icon: CupertinoIcons.checkmark_alt,
+          label: l10n.installGuidePillSave,
           tooltip: l10n.installGuideSaveAndContinue,
           busy: _savingModel,
           onPressed: _savingModel
@@ -1163,6 +1189,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
         return _HeaderActionSpec(
           key: const ValueKey('wizard-pairing-skip-btn'),
           icon: CupertinoIcons.checkmark_alt,
+          label: l10n.installGuidePillSkip,
           tooltip: l10n.installWizardPairingSkip,
           busy: _finishing,
           onPressed: _finishing ? null : _finishWizard,
@@ -1171,6 +1198,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
         return _HeaderActionSpec(
           key: const ValueKey('wizard-pairing-finish-btn'),
           icon: CupertinoIcons.checkmark_alt,
+          label: l10n.finish,
           tooltip: l10n.finish,
           busy: _finishing,
           onPressed: _finishing ? null : _finishWizard,
@@ -2681,6 +2709,7 @@ class _HeaderActionSpec {
   const _HeaderActionSpec({
     required this.key,
     required this.icon,
+    required this.label,
     required this.tooltip,
     this.onPressed,
     this.busy = false,
@@ -2689,8 +2718,11 @@ class _HeaderActionSpec {
   /// 按钮 key（测试与既有用例按 key 定位主操作）。
   final Key key;
 
-  /// 图标（icon-only 按钮）。
+  /// 图标（胶囊内左侧，14px）。
   final IconData icon;
+
+  /// 胶囊内文案（12px）：短到能塞进标题行，又足以说明动作。
+  final String label;
 
   /// 无障碍标签 + 悬停提示（icon-only 按钮必须有文字语义）。
   final String tooltip;
