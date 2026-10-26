@@ -495,6 +495,18 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
             ? l10n.installWizardFailService
             : _serviceFailureReason;
         _appendLog(l10n.installWizardLogServiceFailed(_failureReason));
+        // 诊断（2026-10-26）：解释器缺失过去只报一句结果，测试机上一轮无法定位
+        // —— 官方脚本 2026-10 起把依赖环境交给 `pm`，venv 不再落在
+        // `<agent>\venv`。失败时把「实际查过的候选路径」写进日志台，下次一眼可判。
+        final detail = ref.read(webuiSidecarControllerProvider).detail;
+        if (detail != null && detail.contains('解释器')) {
+          final fs = ref.read(sidecarFileSystemProvider);
+          _appendLog(
+            l10n.installWizardLogInterpreterSearch(
+              agentPythonCandidates(fs).join(' | '),
+            ),
+          );
+        }
         return false;
       }
       final config = ref.read(webuiSidecarConfigProvider);
@@ -1464,12 +1476,11 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
         const SizedBox(height: 12),
         _buildTailscaleProgressCard(l10n, _tailscaleStatus!),
       ],
-      const SizedBox(height: 12),
-      _noteCard(l10n.installWizardTailscaleExempt),
-      const SizedBox(height: 12),
-      // 首次放行提示：本步是内置服务首次绑 0.0.0.0:8787 的时点，Windows 会弹一次
-      // 「是否允许访问网络」；点了取消 / 关掉后手机侧就静默连不上（同款 notecard 样式）。
-      _noteCard(l10n.installWizardFirewallAllowHint),
+      // 2026-10-26 主人测试机反馈：勾选行下方这两张说明卡（「不勾选也能用」／
+      // 「首次运行可能弹网络询问」）与勾选行挤成一堆、信息也重复，整卡删除。
+      // 文案键留在 l10n 里（`installWizardTailscaleExempt` /
+      // `installWizardFirewallAllowHint`）：手机端配对指引仍在讲同一件事，
+      // 桌面这屏不再复述。
       if (_phase == GuidePhase.configuringModel) ...[
         const SizedBox(height: 12),
         _buildModelConfigForm(l10n),
@@ -2028,44 +2039,7 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
     );
   }
 
-  Widget _noteCard(String text) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: LightSurfaces.resolve(
-          context,
-          LightSurfaces.card,
-          dark: CupertinoColors.secondarySystemGroupedBackground,
-        ),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: LightSurfaces.resolve(
-            context,
-            LightSurfaces.divider,
-            dark: CupertinoColors.separator,
-          ),
-          width: 0.5,
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(CupertinoIcons.info_circle, size: 15, color: _secondary),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: kFontCaption,
-                height: 1.5,
-                color: _secondary,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // `_noteCard` 已随两张说明卡一起删除（2026-10-26）。
 
   Widget _ghostButton({
     Key? key,
@@ -2471,20 +2445,30 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
                           fontFamily: 'monospace',
                         ),
                       )
-                    : ListView.builder(
-                        controller: _logScrollController,
-                        itemCount: _logs.length,
-                        itemBuilder: (context, idx) {
-                          return Text(
-                            _logs[idx],
-                            style: const TextStyle(
-                              // TODO(type): 等宽日志行用 11，语义应 kFontCode 12；本批保持原值
-                              fontSize: kFontCode,
-                              color: CupertinoColors.systemGreen,
-                              fontFamily: 'monospace',
-                            ),
-                          );
-                        },
+                    : ScrollConfiguration(
+                        // Windows 桌面下默认 ScrollBehavior 会**给每个竖向 ScrollView
+                        // 套一条 RawScrollbar** ⇒ 日志（内层）与整个页面（外层）各出
+                        // 一条；上下滚日志时右上角就冒出第二条滚动条（主人
+                        // 2026-10-26 测试机反馈）。日志区只保留页面那条，内层关掉。
+                        behavior: ScrollConfiguration.of(
+                          context,
+                        ).copyWith(scrollbars: false),
+                        child: ListView.builder(
+                          key: const ValueKey('wizard-log-list'),
+                          controller: _logScrollController,
+                          itemCount: _logs.length,
+                          itemBuilder: (context, idx) {
+                            return Text(
+                              _logs[idx],
+                              style: const TextStyle(
+                                // TODO(type): 等宽日志行用 11，语义应 kFontCode 12；本批保持原值
+                                fontSize: kFontCode,
+                                color: CupertinoColors.systemGreen,
+                                fontFamily: 'monospace',
+                              ),
+                            );
+                          },
+                        ),
                       ),
               ),
           ],

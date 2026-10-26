@@ -2600,9 +2600,12 @@ extension AppLocalizationsInstallWizard on AppLocalizations {
       isEnglish ? 'Recommended' : '推荐';
 
   /// Tailscale 副行 1。
+  ///
+  /// 2026-10-26 主人删掉「（4G / 公司 / 外地）」：括号里的举例是噪音，
+  /// 「任何网络都能连」本身已经把话说清了。
   String get installWizardTailscaleSub1 => isEnglish
-      ? 'Once installed, your phone can connect on any network (4G / office / away) — no need to share a Wi-Fi.'
-      : '装好后手机在任何网络都能连（4G / 公司 / 外地），不需要同一个 Wi-Fi。';
+      ? 'Once installed, your phone can connect on any network — no need to share a Wi-Fi.'
+      : '装好后手机在任何网络都能连，不需要同一个 Wi-Fi。';
 
   /// Tailscale 副行 2（诚实边界：浏览器授权无法代劳）。
   String get installWizardTailscaleSub2 => isEnglish
@@ -2833,6 +2836,14 @@ extension AppLocalizationsInstallWizard on AppLocalizations {
   /// 日志台：拉起服务的过程本身抛异常（后接异常文本）。
   String installWizardLogServiceError(String error) =>
       isEnglish ? 'Start service error: $error' : '启动服务异常: $error';
+
+  /// 日志台：解释器缺失时列出实际查过的候选路径（诊断用，后接 ` | ` 分隔的路径）。
+  ///
+  /// 2026-10-26 加：官方脚本不再把依赖环境建在 `<agentDir>\venv`，客户端若不
+  /// 认新布局就只会报一句「解释器缺失」；把候选路径打出来，下一轮无需再从零挖。
+  String installWizardLogInterpreterSearch(String paths) => isEnglish
+      ? 'Agent interpreter not found. Checked: $paths'
+      : '未找到 Agent 解释器，已查：$paths';
 
   /// 日志台：执行安装步骤的过程本身抛异常（后接异常文本）。
   String installWizardLogStepError(String error) =>

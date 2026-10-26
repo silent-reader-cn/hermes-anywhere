@@ -399,6 +399,12 @@ class DefaultPowershellInstaller implements PowershellInstaller {
     ];
     if (home != null && home.isNotEmpty) {
       args.addAll(['-HermesHome', home]);
+      // 同时钉死安装目录。官方脚本的 `-InstallDir` 默认**只跟随 `$env:HERMES_HOME`
+      // 环境变量**，不跟 `-HermesHome` 参数（实机实测：两者共存时 hermes_home 取
+      // 参数值、install_dir 取环境变量值）⇒ agent 与依赖环境会装到另一个 home 下，
+      // 而客户端只在 `<LOCALAPPDATA>\hermes\hermes-agent` 里找解释器，随后必然报
+      // 「解释器缺失」。显式传 `-InstallDir` ⇒ 装到哪儿 = 客户端要看的哪儿。
+      args.addAll(['-InstallDir', '$home\\hermes-agent']);
     }
 
     unawaited(() async {

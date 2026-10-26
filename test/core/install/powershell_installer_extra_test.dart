@@ -406,6 +406,39 @@ void main() {
     });
   });
 
+  group('DefaultPowershellInstaller.runStage：安装目录与客户端同源', () {
+    test('显式传 -InstallDir：官方脚本的 install_dir 默认只跟随 HERMES_HOME 环境变量', () async {
+      // 实测（2026-10-26）：`install.ps1 -ShowResolvedPaths` 在 `-HermesHome` 与
+      // `$env:HERMES_HOME` 同时存在时，hermes_home 取参数、**install_dir 取环境
+      // 变量** ⇒ agent 与依赖环境被装到别的 home，客户端在
+      // `%LOCALAPPDATA%\hermes\hermes-agent` 找不到解释器，报「解释器缺失」。
+      final executor = _FakeProcessExecutor(
+        processToReturn: _FakeProcess(
+          stdoutLines: <String>['{"ok": true, "stage": "venv"}'],
+          exitCodeValue: 0,
+        ),
+      );
+      final installer = DefaultPowershellInstaller(
+        processExecutor: executor,
+      );
+
+      await installer
+          .runStage('venv', hermesHome: r'D:\H\hermes')
+          .toList();
+
+      final args = executor.executed.single;
+      expect(
+        args,
+        containsAllInOrder(<String>['-HermesHome', r'D:\H\hermes']),
+      );
+      expect(
+        args,
+        containsAllInOrder(<String>['-InstallDir', r'D:\H\hermes\hermes-agent']),
+        reason: '不钉死 InstallDir，装到哪儿就又由环境变量说了算',
+      );
+    });
+  });
+
   group('DefaultPowershellInstaller.runStage：stderr 过滤', () {
     test('stderr 空白行被丢弃，非空行进入事件流', () async {
       final fake = _FakeProcess(

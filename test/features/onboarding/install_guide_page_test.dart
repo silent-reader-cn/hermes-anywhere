@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show debugDefaultTargetPlatformOverride;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -854,9 +855,59 @@ void main() {
     );
     expect(find.text('一起安装 Tailscale（内网穿透）'), findsOneWidget);
     expect(find.text('推荐'), findsOneWidget);
-    expect(find.text('装好后手机在任何网络都能连（4G / 公司 / 外地），不需要同一个 Wi-Fi。'), findsOneWidget);
+    // 2026-10-26 主人删掉括号里的举例：「任何网络都能连」本身就是结论。
+    expect(find.text('装好后手机在任何网络都能连，不需要同一个 Wi-Fi。'), findsOneWidget);
     expect(find.text('勾选后这一步会替你下载安装并打开登录页；需要 Tailscale 账号（Google / 微软 / GitHub / Apple），官方不支持邮箱注册。'), findsOneWidget);
-    expect(find.text('不勾选也能用：同一 Wi-Fi 下手机可以直接连；跨网再走「远程访问」。Tailscale 只做组网，流量端到端加密，不经过我们的服务器。'), findsOneWidget);
+    // 主人 2026-10-26 反馈两句说明卡太挤 ⇒ 整卡删除（文案键仍在 l10n，手机端在用）。
+    expect(
+      find.text(
+        '不勾选也能用：同一 Wi-Fi 下手机可以直接连；跨网再走「远程访问」。Tailscale 只做组网，流量端到端加密，不经过我们的服务器。',
+      ),
+      findsNothing,
+      reason: '「不勾选也能用」说明卡已按主人要求删除',
+    );
+    expect(
+      find.text('首次运行 Windows 可能弹一次网络访问询问，请点「允许」——否则手机连不上。'),
+      findsNothing,
+      reason: '「首次运行」说明卡已按主人要求删除',
+    );
+  });
+
+  testWidgets('安装日志内层不再有自己的滚动条（Windows 下只剩页面那一条）', (tester) async {
+    // 复现平台：Windows 桌面默认 ScrollBehavior（CupertinoScrollBehavior 同源）会给
+    // **每个**竖向 ScrollView 套一条滚动条 ⇒ 日志（内层）+ 整页（外层）各一条，
+    // 滚日志时右侧多出一条（主人 2026-10-26 测试机截图）。判据取「滚动条是否
+    // 出现在日志 ListView 的子树里」——去掉修复就会重新出现，具备鉴别力。
+    //
+    // ⚠️ 必须在体内复位：`debugDefaultTargetPlatformOverride` 是 foundation 全局，
+    // 框架在 body 结束后先校验「debug 变量已复位」，`addTearDown` 来不及。
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    try {
+      await tester.pumpWidget(buildTestApp(tester, injectTailscale: true));
+      await openGuide(tester);
+      await reachConfiguringModel(tester);
+
+      final logList = find.byKey(const ValueKey('wizard-log-list'));
+      expect(logList, findsOneWidget, reason: '日志区展开时才有内层 ListView');
+      // ⚠️ `find.byType(RawScrollbar)` 只匹配**精确类型**，桌面实际画的是子类
+      // `CupertinoScrollbar extends RawScrollbar` ⇒ 必须用谓词匹配整族。
+      final anyScrollbar = find.byWidgetPredicate((w) => w is RawScrollbar);
+      expect(
+        find.descendant(of: logList, matching: anyScrollbar),
+        findsNothing,
+        reason: '日志内层的滚动条必须关掉，否则页面右侧会出现第二条',
+      );
+      // 整页那一条仍要保留（否则长页面没法看出滚到哪儿）。
+      expect(
+        find.descendant(
+          of: find.byType(ListView).first,
+          matching: anyScrollbar,
+        ),
+        findsOneWidget,
+      );
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 
   testWidgets('点 Tailscale 行 → 取消勾选（空底 + 1.5px 灰边），再点恢复', (tester) async {

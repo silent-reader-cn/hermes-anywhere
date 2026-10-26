@@ -878,7 +878,7 @@ void main() {
       expect(l10n.installWizardNetworkSkipHint, '也可以先跳过：检测只影响安装速度，不影响功能');
       expect(l10n.installWizardTailscaleTitle, '一起安装 Tailscale（内网穿透）');
       expect(l10n.installWizardTailscaleBadge, '推荐');
-      expect(l10n.installWizardTailscaleSub1, '装好后手机在任何网络都能连（4G / 公司 / 外地），不需要同一个 Wi-Fi。');
+      expect(l10n.installWizardTailscaleSub1, '装好后手机在任何网络都能连，不需要同一个 Wi-Fi。');
       expect(l10n.installWizardTailscaleSub2, '勾选后这一步会替你下载安装并打开登录页；需要 Tailscale 账号（Google / 微软 / GitHub / Apple），官方不支持邮箱注册。');
       expect(l10n.installWizardTailscaleExempt, '不勾选也能用：同一 Wi-Fi 下手机可以直接连；跨网再走「远程访问」。Tailscale 只做组网，流量端到端加密，不经过我们的服务器。');
       expect(l10n.installWizardTailscaleUnavailable, 'Tailscale 服务不可用，已跳过内网穿透安装。');

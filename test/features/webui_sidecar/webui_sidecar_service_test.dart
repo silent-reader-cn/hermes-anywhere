@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hermes_ui/core/install/install_detector.dart';
 import 'package:hermes_ui/core/install/webui_bootstrap.dart';
+import 'package:hermes_ui/core/platform_paths.dart';
 import 'package:hermes_ui/features/webui_sidecar/webui_sidecar_service.dart';
 
 class _FakeProcess implements Process {
@@ -694,6 +695,59 @@ void main() {
         expect(resolveAgentPythonPath(posixFs), posixExpected);
       },
     );
+
+    test('解释器探测：认识 pm 新布局（installs/<id>/facts.json → environments/<id>/venv）', () {
+      // 实测背景（2026-10-26）：官方 install.ps1 重写后 `venv` stage 只备 bootstrap
+      // Python，依赖环境由 `pm install` 建在
+      // `<hermesHome>\installs\<id>\environments\<id>\venv`；客户端只认
+      // `<agentDir>\venv` ⇒ 全新装机第 4 步必报「解释器缺失」。
+      final tempRoot = Directory.systemTemp.createTempSync('hermes_pm_env_');
+      addTearDown(() {
+        if (tempRoot.existsSync()) tempRoot.deleteSync(recursive: true);
+      });
+      final sep = platformPathSeparator(Platform.isWindows);
+      String join(List<String> parts) => parts.join(sep);
+
+      final hermesHome = join([tempRoot.path, 'hermes']);
+      final factsDir = join([hermesHome, 'installs', 'install0001']);
+      final envDir = join([factsDir, 'environments', 'env0001']);
+      final pmPython = join([envDir, 'venv', 'Scripts', 'python.exe']);
+      File(pmPython).parent.createSync(recursive: true);
+      File(pmPython).writeAsStringSync('');
+      File(join([factsDir, 'facts.json'])).writeAsStringSync(
+        jsonEncode(<String, Object?>{
+          'packages': <String, Object?>{
+            'venv': <String, Object?>{'environment': join([envDir, 'venv'])},
+          },
+        }),
+      );
+
+      // 真实临时目录 + 真实适配器（注入 LOCALAPPDATA 让它落进 temp，不碰宿主）。
+      final fs = DefaultSidecarFileSystem(
+        customIsWindows: Platform.isWindows,
+        customLocalAppData: tempRoot.path,
+      );
+      expect(fs.hermesAgentDir, join([hermesHome, 'hermes-agent']));
+      expect(resolveAgentPythonPath(fs), pmPython);
+    });
+
+    test('解释器探测：pm 布局的 facts.json 坏掉 / 指空 → 不抛，继续返回 null', () {
+      final tempRoot = Directory.systemTemp.createTempSync('hermes_pm_bad_');
+      addTearDown(() {
+        if (tempRoot.existsSync()) tempRoot.deleteSync(recursive: true);
+      });
+      final sep = platformPathSeparator(Platform.isWindows);
+      final factsDir = [tempRoot.path, 'hermes', 'installs', 'i1'].join(sep);
+      File([factsDir, 'facts.json'].join(sep))
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('{ not-json');
+
+      final fs = DefaultSidecarFileSystem(
+        customIsWindows: Platform.isWindows,
+        customLocalAppData: tempRoot.path,
+      );
+      expect(resolveAgentPythonPath(fs), isNull);
+    });
 
     test('customAgentDir 可被 DefaultWebuiSidecarService 注入覆盖', () async {
       const customAgentPath = r'Z:\SpecialAgent';

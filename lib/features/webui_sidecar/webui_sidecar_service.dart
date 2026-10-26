@@ -253,32 +253,156 @@ extension SidecarFileSystemAgentExtension on SidecarFileSystem {
 /// Hermes Agent 官方文档外链地址。
 const String hermesAgentDocsUrl = 'https://hermes-agent.nousresearch.com/docs';
 
-/// 探测并解析 Hermes Agent venv 下的 Python 解释器路径。
+/// 探测并解析 Hermes Agent 依赖环境里的 Python 解释器路径。
 ///
-/// 优先级：
-/// 1. `<agentDir>\venv\Scripts\python.exe` 存在 → 优先使用；
-/// 2. `<agentDir>\.venv\Scripts\python.exe` 存在 → 次选使用；
-/// 3. 都不存在 → 返回 null。
+/// 优先级（**2026-10-26 测试机实锤后重写**，顺序即 [agentPythonCandidates]）：
+/// 1. `<agentDir>\venv\Scripts\python.exe` —— 旧布局（官方 2026-09 及更早）；
+/// 2. `<agentDir>\.venv\Scripts\python.exe` —— 源码 checkout / 开发机；
+/// 3. **pm 新布局**：`<hermesHome>\installs\<installId>\facts.json` 的
+///    `packages.venv.environment` 指向当前生效依赖环境，解释器在它的
+///    `Scripts\python.exe`；
+/// 4. `$HERMES_HOME` 指向的 home 再走一遍 1/3（官方脚本的 `-InstallDir` 默认
+///    跟随该环境变量，客户端只认 `%LOCALAPPDATA%` 必然分叉）。
+///
+/// **为什么必须补第 3 条**：官方 `install.ps1` 2026-10 重写后，`venv` stage
+/// 只备一个 bootstrap Python（注释原文：“PM alone creates dependency
+/// environments”），真正的依赖环境由 `pm install` 建在
+/// `<hermesHome>\installs\<id>\environments\<id>\venv`。向导的「安装依赖」步
+/// 会一路成功（脚本 exit 0），但第 4 步启动服务时只认第 1/2 条 ⇒ 全新装机
+/// **必然**报「解释器缺失」（主人测试机即此形态）。
 String? resolveAgentPythonPath(
   SidecarFileSystem fileSystem, [
   String? customAgentDir,
 ]) {
-  final targetAgentDir = customAgentDir ?? fileSystem.hermesAgentDir;
-  final sep = platformPathSeparator(fileSystem.isWindows);
-  final venvPy = '$targetAgentDir${sep}venv${sep}Scripts${sep}python.exe';
-  if (fileSystem.fileExists(venvPy)) {
-    return venvPy;
+  for (final path in agentPythonCandidates(fileSystem, customAgentDir)) {
+    if (fileSystem.fileExists(path)) {
+      return path;
+    }
   }
-  final dotVenvPy = '$targetAgentDir$sep.venv${sep}Scripts${sep}python.exe';
-  if (fileSystem.fileExists(dotVenvPy)) {
-    return dotVenvPy;
+  return null;
+}
+
+/// 按优先级展开的解释器候选路径（**存在性不定**）。
+///
+/// 抽成公开函数是为了让「解释器缺失」的失败态能把「查了哪些路径」写进
+/// 向导日志 —— 只报一句「解释器缺失」时，定位成本等于从零重来。
+List<String> agentPythonCandidates(
+  SidecarFileSystem fileSystem, [
+  String? customAgentDir,
+]) {
+  final sep = platformPathSeparator(fileSystem.isWindows);
+  final agentDir = customAgentDir ?? fileSystem.hermesAgentDir;
+  final candidates = <String>[
+    _venvPythonPath(agentDir, 'venv', sep),
+    _venvPythonPath(agentDir, '.venv', sep),
+  ];
+  for (final home in _hermesHomeCandidates(fileSystem, agentDir)) {
+    final pmPython = _pmEnvironmentPythonPath(fileSystem, home, sep);
+    if (pmPython != null) {
+      candidates.add(pmPython);
+    }
+    final homeAgentDir = '$home${sep}hermes-agent';
+    if (homeAgentDir != agentDir) {
+      candidates.add(_venvPythonPath(homeAgentDir, 'venv', sep));
+      candidates.add(_venvPythonPath(homeAgentDir, '.venv', sep));
+    }
+  }
+  return candidates;
+}
+
+String _venvPythonPath(String venvOwnerDir, String venvName, String sep) =>
+    '$venvOwnerDir$sep$venvName${sep}Scripts${sep}python.exe';
+
+/// Hermes Home 候选目录（`installs` 就在它下面）。
+///
+/// `$HERMES_HOME` **只在完全未注入的生产 fs 上参与**：测试注入的 fs（含
+/// `customLocalAppData` / `customAgentDir`）一律不看环境变量 —— 宿主机本身就
+/// 有 `HERMES_HOME` 与真实的 `installs` 树，读了会让用例随开发机状态变色。
+Iterable<String> _hermesHomeCandidates(
+  SidecarFileSystem fileSystem,
+  String agentDir,
+) sync* {
+  final sep = platformPathSeparator(fileSystem.isWindows);
+  final derived = platformParentDir(agentDir);
+  if (derived.isNotEmpty) {
+    yield derived;
+  }
+  if (fileSystem is DefaultSidecarFileSystem &&
+      fileSystem.customAgentDir == null &&
+      fileSystem.customLocalAppData == null) {
+    final envHome = Platform.environment['HERMES_HOME']?.trim();
+    if (envHome != null &&
+        envHome.isNotEmpty &&
+        _normalizedPath(envHome, sep) != _normalizedPath(derived, sep)) {
+      yield envHome;
+    }
+  }
+}
+
+String _normalizedPath(String path, String sep) =>
+    path.replaceAll('\\', '/').replaceAll('/', sep).toLowerCase();
+
+/// 读 pm 布局的 `facts.json`，取当前生效依赖环境的解释器。
+///
+/// 多个 `installs\<id>`（版本迭代留下的）时按 `facts.json` 的修改时间取最新；
+/// 任何一层坏数据都只跳过该条目，不抛 —— 解析失败要继续试下一个候选。
+String? _pmEnvironmentPythonPath(
+  SidecarFileSystem fileSystem,
+  String hermesHome,
+  String sep,
+) {
+  if (fileSystem is! DefaultSidecarFileSystem) {
+    return null;
+  }
+  final installsDir = Directory('$hermesHome${sep}installs');
+  if (!installsDir.existsSync()) {
+    return null;
+  }
+  final factsFiles = <File>[];
+  try {
+    for (final entry in installsDir.listSync()) {
+      if (entry is! Directory) continue;
+      final facts = File('${entry.path}$sep' 'facts.json');
+      if (facts.existsSync()) factsFiles.add(facts);
+    }
+  } catch (_) {
+    return null;
+  }
+  int modifiedOf(File file) {
+    try {
+      return file.statSync().modified.millisecondsSinceEpoch;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  factsFiles.sort((a, b) => modifiedOf(b).compareTo(modifiedOf(a)));
+  for (final facts in factsFiles) {
+    try {
+      final decoded = jsonDecode(facts.readAsStringSync());
+      if (decoded is! Map) continue;
+      final packages = decoded['packages'];
+      if (packages is! Map) continue;
+      final venv = packages['venv'];
+      if (venv is! Map) continue;
+      final envDir = venv['environment'];
+      if (envDir is! String || envDir.isEmpty) continue;
+      // ⚠️ `packages.venv.environment` **本身就是 venv 目录**
+      // （实机值：`...\installs\<id>\environments\<id>\venv`），不要再拼一层。
+      final pythonPath = '$envDir${sep}Scripts${sep}python.exe';
+      if (fileSystem.fileExists(pythonPath)) {
+        return pythonPath;
+      }
+    } catch (_) {
+      // 坏 facts.json 不阻断其它 installs 条目。
+    }
   }
   return null;
 }
 
 /// 检查当前系统与文件环境中 Hermes Agent venv 是否存在。
 ///
-/// 仅 Windows 环境有效；且必须在 [customAgentDir] 或 [SidecarFileSystem.hermesAgentDir] 命中 `venv\Scripts\python.exe` 或 `.venv\Scripts\python.exe`。
+/// 仅 Windows 环境有效；判定同 [resolveAgentPythonPath]（含 pm 新布局）。
 bool isAgentEnvPresent(
   SidecarFileSystem fileSystem, [
   String? customAgentDir,
