@@ -2,9 +2,10 @@
 
 # Hermes Anywhere
 
-**多平台统一、流畅的 Hermes 体验。**
+**桌面上和口袋里是同一个 Hermes 客户端——一套代码、一套界面、同一份会话。**
 
-基于 Flutter + Cupertino 的 [Hermes Agent](https://hermes-agent.nousresearch.com/docs) 客户端——一套代码，桌面与手机体验一致。
+基于 Flutter + Cupertino 的 [Hermes Agent](https://hermes-agent.nousresearch.com/docs) 客户端。
+Windows 与 Android 是**同一个应用**：同一套侧栏、同一套思考与工具卡片、同一份逐会话草稿、同一套明暗主题、同一套中英双语界面——不是网页套壳，不是两套代码库，也不是「Mac 原生 + 手机版补丁」。
 
 [![CI](https://github.com/silent-reader-cn/hermes-anywhere/actions/workflows/ci.yml/badge.svg)](https://github.com/silent-reader-cn/hermes-anywhere/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -45,9 +46,17 @@
 
 ## 为什么选它
 
-**一套代码，两个平台。** Windows 桌面端与 Android 手机端出自同一套 Flutter + Cupertino 代码库——布局一致、功能一致、双语一致。桌面端开一个回合，手机上接着聊。
+Hermes 已经有不少好客户端。各类选择给你什么、又缺什么，摆在一起看：
 
-这正是本项目的立意：不做任何单平台客户端的移植，而是一个「在哪里跑都长一样」的客户端。
+| 你在用… | 得到什么 | 缺什么 |
+|---|---|---|
+| Web UI（hermes-webui、hermes-workspace） | 浏览器里功能齐全的仪表盘，免安装 | 它是个网页：手机上控件按鼠标尺寸设计，没有原生窗口、没有托盘、没有全局热键 |
+| macOS 原生客户端 | 完整的 Mac 原生体验 | 只有 macOS，Windows 与 Android 用户拿不到对应物 |
+| 只做桌面的伴侣应用 | 桌面上装完即聊 | 手机端是另一个客户端，或者干脆没有 |
+
+**Hermes Anywhere 是同一套 Flutter + Cupertino 代码库**，所以 Windows 与 Android 是真正一致的界面：同一套三栏布局、同一套思考与工具卡片、同一份逐会话草稿、同一套明暗主题、同一套中英双语界面。桌面端开一个回合，手机上接着聊。
+
+Windows 安装包还把后端一并带上：内置 WebUI 服务与自带的 Python 3.11 运行时，无需预装 Python、Git 或编译器——选「内置服务 → 启动并连接」就能直接聊。宽屏是设计目标而非拉伸结果：需要的地方以双栏展开，而不是把单栏拉满全宽。
 
 ## 功能亮点
 

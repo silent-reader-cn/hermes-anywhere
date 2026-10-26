@@ -2,9 +2,12 @@
 
 # Hermes Anywhere
 
-**One smooth Hermes experience, everywhere.**
+**The same Hermes client on your desk and in your pocket — one codebase, one interface, the same sessions.**
 
-A Flutter + Cupertino client for [Hermes Agent](https://hermes-agent.nousresearch.com/docs) — one codebase, consistent chat on desktop and phone.
+A Flutter + Cupertino client for [Hermes Agent](https://hermes-agent.nousresearch.com/docs).
+Windows and Android are **the same app**: same sidebar, same reasoning and tool cards, same
+per-session drafts, same light/dark theme, same bilingual UI — not a web wrapper, not two
+separate codebases, not a Mac-only build with a phone app bolted on.
 
 [![CI](https://github.com/silent-reader-cn/hermes-anywhere/actions/workflows/ci.yml/badge.svg)](https://github.com/silent-reader-cn/hermes-anywhere/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -45,12 +48,23 @@ A Flutter + Cupertino client for [Hermes Agent](https://hermes-agent.nousresearc
 
 ## Why this one
 
-**One codebase, two platforms.** A Windows desktop app and an Android phone app built from the same
-Flutter + Cupertino codebase — the same layout, the same features, the same bilingual UI on both.
-Start a turn at your desk, pick it up from your phone.
+Hermes already has good clients. Here is what each kind gives you, and what it leaves out.
 
-That is the point of the project: not a port of any single-platform client, but one client that
-behaves the same everywhere it runs.
+| If you use… | You get | What you don't get |
+|---|---|---|
+| a Web UI (hermes-webui, hermes-workspace) | a rich dashboard in the browser, nothing to install | it is a web page: mouse-sized hit targets on a phone, no native window, no tray, no global hotkeys |
+| a macOS-native client | a fully native Mac experience | macOS only — Windows and Android users get nothing |
+| a desktop-only companion | install-and-chat on the desktop | the phone side is a different client, or missing entirely |
+
+**Hermes Anywhere is one Flutter + Cupertino codebase**, so Windows and Android are genuinely the
+same interface: the same three-pane layout, the same reasoning and tool cards, the same per-session
+drafts, the same light/dark theme, the same bilingual UI. Start a turn at your desk, finish it on
+your phone.
+
+On Windows the installer also ships the backend: an embedded WebUI server with its own Python 3.11
+runtime, so there is no Python, Git, or compiler to install — pick **Built-in service → Start &
+Connect** and you are chatting. Designed for wide screens rather than stretched out of them: pages
+that need it open as two panes instead of one long column.
 
 ## Highlights
 
