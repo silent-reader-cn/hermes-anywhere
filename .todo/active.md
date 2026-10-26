@@ -3242,3 +3242,17 @@ return MediaQuery(
 - [x] `C:/tmp/f.bat analyze` 零告警
 - [x] 全量 `C:/tmp/f.bat test` 与基线一致（基线：5964 通过 / 241 跳过 / 1 失败 = `session_list dark` 金照偏移，既有）
 - [ ] 主人真机复验：安卓进入工作区文件浏览 → 进子目录 → 按返回键 ⇒ 回到上一级目录（而非退出页面）；根目录按返回 ⇒ 退出页面
+
+### #207 安装向导（测试机反馈四件）：第 4 步「解释器缺失」+ 两张说明卡 / 括号举例 / 日志重复滚动条
+
+**分类**：引导/部署　**状态**：已实现并过测（3af685b），待主人测试机复验　**发现**：2026-10-26（主人测试机实测反馈）
+
+- **① 第 4 步「启动服务」报「解释器缺失」**（真 bug，根因两层，均已修）：
+  - **布局断层**：官方 `install.ps1` 2026-10 重写后 `venv` stage 只备 bootstrap Python（注释原文 “PM alone creates dependency environments”），依赖环境由 `pm install` 建在 `<hermesHome>\installs\<id>\environments\<id>\venv`（权威指针 = `installs\<id>\facts.json` 里的 `packages.venv.environment`，**该值本身就是 venv 目录**）；客户端只认 `<agentDir>\venv` / `.venv` ⇒ 全新装机第 4 步**必然**报缺失。修 = `resolveAgentPythonPath` 改 4 档候选（旧 venv/.venv → facts.json → `$HERMES_HOME` 指向的 home 再走一遍；多个 installs 按 facts.json 修改时间取最新，坏 JSON 只跳过不抛），并暴露 `agentPythonCandidates()` 供诊断；`$HERMES_HOME` 与 pm 扫描只在**未注入的生产 fs** 上生效，避免宿主机真实的 installs 树污染用例。
+  - **参数分叉**：`-HermesHome` **不改** `install_dir`（默认只跟随 `$env:HERMES_HOME`；`-ShowResolvedPaths` 实测：两者共存时 hermes_home 取参数值、install_dir 取环境变量值）⇒ agent 与依赖环境装到别的 home，客户端永远找不到解释器。修 = `runStage` 显式传 `-InstallDir <home>\hermes-agent`。
+  - **诊断**：解释器缺失时把「实际查过的候选路径」写进安装日志（新增 l10n 键 `installWizardLogInterpreterSearch`），不再只报一句结果。
+- **② 删两张说明卡**（「不勾选也能用…」/「首次运行 Windows 可能弹网络询问…」）：与 Tailscale 勾选行挤成一堆、信息重复 ⇒ 整卡删除，`_noteCard` 一并删；文案键留在 l10n（手机端配对指引仍在讲同一件事）。
+- **③ 「装好后手机在任何网络都能连」去掉「（4G / 公司 / 外地）」举例**，中英同步。
+- **④ 安装日志的第二个滚动条**：Windows 桌面默认 ScrollBehavior（含 CupertinoScrollBehavior）会给**每个**竖向 ScrollView 套一条滚动条 ⇒ 页面 + 日志各一条，滚日志时右侧冒出第二条；修 = 日志内层 `ScrollConfiguration(copyWith(scrollbars: false))`，页面那条保留。
+- **验收**：`analyze` 0 issue；`test/core/install` + `features/webui_sidecar` + `features/onboarding` + `l10n` 共 368 条全绿；新增守卫 4 条（pm 布局解析 / 坏 facts.json 不抛 / `-InstallDir` 参数 / 日志区无内层滚动条，其中滚动条用例做过 **RED 校验**：摘掉修复后精确红）；`install_guide_tailscale_step` 暗亮两张金照重拍并 vision 核对（卡已删、文案无括号、无溢出/低对比）；全量 6004 通过 / 241 跳过 / 1 抖动（`tool_call_basics_extra_test` 的「值相等」，单跑与 `test/core/models/` 1252 条全绿，既有抖动）。
+- [ ] 主人测试机复验：升级到含本提交的包后，第 4 步能拉起内置服务（已装在 `$HERMES_HOME\hermes-agent` 的旧机器也应直接认出解释器，无需重装）。
