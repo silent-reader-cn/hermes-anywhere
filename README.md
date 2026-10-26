@@ -22,9 +22,9 @@ separate codebases, not a Mac-only build with a phone app bolted on.
 
 ## Screenshots
 
-**Windows desktop** — your sessions on the left, the conversation on the right: streamed Markdown answers, reasoning and tool cards, steer mid-turn.
+**One app, two screens.** The same session open on Windows (left, with its session sidebar) and on Android (right) — identical conversation, identical reasoning and tool cards, identical theme.
 
-<img src="docs/screenshots/en/wide-chat-dark.png" width="100%" alt="Hermes Anywhere on Windows: session sidebar beside a streaming answer with Markdown text, a table, a code block and a follow-up prompt"/>
+<img src="docs/screenshots/en/duo-dark.png" width="100%" alt="The same Hermes Anywhere session on Windows (left) and Android (right): the same streaming answer, reasoning and tool cards, and the same theme on both"/>
 
 <div align="center">
 

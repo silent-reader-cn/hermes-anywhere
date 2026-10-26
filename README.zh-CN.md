@@ -20,9 +20,9 @@ Windows 与 Android 是**同一个应用**：同一套侧栏、同一套思考�
 
 ## 截图
 
-**Windows 桌面** —— 左边是会话，右边是对话：流式 Markdown 回答、思考与工具卡片、回合中途 steer。
+**一个应用，两块屏幕。** 同一个会话分别在 Windows（左，带会话侧栏）与 Android（右）上打开——同样的对话、同样的思考与工具卡片、同样的主题。
 
-<img src="docs/screenshots/wide-chat-dark.png" width="100%" alt="Hermes Anywhere Windows 桌面：左会话列表 + 右流式回答（Markdown、表格、代码块与后续提问）"/>
+<img src="docs/screenshots/duo-dark.png" width="100%" alt="同一个 Hermes Anywhere 会话在 Windows（左）与 Android（右）上的对照：一致的流式回答、思考与工具卡片，以及一致的主题"/>
 
 <div align="center">
 
