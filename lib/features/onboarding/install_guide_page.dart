@@ -60,6 +60,14 @@ final tailscaleOptInProvider = NotifierProvider<TailscaleOptIn, bool>(
   TailscaleOptIn.new,
 );
 
+/// Tailscale 进度卡里「摘要行」的行盒高（= 字号 × 行高）。
+///
+/// 图标要跟**首行文字**居中，就得知道自己要在多高的盒子里居中；把这对数字
+/// 收在一处，将来改字号 / 行高时不会只剩图标对不齐。
+/// （实测背景：裸 Icon + `CrossAxisAlignment.start` 会让图标比文字墨迹中心
+/// 高 2.75 逻辑 px —— 主人 2026-10-26 报「正在静默安装 左边的 icon 没垂直居中」。）
+const double _summaryLineHeight = kFontCaption * 1.45;
+
 /// Windows 本机一键安装部署引导页。
 ///
 /// 本批（2026-10-12）改造：4 步垂直列表 → 5 步横向步骤条；「启动服务」步加
@@ -1683,18 +1691,29 @@ class _InstallGuidePageState extends ConsumerState<InstallGuidePage> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                status.isReady
-                    ? CupertinoIcons.checkmark_circle_fill
-                    : CupertinoIcons.arrow_down_circle,
-                size: 15,
-                color: status.isReady
-                    ? statusGreenText.resolveFrom(context)
-                    : LightSurfaces.resolve(
-                        context,
-                        LightSurfaces.userDetail,
-                        dark: const Color(0xFF007AFF),
-                      ),
+              // 图标与**首行文字**居中对齐：文本行盒高 = kFontCaption × 1.45，
+              // 图标 15 放在这个行盒里居中 ⇒ 与那行字共用一条中线。
+              // 原先裸 Icon + `CrossAxisAlignment.start` 会把图标顶到行盒上沿，
+              // 实测比文字墨迹中心**高 2.75 逻辑 px**（主人 2026-10-26 报「没对齐」）；
+              // 多行（含 loginUrl 那行）时仍贴首行，不会跑到整块中间。
+              SizedBox(
+                height: _summaryLineHeight,
+                child: Center(
+                  child: Icon(
+                    status.isReady
+                        ? CupertinoIcons.checkmark_circle_fill
+                        : CupertinoIcons.arrow_down_circle,
+                    key: const ValueKey('wizard-tailscale-summary-icon'),
+                    size: 15,
+                    color: status.isReady
+                        ? statusGreenText.resolveFrom(context)
+                        : LightSurfaces.resolve(
+                            context,
+                            LightSurfaces.userDetail,
+                            dark: const Color(0xFF007AFF),
+                          ),
+                  ),
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(

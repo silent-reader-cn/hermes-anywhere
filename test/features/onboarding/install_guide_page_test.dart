@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'package:hermes_ui/app/app.dart';
 import 'package:hermes_ui/app/theme/light_surfaces.dart';
 import 'package:hermes_ui/app/theme/status_colors.dart';
+import 'package:hermes_ui/app/theme/typography_tokens.dart';
 import 'package:hermes_ui/core/api/api_exception.dart';
 import 'package:hermes_ui/core/connections/connection_providers.dart';
 import 'package:hermes_ui/core/connections/connection_store.dart';
@@ -971,6 +972,41 @@ void main() {
     );
     // Tailscale 失败/就绪都不阻断向导：仍停在模型配置子阶段。
     expect(find.text('选择模型服务商'), findsOneWidget);
+  }, skip: !Platform.isWindows);
+
+  testWidgets('Tailscale 进度卡：左侧图标与摘要首行垂直居中对齐（±0.6px）', (tester) async {
+    // 主人 2026-10-26 报「正在静默安装 左边的 icon 没垂直居中」。
+    // 真因：裸 Icon + `CrossAxisAlignment.start` 会把 15 的图标顶到行盒上沿，
+    // 而行盒高 = 12 × 1.45 = 17.4 ⇒ 图标中心比首行中心高 1.2px（像素实测
+    // 宽屏金照差 2.75px，含图标字形内缩）。判据取「图标中心 vs 首行行盒中心」，
+    // 容差 0.6 ⇒ 退回旧写法必然红。
+    final tailscale = _FakeTailscaleService(
+      statuses: const [
+        TailscaleStatus(
+          state: TailscaleState.installing,
+          detail: '正在静默安装：msiexec /qn',
+          progress: 0.5,
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      buildTestApp(tester, injectTailscale: true, tailscale: tailscale),
+    );
+    await openGuide(tester);
+    await reachConfiguringModel(tester);
+
+    final summary = tester.getRect(
+      find.byKey(const ValueKey('wizard-tailscale-summary')),
+    );
+    final icon = tester.getRect(
+      find.byKey(const ValueKey('wizard-tailscale-summary-icon')),
+    );
+    final firstLineCenterY = summary.top + kFontCaption * 1.45 / 2;
+    expect(
+      icon.center.dy,
+      closeTo(firstLineCenterY, 0.6),
+      reason: '图标必须与摘要首行共用一条中线（不是顶到行盒上沿）',
+    );
   }, skip: !Platform.isWindows);
 
   testWidgets('未注入 Tailscale 服务：该行降级为「服务不可用」提示，启动服务步仍成功', (tester) async {
