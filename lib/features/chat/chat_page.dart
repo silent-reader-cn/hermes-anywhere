@@ -33,6 +33,7 @@ import 'chat_state.dart';
 import 'widgets/chat_input_bar.dart';
 import 'widgets/chat_message_list.dart';
 import 'widgets/chat_outline_sheet.dart';
+import 'widgets/chat_session_scope.dart';
 
 /// 聊天页（chat_spec.md §6：消息气泡列表 + 流式渲染 + 工具卡片 + 输入栏）。
 ///
@@ -443,7 +444,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
         ),
       ),
     );
-    return isLight
+    final page = isLight
         ? CupertinoTheme(
             data: CupertinoTheme.of(context).copyWith(
               scaffoldBackgroundColor: LightSurfaces.page,
@@ -453,6 +454,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
             child: content,
           )
         : content;
+    // 会话作用域：让聊天页内的媒体预览把「来源会话」带走（灯箱是根 Navigator 上的
+    // 全屏路由，压栈后取不到本作用域，故必须在调用瞬间解析）。详见
+    // `widgets/chat_session_scope.dart`。新会话（尚无 id）不上作用域。
+    return widget.sessionId.isEmpty
+        ? page
+        : ChatSessionScope(sessionId: widget.sessionId, child: page);
   }
 }
 

@@ -3373,6 +3373,7 @@ class _LiveTextBlock extends ConsumerWidget {
                 title: title,
                 alt: alt,
                 baseUrl: _resolveBaseUrl(context),
+                sessionId: sessionId,
               );
             },
           ),
@@ -3383,6 +3384,7 @@ class _LiveTextBlock extends ConsumerWidget {
               title: title,
               alt: alt,
               baseUrl: _resolveBaseUrl(context),
+              sessionId: sessionId,
             );
           },
         ),

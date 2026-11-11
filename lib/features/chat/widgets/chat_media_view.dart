@@ -30,6 +30,7 @@ import '../../downloads/download_save_service.dart';
 import '../../settings/settings_providers.dart';
 import '../../workspace_manager/file_preview_body.dart';
 import 'chat_media_parser.dart';
+import 'chat_session_scope.dart';
 import 'media_quote_button.dart';
 
 export '../../downloads/download_confirm_dialog.dart';
@@ -689,6 +690,17 @@ void showAttachmentPreview(
                     (displayName.isNotEmpty &&
                         MessageAttachment.isImageReference(displayName)))));
 
+  // 来源会话兜底：调用方没显式给 sessionId 时，从聊天页作用域取。
+  //
+  // 灯箱是**原生 push 到根 Navigator** 的全屏路由，压栈后它的 context 祖先里
+  // 已经没有聊天页 ⇒ 拿不到 `ChatSessionScope`。所以必须在**调用瞬间**用调用方
+  // context 解析，并随灯箱一起带走（否则「引用」按钮只能靠路由猜会话，而窄屏
+  // 走 `push` 进聊天页时路由解析不可靠 —— 见 `resolveCurrentChatSessionId`）。
+  final String? targetSessionId =
+      (sessionId != null && sessionId.isNotEmpty)
+      ? sessionId
+      : ChatSessionScope.of(context);
+
   Navigator.of(context).push(
     HermesPageRoute<void>(
       fullscreenDialog: true,
@@ -698,7 +710,7 @@ void showAttachmentPreview(
         name: displayName.isNotEmpty ? displayName : null,
         altText: altText,
         isImage: effectiveIsImage,
-        sessionId: sessionId,
+        sessionId: targetSessionId,
         expectedBytes: expectedBytes,
         mimeType: mimeType,
         onOpenFile: onOpenFile,

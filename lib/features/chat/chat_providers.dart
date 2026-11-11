@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/api/api_client_upload.dart';
@@ -310,19 +312,44 @@ final chatControllerProvider =
 /// disposed」—— 两次实测都真炸）。改从**路由**取：路由状态是只读真相，
 /// 无生命周期、无 dispose 风险。
 ///
+/// ⚠️ 路由真相有**两个来源**，必须都看（实测教训，别只读一个）：
+/// - `routerDelegate.currentConfiguration`：只有 `go` / `replace` 会更新它；
+/// - `routeInformationProvider.value.uri`：`context.push` 更新的是这里。
+///
+/// 窄屏从会话列表进聊天页走的是 `push`（`session_list_page._openChatRoute`），
+/// 此时 currentConfiguration 仍停在基路由 `/`，只看它 ⇒ 明明在聊天页里也被判成
+/// 「当前没有打开的聊天会话」（手机端「引用」按钮报错的真因，已用 widget 测试
+/// 复现：cfgUri=/ 而 infoUri=/chat/listed-session）。故这里按「当前路由 → 路由
+/// 信息」依次尝试，任一解析出 `/chat/<id>` 即命中。
+///
 /// 读法与 `features/notifications/notification_providers.dart`
 /// `isCurrentChatRoute` 同源（`routerDelegate.currentConfiguration`）。
-String? resolveCurrentChatSessionId(WidgetRef ref) {
+///
+/// [context] 可选：优先用**树里真实的** router（`GoRouter.maybeOf`），它才是
+/// 正在驱动导航的那个实例；拿不到时退回 provider 里的实例（测试 / 无路由上下文）。
+String? resolveCurrentChatSessionId(WidgetRef ref, [BuildContext? context]) {
+  GoRouter? router;
   try {
-    final router = ref.read(routerProvider);
+    router = (context == null ? null : GoRouter.maybeOf(context)) ??
+        ref.read(routerProvider);
+  } catch (_) {
+    router = null;
+  }
+  if (router == null) return null;
+
+  try {
+    final candidates = <String>[];
     final config = router.routerDelegate.currentConfiguration;
-    final Uri uri = config.isEmpty
-        ? router.routeInformationProvider.value.uri
-        : config.uri;
-    final segments = uri.pathSegments;
-    if (segments.length >= 2 && segments[0] == 'chat') {
-      final id = segments[1];
-      return id.isEmpty ? null : id;
+    if (config.isNotEmpty) {
+      candidates.add(config.uri.toString());
+      final lastLocation = config.last.matchedLocation;
+      if (lastLocation.isNotEmpty) candidates.add(lastLocation);
+    }
+    candidates.add(router.routeInformationProvider.value.uri.toString());
+
+    for (final location in candidates) {
+      final id = _chatSessionIdInLocation(location);
+      if (id != null) return id;
     }
     return null;
   } catch (_) {
@@ -330,6 +357,19 @@ String? resolveCurrentChatSessionId(WidgetRef ref) {
     return null;
   }
 }
+
+/// 从一条 location 字符串里取 `/chat/<id>` 的会话 id（其余形态返回 null）。
+String? _chatSessionIdInLocation(String location) {
+  final uri = Uri.tryParse(location);
+  if (uri == null) return null;
+  final segments = uri.pathSegments;
+  if (segments.length >= 2 && segments[0] == 'chat') {
+    final id = segments[1];
+    return id.isEmpty ? null : id;
+  }
+  return null;
+}
+
 
 /// 媒体上传执行器（把字节上传到会话附件目录）。
 ///

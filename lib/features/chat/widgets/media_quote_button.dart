@@ -59,7 +59,7 @@ class _MediaQuoteButtonState extends ConsumerState<MediaQuoteButton> {
   String? _targetSessionId() {
     final own = widget.sessionId;
     if (own != null && own.isNotEmpty) return own;
-    final current = resolveCurrentChatSessionId(ref);
+    final current = resolveCurrentChatSessionId(ref, context);
     if (current != null && current.isNotEmpty) return current;
     return null;
   }
